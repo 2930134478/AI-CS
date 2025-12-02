@@ -6,13 +6,29 @@ interface SendMessagePayload {
   content: string;
   senderId?: number;
   senderIsAgent?: boolean;
+  // 文件相关字段（可选）
+  fileUrl?: string;
+  fileType?: "image" | "document";
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+}
+
+// 文件上传结果
+export interface UploadFileResult {
+  file_url: string;
+  file_type: "image" | "document";
+  file_name: string;
+  file_size: number;
+  mime_type: string;
 }
 
 export async function fetchMessages(
-  conversationId: number
+  conversationId: number,
+  includeAIMessages: boolean = false
 ): Promise<MessageItem[]> {
   const res = await fetch(
-    `${API_BASE_URL}/messages?conversation_id=${conversationId}`,
+    `${API_BASE_URL}/messages?conversation_id=${conversationId}&include_ai_messages=${includeAIMessages}`,
     {
       cache: "no-store",
     }
@@ -27,21 +43,66 @@ export async function fetchMessages(
   return data;
 }
 
+// 上传文件
+export async function uploadFile(
+  file: File,
+  conversationId?: number
+): Promise<UploadFileResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (conversationId) {
+    formData.append("conversation_id", conversationId.toString());
+  }
+
+  const res = await fetch(`${API_BASE_URL}/messages/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || "文件上传失败");
+  }
+
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.error || "文件上传失败");
+  }
+
+  return data.data;
+}
+
 export async function sendMessage({
   conversationId,
   content,
   senderId,
   senderIsAgent = true,
+  fileUrl,
+  fileType,
+  fileName,
+  fileSize,
+  mimeType,
 }: SendMessagePayload): Promise<void> {
+  const payload: any = {
+    conversation_id: conversationId,
+    content,
+    sender_is_agent: senderIsAgent,
+    sender_id: typeof senderId === "number" ? senderId : 0,
+  };
+
+  // 如果有文件，添加文件字段
+  if (fileUrl) {
+    payload.file_url = fileUrl;
+    if (fileType) payload.file_type = fileType;
+    if (fileName) payload.file_name = fileName;
+    if (fileSize) payload.file_size = fileSize;
+    if (mimeType) payload.mime_type = mimeType;
+  }
+
   const res = await fetch(`${API_BASE_URL}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      content,
-      sender_is_agent: senderIsAgent,
-      sender_id: typeof senderId === "number" ? senderId : 0,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));

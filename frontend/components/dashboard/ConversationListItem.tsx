@@ -6,6 +6,8 @@ import {
   formatConversationTime,
   isVisitorOnline,
 } from "@/utils/format";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 interface ConversationListItemProps {
   conversation: ConversationSummary;
@@ -28,7 +30,7 @@ export function ConversationListItem({
   const isOnline = isVisitorOnline(conversation.last_seen_at);
 
   return (
-    <div
+    <Card
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -39,8 +41,10 @@ export function ConversationListItem({
           event.preventDefault();
         }
       }}
-      className={`p-4 border-b border-gray-100 cursor-pointer transition-colors select-none ${
-        selected ? "bg-blue-50 border-l-4 border-l-blue-500" : "hover:bg-gray-50"
+      className={`p-4 mb-2 cursor-pointer transition-all select-none border-0 shadow-sm hover:shadow-md ${
+        selected
+          ? "bg-primary/5 border-l-4 border-l-primary shadow-md"
+          : "hover:bg-accent/50"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -52,7 +56,7 @@ export function ConversationListItem({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-gray-800 text-sm truncate">
+            <span className="font-medium text-foreground text-sm truncate">
               对话 #{conversation.id}
             </span>
             {/* 在线/离线状态图标 */}
@@ -64,25 +68,22 @@ export function ConversationListItem({
               />
             )}
             {unreadCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-500 text-white flex-shrink-0">
+              <Badge variant="destructive" className="flex-shrink-0">
                 {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
+              </Badge>
             )}
-            <span
-              className={`px-2 py-0.5 rounded text-xs flex-shrink-0 ${
-                conversation.status === "open"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-gray-100 text-gray-700"
-              }`}
+            <Badge
+              variant={conversation.status === "open" ? "default" : "secondary"}
+              className="flex-shrink-0"
             >
               {conversation.status === "open" ? "进行中" : "已关闭"}
-            </span>
+            </Badge>
           </div>
-          <div className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             {lastMessage?.sender_is_agent && (
               <span
                 className={`text-[10px] ${
-                  lastMessage.is_read ? "text-blue-400" : "text-gray-400"
+                  lastMessage.is_read ? "text-primary/70" : "text-muted-foreground"
                 }`}
               >
                 {lastMessage.is_read ? "✓✓" : "✓"}
@@ -90,13 +91,13 @@ export function ConversationListItem({
             )}
             <span className="truncate">{lastMessagePreview}</span>
           </div>
-          <div className="flex items-center justify-between text-xs text-gray-400">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>访客 #{conversation.visitor_id}</span>
             <span>{formatConversationTime(conversation.updated_at)}</span>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 

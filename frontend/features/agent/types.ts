@@ -18,6 +18,7 @@ export interface ConversationSummary {
   last_message?: LastMessage;
   unread_count?: number;
   last_seen_at?: string | null; // 最后活跃时间，用于判断在线状态
+  has_participated?: boolean; // 当前用户是否参与过该会话（是否发送过消息）
 }
 
 export interface MessageItem {
@@ -28,8 +29,15 @@ export interface MessageItem {
   content: string;
   created_at: string;
   message_type?: string;
+  chat_mode?: string; // 消息发送时的对话模式：human（人工客服）、ai（AI客服）
   is_read?: boolean;
   read_at?: string | null;
+  // 文件相关字段（可选）
+  file_url?: string | null;
+  file_type?: string | null; // "image" | "document"
+  file_name?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -60,6 +68,7 @@ export interface Profile {
   avatar_url: string;
   nickname: string;
   email: string;
+  receive_ai_conversations?: boolean; // 是否接收 AI 对话
 }
 
 export interface MessagesReadPayload {

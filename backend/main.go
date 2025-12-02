@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/2930134478/AI-CS/backend/controller"
 	"github.com/2930134478/AI-CS/backend/infra"
@@ -81,13 +82,15 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
 	userRepo := repository.NewUserRepository(db)
 	conversationRepo := repository.NewConversationRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
+	aiConfigRepo := repository.NewAIConfigRepository(db)
+	faqRepo := repository.NewFAQRepository(db)
 
 	// 初始化默认管理员账号（如果不存在）
 	initDefaultAdmin(userRepo)
@@ -111,15 +114,19 @@ func main() {
 
 	// 初始化服务层
 	authService := service.NewAuthService(userRepo)
-	conversationService := service.NewConversationService(conversationRepo, messageRepo)
+	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo)
 	profileService := service.NewProfileService(userRepo, storageService)
+	aiConfigService := service.NewAIConfigService(aiConfigRepo, userRepo)
+	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo)
+	userService := service.NewUserService(userRepo) // 用户管理服务
+	faqService := service.NewFAQService(faqRepo)    // FAQ 管理服务
 
 	// 声明 Hub 变量（用于在回调函数中访问）
 	var wsHub *websocket.Hub
 
 	// 创建 WebSocket Hub，设置回调函数来处理客户端连接/断开事件
-	// 使用闭包来访问 conversationService 和 wsHub
-	onConnect := func(conversationID uint, isVisitor bool, visitorCount int) {
+	// 使用闭包来访问 conversationService、messageService、userRepo 和 wsHub
+	onConnect := func(conversationID uint, isVisitor bool, visitorCount int, agentID uint) {
 		if isVisitor {
 			if err := conversationService.UpdateVisitorOnlineStatus(conversationID, true); err != nil {
 				log.Printf("更新访客在线状态失败: %v", err)
@@ -131,6 +138,64 @@ func main() {
 				"is_online":       true,
 				"visitor_count":   visitorCount,
 			})
+		} else if agentID > 0 {
+			// 客服连接：创建系统消息 "{客服名}加入了会话"
+			// 但需要检查是否已经存在该客服的加入消息，避免重复创建
+			// 获取客服信息
+			agent, err := userRepo.GetByID(agentID)
+			if err != nil {
+				log.Printf("获取客服信息失败: %v", err)
+				return
+			}
+			// 确定显示名称：优先使用昵称，如果没有则使用用户名
+			agentName := agent.Nickname
+			if agentName == "" {
+				agentName = agent.Username
+			}
+			// 检查是否已经存在该客服的加入消息
+			hasJoinMessage, err := messageRepo.HasAgentJoinMessage(conversationID, agentID, agentName)
+			if err != nil {
+				log.Printf("检查客服加入消息失败: %v", err)
+				return
+			}
+			// 如果已经存在加入消息，不再创建
+			if hasJoinMessage {
+				log.Printf("客服 %s 已经加入过对话 %d，跳过创建系统消息", agentName, conversationID)
+				return
+			}
+			// 创建系统消息
+			// 需要获取对话信息以确定当前模式
+			conv, err := conversationRepo.GetByID(conversationID)
+			if err != nil {
+				log.Printf("获取对话信息失败: %v", err)
+				return
+			}
+			now := time.Now()
+			chatMode := conv.ChatMode
+			if chatMode == "" {
+				chatMode = "human" // 默认人工模式
+			}
+			systemMessage := &models.Message{
+				ConversationID: conversationID,
+				SenderID:       agentID,
+				SenderIsAgent:  true,
+				Content:        agentName + "加入了会话",
+				MessageType:    "system_message",
+				ChatMode:       chatMode, // 记录系统消息发送时的对话模式
+				IsRead:         true,     // 系统消息默认已读
+				ReadAt:         &now,
+			}
+			if err := messageRepo.Create(systemMessage); err != nil {
+				log.Printf("创建客服加入系统消息失败: %v", err)
+				return
+			}
+			// 延迟一小段时间后广播系统消息，确保客服的 WebSocket 连接已经完全建立
+			// 这样可以确保系统消息能够被客服接收到
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				wsHub.BroadcastMessage(conversationID, "new_message", systemMessage)
+				log.Printf("✅ 客服加入系统消息已创建并广播: 对话ID=%d, 客服=%s", conversationID, agentName)
+			}()
 		}
 	}
 
@@ -161,14 +226,18 @@ func main() {
 	wsHub = websocket.NewHub(onConnect, onDisconnect)
 	go wsHub.Run() // 启动 Hub（在后台运行）
 
-	messageService := service.NewMessageService(conversationRepo, messageRepo, wsHub)
+	messageService := service.NewMessageService(conversationRepo, messageRepo, wsHub, aiService)
+	visitorService := service.NewVisitorService(userRepo, wsHub)
 
 	// 初始化控制器
 	authController := controller.NewAuthController(authService)
-	conversationController := controller.NewConversationController(conversationService)
-	messageController := controller.NewMessageController(messageService)
-	adminController := controller.NewAdminController(authService)
+	conversationController := controller.NewConversationController(conversationService, aiConfigService)
+	messageController := controller.NewMessageController(messageService, storageService)
+	adminController := controller.NewAdminController(authService, userService)
 	profileController := controller.NewProfileController(profileService)
+	aiConfigController := controller.NewAIConfigController(aiConfigService)
+	faqController := controller.NewFAQController(faqService)
+	visitorController := controller.NewVisitorController(visitorService)
 
 	appRouter.RegisterRoutes(
 		r,
@@ -178,6 +247,9 @@ func main() {
 			Message:      messageController,
 			Admin:        adminController,
 			Profile:      profileController,
+			AIConfig:     aiConfigController,
+			FAQ:          faqController,
+			Visitor:      visitorController,
 		},
 		websocket.HandleWebSocket(wsHub),
 	)
@@ -186,8 +258,20 @@ func main() {
 	// 静态文件路径：/uploads -> backend/uploads
 	r.Static("/uploads", uploadDir)
 
-	//启动服务器)
-	log.Println("🚀 服务器启动成功，监听 :8080")
+	//启动服务器
+	// 监听所有网络接口（0.0.0.0），允许外部设备访问
+	// 如果只想本地访问，可以改为 "127.0.0.1:8080" 或 ":8080"
+	host := os.Getenv("SERVER_HOST")
+	if host == "" {
+		host = "0.0.0.0" // 默认监听所有网络接口，允许外部访问
+	}
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := host + ":" + port
+	log.Println("🚀 服务器启动成功，监听 " + addr)
 	log.Println("📡 WebSocket 服务已启动，路径: /ws?conversation_id=<对话ID>")
-	r.Run(":8080")
+	log.Println("💡 提示：如需限制为仅本地访问，请设置环境变量 SERVER_HOST=127.0.0.1")
+	r.Run(addr)
 }

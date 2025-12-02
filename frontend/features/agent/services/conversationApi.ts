@@ -4,8 +4,11 @@ import {
   ConversationSummary,
 } from "../types";
 
-export async function fetchConversations(): Promise<ConversationSummary[]> {
-  const res = await fetch(`${API_BASE_URL}/conversations`, {
+export async function fetchConversations(userId?: number): Promise<ConversationSummary[]> {
+  const url = userId 
+    ? `${API_BASE_URL}/conversations?user_id=${userId}`
+    : `${API_BASE_URL}/conversations`;
+  const res = await fetch(url, {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -18,18 +21,20 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
   return data.map((item) => ({
     ...item,
     unread_count: item.unread_count ?? 0,
+    has_participated: item.has_participated ?? false,
   }));
 }
 
 export async function searchConversations(
-  query: string
+  query: string,
+  userId?: number
 ): Promise<ConversationSummary[]> {
-  const res = await fetch(
-    `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}`,
-    {
-      cache: "no-store",
-    }
-  );
+  const url = userId
+    ? `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}&user_id=${userId}`
+    : `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, {
+    cache: "no-store",
+  });
   if (!res.ok) {
     throw new Error("搜索对话失败");
   }
@@ -40,6 +45,7 @@ export async function searchConversations(
   return data.map((item) => ({
     ...item,
     unread_count: item.unread_count ?? 0,
+    has_participated: item.has_participated ?? false,
   }));
 }
 

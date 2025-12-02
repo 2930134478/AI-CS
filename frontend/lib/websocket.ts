@@ -12,6 +12,7 @@ export interface WSMessage<T = unknown> {
 export interface WSOptions<T = unknown> {
   conversationId: number; // 对话ID
   isVisitor?: boolean; // 是否是访客（默认为 true）
+  agentId?: number; // 客服ID（如果是客服连接，需要传递）
   onMessage?: (message: WSMessage<T>) => void; // 收到消息时的回调
   onError?: (error: Event) => void; // 连接错误时的回调
   onClose?: () => void; // 连接关闭时的回调
@@ -22,6 +23,7 @@ export class WSClient<T = unknown> {
   private ws: WebSocket | null = null;
   private conversationId: number;
   private isVisitor: boolean;
+  private agentId?: number; // 客服ID
   private onMessage?: (message: WSMessage<T>) => void;
   private onError?: (error: Event) => void;
   private onClose?: () => void;
@@ -33,6 +35,7 @@ export class WSClient<T = unknown> {
   constructor(options: WSOptions<T>) {
     this.conversationId = options.conversationId;
     this.isVisitor = options.isVisitor !== undefined ? options.isVisitor : true;
+    this.agentId = options.agentId;
     this.onMessage = options.onMessage;
     this.onError = options.onError;
     this.onClose = options.onClose;
@@ -49,9 +52,13 @@ export class WSClient<T = unknown> {
     // 获取 API 基地址
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
     // 将 http:// 替换为 ws://，将 https:// 替换为 wss://
-    const wsUrl =
+    let wsUrl =
       apiBaseUrl.replace(/^http/, "ws") +
       `/ws?conversation_id=${this.conversationId}&is_visitor=${this.isVisitor}`;
+    // 如果是客服连接，添加 agent_id 参数
+    if (!this.isVisitor && this.agentId) {
+      wsUrl += `&agent_id=${this.agentId}`;
+    }
 
     try {
       this.ws = new WebSocket(wsUrl);

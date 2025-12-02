@@ -12,6 +12,11 @@ import (
 type StorageService interface {
 	// SaveAvatar 保存头像文件，返回文件URL
 	SaveAvatar(userID uint, file io.Reader, filename string) (string, error)
+	// SaveMessageFile 保存消息文件，返回文件URL
+	// conversationID: 对话ID，用于组织文件目录
+	// file: 文件内容
+	// filename: 原始文件名
+	SaveMessageFile(conversationID uint, file io.Reader, filename string) (string, error)
 	// DeleteFile 删除文件
 	DeleteFile(fileURL string) error
 	// GetFileURL 获取文件的完整URL
@@ -97,6 +102,48 @@ func (s *LocalStorageService) DeleteFile(fileURL string) error {
 		return fmt.Errorf("删除文件失败: %w", err)
 	}
 	return nil
+}
+
+// SaveMessageFile 保存消息文件
+func (s *LocalStorageService) SaveMessageFile(conversationID uint, file io.Reader, filename string) (string, error) {
+	// 获取文件扩展名
+	ext := filepath.Ext(filename)
+	if ext == "" {
+		ext = ".bin" // 默认扩展名
+	}
+	// 生成唯一文件名：{timestamp}_{原始文件名}
+	timestamp := time.Now().Unix()
+	// 清理文件名，移除特殊字符
+	safeFilename := filepath.Base(filename)
+	if len(safeFilename) > 100 {
+		// 文件名过长，截断
+		safeFilename = safeFilename[:100]
+	}
+	newFilename := fmt.Sprintf("%d_%s", timestamp, safeFilename)
+	
+	// 按对话ID组织目录：messages/{conversationID}/
+	messageDir := filepath.Join(s.baseDir, "messages", fmt.Sprintf("%d", conversationID))
+	if err := os.MkdirAll(messageDir, 0755); err != nil {
+		return "", fmt.Errorf("创建消息文件目录失败: %w", err)
+	}
+	
+	filePath := filepath.Join(messageDir, newFilename)
+	
+	// 创建文件
+	dst, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("创建文件失败: %w", err)
+	}
+	defer dst.Close()
+	
+	// 复制文件内容
+	if _, err := io.Copy(dst, file); err != nil {
+		return "", fmt.Errorf("保存文件失败: %w", err)
+	}
+	
+	// 返回相对路径（用于构建URL）
+	relativePath := filepath.Join("messages", fmt.Sprintf("%d", conversationID), newFilename)
+	return s.GetFileURL(relativePath), nil
 }
 
 // GetFileURL 获取文件的完整URL

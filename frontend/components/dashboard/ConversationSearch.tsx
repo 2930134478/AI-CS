@@ -1,5 +1,7 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
+
 interface ConversationSearchProps {
   value: string;
   onChange: (value: string) => void;
@@ -10,17 +12,17 @@ export function ConversationSearch({
   onChange,
 }: ConversationSearchProps) {
   return (
-    <div className="p-4 border-b border-gray-200">
+    <div className="p-4">
       <div className="relative">
-        <input
+        <Input
           type="text"
           placeholder="Q Search"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+          className="w-full pl-9"
         />
         <svg
-          className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400"
+          className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

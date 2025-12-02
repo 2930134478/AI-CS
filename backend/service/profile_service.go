@@ -34,12 +34,13 @@ func (s *ProfileService) GetProfile(userID uint) (*ProfileResult, error) {
 	}
 
 	return &ProfileResult{
-		ID:        user.ID,
-		Username:  user.Username,
-		Role:      user.Role,
-		AvatarURL: user.AvatarURL,
-		Nickname:  user.Nickname,
-		Email:     user.Email,
+		ID:                     user.ID,
+		Username:               user.Username,
+		Role:                   user.Role,
+		AvatarURL:              user.AvatarURL,
+		Nickname:               user.Nickname,
+		Email:                  user.Email,
+		ReceiveAIConversations: user.ReceiveAIConversations,
 	}, nil
 }
 
@@ -59,6 +60,9 @@ func (s *ProfileService) UpdateProfile(input UpdateProfileInput) (*ProfileResult
 	}
 	if input.Email != nil {
 		updates["email"] = *input.Email
+	}
+	if input.ReceiveAIConversations != nil {
+		updates["receive_ai_conversations"] = *input.ReceiveAIConversations
 	}
 
 	if len(updates) > 0 {

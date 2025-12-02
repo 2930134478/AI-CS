@@ -14,16 +14,22 @@ import (
 type ConversationService struct {
 	conversations *repository.ConversationRepository
 	messages      *repository.MessageRepository
+	aiConfigRepo  *repository.AIConfigRepository // 用于验证 AI 配置
+	userRepo      *repository.UserRepository     // 用于查询用户设置
 }
 
 // NewConversationService 创建 ConversationService 实例。
 func NewConversationService(
 	conversations *repository.ConversationRepository,
 	messages *repository.MessageRepository,
+	aiConfigRepo *repository.AIConfigRepository,
+	userRepo *repository.UserRepository,
 ) *ConversationService {
 	return &ConversationService{
 		conversations: conversations,
 		messages:      messages,
+		aiConfigRepo:  aiConfigRepo,
+		userRepo:      userRepo,
 	}
 }
 
@@ -40,6 +46,31 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			now := time.Now()
+			chatMode := input.ChatMode
+			if chatMode == "" {
+				chatMode = "human" // 默认人工客服
+			}
+
+			// 如果是 AI 模式，验证 AI 配置
+			var aiConfigID *uint
+			if chatMode == "ai" {
+				if input.AIConfigID == nil || *input.AIConfigID == 0 {
+					return nil, errors.New("AI 模式需要选择模型配置")
+				}
+				// 验证配置是否存在且开放
+				config, err := s.aiConfigRepo.GetByID(*input.AIConfigID)
+				if err != nil {
+					return nil, errors.New("模型配置不存在")
+				}
+				if !config.IsPublic {
+					return nil, errors.New("该模型未开放给访客使用")
+				}
+				if !config.IsActive {
+					return nil, errors.New("该模型配置已禁用")
+				}
+				aiConfigID = input.AIConfigID
+			}
+
 			conv = &models.Conversation{
 				VisitorID:  input.VisitorID,
 				Status:     "open",
@@ -50,6 +81,8 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 				Language:   input.Language,
 				IPAddress:  input.IPAddress,
 				LastSeenAt: &now,
+				ChatMode:   chatMode,
+				AIConfigID: aiConfigID,
 			}
 			if err := s.conversations.Create(conv); err != nil {
 				return nil, err
@@ -59,10 +92,13 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 			return nil, err
 		}
 	} else {
+		// 恢复已存在的对话
 		now := time.Now()
 		updates := map[string]interface{}{
 			"last_seen_at": &now,
 		}
+
+		// 更新访客信息（如果之前没有）
 		if input.Website != "" && conv.Website == "" {
 			updates["website"] = input.Website
 		}
@@ -81,19 +117,60 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 		if input.IPAddress != "" && conv.IPAddress == "" {
 			updates["ip_address"] = input.IPAddress
 		}
+
+		// 重要：如果用户选择了新的 ChatMode，更新对话模式
+		// 这样访客可以在人工客服和 AI 客服之间切换
+		if input.ChatMode != "" && input.ChatMode != conv.ChatMode {
+			chatMode := input.ChatMode
+			updates["chat_mode"] = chatMode
+
+			// 如果是 AI 模式，验证并更新 AI 配置
+			if chatMode == "ai" {
+				if input.AIConfigID == nil || *input.AIConfigID == 0 {
+					return nil, errors.New("AI 模式需要选择模型配置")
+				}
+				// 验证配置是否存在且开放
+				config, err := s.aiConfigRepo.GetByID(*input.AIConfigID)
+				if err != nil {
+					return nil, errors.New("模型配置不存在")
+				}
+				if !config.IsPublic {
+					return nil, errors.New("该模型未开放给访客使用")
+				}
+				if !config.IsActive {
+					return nil, errors.New("该模型配置已禁用")
+				}
+				updates["ai_config_id"] = input.AIConfigID
+			} else {
+				// 切换到人工客服模式，清除 AI 配置
+				updates["ai_config_id"] = nil
+			}
+		}
+
 		if err := s.conversations.UpdateFields(conv.ID, updates); err != nil {
+			return nil, err
+		}
+
+		// 重新获取更新后的对话信息
+		conv, err = s.conversations.GetByID(conv.ID)
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	if isNewConversation {
 		now := time.Now()
+		chatMode := input.ChatMode
+		if chatMode == "" {
+			chatMode = "human" // 默认人工模式
+		}
 		message := &models.Message{
 			ConversationID: conv.ID,
 			SenderID:       0,
 			SenderIsAgent:  false,
 			Content:        "Visitor opened the page",
 			MessageType:    "system_message",
+			ChatMode:       chatMode, // 记录系统消息发送时的对话模式
 			IsRead:         true,
 			ReadAt:         &now,
 		}
@@ -106,12 +183,17 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 
 		if input.Referrer != "" {
 			readTime := time.Now()
+			chatMode := input.ChatMode
+			if chatMode == "" {
+				chatMode = "human" // 默认人工模式
+			}
 			referrerMsg := &models.Message{
 				ConversationID: conv.ID,
 				SenderID:       0,
 				SenderIsAgent:  false,
 				Content:        "Visitor came from [" + input.Referrer + "]",
 				MessageType:    "system_message",
+				ChatMode:       chatMode, // 记录系统消息发送时的对话模式
 				IsRead:         true,
 				ReadAt:         &readTime,
 			}
@@ -152,22 +234,34 @@ func (s *ConversationService) UpdateConversationContact(input UpdateConversation
 		return nil, err
 	}
 
-	return s.GetConversationDetail(input.ConversationID)
+	// UpdateConversationContact 不传递 userID，因为更新联系信息时不需要检查参与状态
+	return s.GetConversationDetail(input.ConversationID, 0)
 }
 
-func (s *ConversationService) buildSummary(conv models.Conversation) (ConversationSummary, error) {
+func (s *ConversationService) buildSummary(conv models.Conversation, userID uint) (ConversationSummary, error) {
 	var lastSeen *time.Time
 	if conv.LastSeenAt != nil {
 		lastSeen = conv.LastSeenAt
 	}
+
+	// 检查当前用户是否参与过该会话（是否发送过消息）
+	hasParticipated := false
+	if userID > 0 {
+		if participated, err := s.messages.HasAgentParticipated(conv.ID, userID); err == nil {
+			hasParticipated = participated
+		}
+		// 错误时静默处理，不影响流程
+	}
+
 	summary := ConversationSummary{
-		ID:         conv.ID,
-		VisitorID:  conv.VisitorID,
-		AgentID:    conv.AgentID,
-		Status:     conv.Status,
-		CreatedAt:  conv.CreatedAt,
-		UpdatedAt:  conv.UpdatedAt,
-		LastSeenAt: lastSeen, // 添加 last_seen_at 字段
+		ID:              conv.ID,
+		VisitorID:       conv.VisitorID,
+		AgentID:         conv.AgentID,
+		Status:          conv.Status,
+		CreatedAt:       conv.CreatedAt,
+		UpdatedAt:       conv.UpdatedAt,
+		LastSeenAt:      lastSeen,        // 添加 last_seen_at 字段
+		HasParticipated: hasParticipated, // 当前用户是否参与过该会话
 	}
 
 	if message, err := s.messages.LatestByConversationID(conv.ID); err == nil && message != nil {
@@ -194,7 +288,12 @@ func (s *ConversationService) buildSummary(conv models.Conversation) (Conversati
 }
 
 // ListConversations 返回当前活跃会话的摘要信息。
-func (s *ConversationService) ListConversations() ([]ConversationSummary, error) {
+// userID: 当前登录的客服ID（可选，如果为0则使用默认过滤规则）
+// 过滤规则：
+// 1. 默认不显示 ChatMode == "ai" 的对话
+// 2. 如果 userID > 0 且该用户的 ReceiveAIConversations == false，则不显示 AI 对话
+// 3. 只显示 ChatMode == "human" 且存在访客消息的对话（访客切换到人工并发送消息后）
+func (s *ConversationService) ListConversations(userID uint) ([]ConversationSummary, error) {
 	conversations, err := s.conversations.ListActive()
 	if err != nil {
 		return nil, err
@@ -202,9 +301,30 @@ func (s *ConversationService) ListConversations() ([]ConversationSummary, error)
 
 	result := make([]ConversationSummary, 0, len(conversations))
 	for _, conv := range conversations {
-		summary, err := s.buildSummary(conv)
+		// 过滤规则 1: 默认不显示 AI 对话
+		// 只有在会话页面手动开启"显示 AI 对话"时才显示
+		if conv.ChatMode == "ai" {
+			continue
+		}
+
+		// 过滤规则 2: 如果是人工对话，检查是否有访客发送的消息
+		// 只有当访客切换到人工并发送消息后，才显示在列表中
+		if conv.ChatMode == "human" {
+			hasVisitorMessage, err := s.messages.HasVisitorMessageInHumanMode(conv.ID)
+			if err != nil {
+				// 如果查询失败，为了安全起见，不显示该对话
+				continue
+			}
+			if !hasVisitorMessage {
+				// 没有访客消息，不显示（访客只是切换了模式，但还没发送消息）
+				continue
+			}
+		}
+
+		// 通过过滤，添加到结果列表
+		summary, err := s.buildSummary(conv, userID)
 		if err != nil {
-			return nil, err
+			continue // 如果构建摘要失败，跳过该对话
 		}
 		result = append(result, summary)
 	}
@@ -212,13 +332,13 @@ func (s *ConversationService) ListConversations() ([]ConversationSummary, error)
 }
 
 // GetConversationDetail 获取指定会话的详细信息。
-func (s *ConversationService) GetConversationDetail(id uint) (*ConversationDetail, error) {
+func (s *ConversationService) GetConversationDetail(id uint, userID uint) (*ConversationDetail, error) {
 	conv, err := s.conversations.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	summary, err := s.buildSummary(*conv)
+	summary, err := s.buildSummary(*conv, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +365,8 @@ func (s *ConversationService) GetConversationDetail(id uint) (*ConversationDetai
 }
 
 // SearchConversations 根据关键字检索会话摘要。
-func (s *ConversationService) SearchConversations(query string) ([]ConversationSummary, error) {
+// userID: 当前登录的客服ID（可选，用于检查参与状态）
+func (s *ConversationService) SearchConversations(query string, userID uint) ([]ConversationSummary, error) {
 	pattern := "%" + query + "%"
 
 	idSet := map[uint]struct{}{}
@@ -282,7 +403,7 @@ func (s *ConversationService) SearchConversations(query string) ([]ConversationS
 
 	result := make([]ConversationSummary, 0, len(conversations))
 	for _, conv := range conversations {
-		summary, err := s.buildSummary(conv)
+		summary, err := s.buildSummary(conv, userID)
 		if err != nil {
 			return nil, err
 		}

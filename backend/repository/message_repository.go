@@ -90,7 +90,52 @@ func (r *MessageRepository) MarkMessagesRead(conversationID uint, senderIsAgent 
 	}
 	remaining, err := r.CountUnreadBySender(conversationID, senderIsAgent)
 	if err != nil {
-		return nil, 0, time.Time{}, err
+		return nil, 0, time.Time{}, nil
 	}
 	return messageIDs, remaining, now, nil
+}
+
+// HasAgentJoinMessage 检查该对话中是否已经存在该客服的加入消息。
+// 用于避免重复创建"xxx加入了会话"的系统消息。
+func (r *MessageRepository) HasAgentJoinMessage(conversationID uint, agentID uint, agentName string) (bool, error) {
+	var count int64
+	joinMessageContent := agentName + "加入了会话"
+	if err := r.db.Model(&models.Message{}).
+		Where("conversation_id = ? AND sender_id = ? AND sender_is_agent = ? AND message_type = ? AND content = ?",
+			conversationID, agentID, true, "system_message", joinMessageContent).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// HasVisitorMessageInHumanMode 检查对话中是否有访客在人工模式下发送的消息。
+// 用于判断对话是否应该显示在客服列表中。
+// 只有当 ChatMode == "human" 且存在访客发送的消息时，才应该显示。
+func (r *MessageRepository) HasVisitorMessageInHumanMode(conversationID uint) (bool, error) {
+	var count int64
+	// 查询是否有访客发送的消息（sender_is_agent = false）
+	// 注意：这里不检查 ChatMode，因为 ChatMode 在 Conversation 表中
+	// 这个方法只检查消息是否存在，ChatMode 的检查在 Service 层
+	if err := r.db.Model(&models.Message{}).
+		Where("conversation_id = ? AND sender_is_agent = ?", conversationID, false).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// HasAgentParticipated 检查指定客服是否在指定会话中发送过消息。
+// 用于判断该会话是否应该出现在该客服的"My chats"列表中。
+func (r *MessageRepository) HasAgentParticipated(conversationID uint, agentID uint) (bool, error) {
+	var count int64
+	// 查询是否有该客服发送的消息（sender_is_agent = true AND sender_id = agentID）
+	// 注意：系统消息（message_type = 'system_message'）也应该算作参与
+	// 所以不限制 message_type，包括所有类型的消息
+	if err := r.db.Model(&models.Message{}).
+		Where("conversation_id = ? AND sender_is_agent = ? AND sender_id = ?", conversationID, true, agentID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

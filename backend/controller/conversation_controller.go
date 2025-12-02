@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/2930134478/AI-CS/backend/utils"
@@ -11,20 +12,29 @@ import (
 // ConversationController 负责处理会话相关的 HTTP 请求。
 type ConversationController struct {
 	conversationService *service.ConversationService
+	aiConfigService     *service.AIConfigService // 用于获取开放的模型列表
 }
 
 // NewConversationController 创建 ConversationController 实例。
-func NewConversationController(conversationService *service.ConversationService) *ConversationController {
-	return &ConversationController{conversationService: conversationService}
+func NewConversationController(
+	conversationService *service.ConversationService,
+	aiConfigService *service.AIConfigService,
+) *ConversationController {
+	return &ConversationController{
+		conversationService: conversationService,
+		aiConfigService:     aiConfigService,
+	}
 }
 
 type initConversationRequest struct {
-	VisitorID uint   `json:"visitor_id"`
-	Website   string `json:"website"`
-	Referrer  string `json:"referrer"`
-	Browser   string `json:"browser"`
-	OS        string `json:"os"`
-	Language  string `json:"language"`
+	VisitorID  uint   `json:"visitor_id"`
+	Website    string `json:"website"`
+	Referrer   string `json:"referrer"`
+	Browser    string `json:"browser"`
+	OS         string `json:"os"`
+	Language   string `json:"language"`
+	ChatMode   string `json:"chat_mode"`   // 对话模式：human（人工客服）、ai（AI客服）
+	AIConfigID *uint  `json:"ai_config_id"` // AI 配置 ID（访客选择的模型配置，AI 模式时必需）
 }
 
 type updateContactRequest struct {
@@ -54,17 +64,19 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 	}
 
 	result, err := cc.conversationService.InitConversation(service.InitConversationInput{
-		VisitorID: req.VisitorID,
-		Website:   req.Website,
-		Referrer:  req.Referrer,
-		Browser:   browser,
-		OS:        os,
-		Language:  req.Language,
-		IPAddress: utils.GetClientIP(c),
+		VisitorID:  req.VisitorID,
+		Website:    req.Website,
+		Referrer:   req.Referrer,
+		Browser:    browser,
+		OS:         os,
+		Language:   req.Language,
+		IPAddress:  utils.GetClientIP(c),
+		ChatMode:   req.ChatMode,
+		AIConfigID: req.AIConfigID,
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建对话失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -72,6 +84,17 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 		"conversation_id": result.ConversationID,
 		"status":          result.Status,
 	})
+}
+
+// GetPublicAIModels 获取所有开放的模型配置（供访客选择）。
+func (cc *ConversationController) GetPublicAIModels(c *gin.Context) {
+	modelType := c.DefaultQuery("model_type", "text")
+	models, err := cc.aiConfigService.GetPublicModels(modelType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": models})
 }
 
 // UpdateContactInfo 用于更新访客的联系信息。
@@ -117,7 +140,16 @@ func (cc *ConversationController) UpdateContactInfo(c *gin.Context) {
 
 // ListConversations 返回当前活跃会话的列表。
 func (cc *ConversationController) ListConversations(c *gin.Context) {
-	conversations, err := cc.conversationService.ListConversations()
+	// 从查询参数获取 user_id（可选）
+	var userID uint
+	if userIDStr := c.Query("user_id"); userIDStr != "" {
+		// 使用 strconv 解析查询参数（不是路径参数）
+		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+			userID = uint(parsed)
+		}
+	}
+
+	conversations, err := cc.conversationService.ListConversations(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询对话列表失败"})
 		return
@@ -126,13 +158,14 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 	items := make([]gin.H, 0, len(conversations))
 	for _, conv := range conversations {
 		item := gin.H{
-			"id":           conv.ID,
-			"visitor_id":   conv.VisitorID,
-			"agent_id":     conv.AgentID,
-			"status":       conv.Status,
-			"created_at":   formatTimeValue(conv.CreatedAt),
-			"updated_at":   formatTimeValue(conv.UpdatedAt),
-			"unread_count": conv.UnreadCount,
+			"id":               conv.ID,
+			"visitor_id":       conv.VisitorID,
+			"agent_id":         conv.AgentID,
+			"status":           conv.Status,
+			"created_at":       formatTimeValue(conv.CreatedAt),
+			"updated_at":       formatTimeValue(conv.UpdatedAt),
+			"unread_count":     conv.UnreadCount,
+			"has_participated": conv.HasParticipated, // 当前用户是否参与过该会话
 		}
 
 		// 添加 last_seen_at 字段（用于判断在线状态）
@@ -165,7 +198,16 @@ func (cc *ConversationController) GetConversationDetail(c *gin.Context) {
 		return
 	}
 
-	detail, err := cc.conversationService.GetConversationDetail(uint(id))
+	// 从查询参数获取 user_id（可选，用于检查参与状态）
+	var userID uint
+	if userIDStr := c.Query("user_id"); userIDStr != "" {
+		// 使用 strconv 解析查询参数（不是路径参数）
+		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+			userID = uint(parsed)
+		}
+	}
+
+	detail, err := cc.conversationService.GetConversationDetail(uint(id), userID)
 	if err != nil {
 		if err == service.ErrConversationNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在"})
@@ -220,7 +262,16 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 		return
 	}
 
-	conversations, err := cc.conversationService.SearchConversations(query)
+	// 从查询参数获取 user_id（可选，用于检查参与状态）
+	var userID uint
+	if userIDStr := c.Query("user_id"); userIDStr != "" {
+		// 使用 strconv 解析查询参数（不是路径参数）
+		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+			userID = uint(parsed)
+		}
+	}
+
+	conversations, err := cc.conversationService.SearchConversations(query, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "搜索失败"})
 		return
@@ -229,13 +280,14 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 	items := make([]gin.H, 0, len(conversations))
 	for _, conv := range conversations {
 		item := gin.H{
-			"id":           conv.ID,
-			"visitor_id":   conv.VisitorID,
-			"agent_id":     conv.AgentID,
-			"status":       conv.Status,
-			"created_at":   formatTimeValue(conv.CreatedAt),
-			"updated_at":   formatTimeValue(conv.UpdatedAt),
-			"unread_count": conv.UnreadCount,
+			"id":               conv.ID,
+			"visitor_id":       conv.VisitorID,
+			"agent_id":         conv.AgentID,
+			"status":           conv.Status,
+			"created_at":       formatTimeValue(conv.CreatedAt),
+			"updated_at":       formatTimeValue(conv.UpdatedAt),
+			"unread_count":     conv.UnreadCount,
+			"has_participated": conv.HasParticipated, // 当前用户是否参与过该会话
 		}
 
 		// 添加 last_seen_at 字段（用于判断在线状态）

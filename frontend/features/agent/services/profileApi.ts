@@ -21,6 +21,7 @@ export async function fetchProfile(userId: number): Promise<Profile | null> {
     avatar_url: data.avatar_url ?? "",
     nickname: data.nickname ?? "",
     email: data.email ?? "",
+    receive_ai_conversations: data.receive_ai_conversations ?? true, // 默认接收
   };
 }
 
@@ -28,6 +29,7 @@ export async function fetchProfile(userId: number): Promise<Profile | null> {
 export interface UpdateProfilePayload {
   nickname?: string;
   email?: string;
+  receive_ai_conversations?: boolean; // 是否接收 AI 对话
 }
 
 export async function updateProfile(
@@ -53,6 +55,7 @@ export async function updateProfile(
     avatar_url: data.avatar_url ?? "",
     nickname: data.nickname ?? "",
     email: data.email ?? "",
+    receive_ai_conversations: data.receive_ai_conversations ?? true, // 默认接收
   };
 }
 
@@ -82,6 +85,7 @@ export async function uploadAvatar(
     avatar_url: data.avatar_url ?? "",
     nickname: data.nickname ?? "",
     email: data.email ?? "",
+    receive_ai_conversations: data.receive_ai_conversations ?? true, // 默认接收
   };
 }
 

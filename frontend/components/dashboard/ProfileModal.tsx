@@ -8,6 +8,14 @@ import {
   UpdateProfilePayload,
 } from "@/features/agent/services/profileApi";
 import { getAvatarUrl, getAvatarColor, getAvatarInitial } from "@/utils/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ProfileModalProps {
   profile: Profile | null;
@@ -132,7 +140,7 @@ export function ProfileModal({
     }
   }, [profile, email, onUpdate]);
 
-  if (!open || !profile) {
+  if (!profile) {
     return null;
   }
 
@@ -142,31 +150,11 @@ export function ProfileModal({
   const fullAvatarUrl = getAvatarUrl(profile.avatar_url);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        {/* 标题 */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">个人资料</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors"
-            disabled={saving || uploading}
-          >
-            <svg
-              className="w-5 h-5 text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-auto">
+        <DialogHeader>
+          <DialogTitle>个人资料</DialogTitle>
+        </DialogHeader>
 
         {/* 错误提示 */}
         {errorMessage && (
@@ -206,13 +194,15 @@ export function ProfileModal({
             onChange={handleAvatarSelect}
             disabled={uploading}
           />
-          <button
+          <Button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="mt-3 px-4 py-2 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            variant="default"
+            size="default"
+            className="mt-3"
           >
             {uploading ? "上传中..." : "更换头像"}
-          </button>
+          </Button>
         </div>
 
         {/* 用户名（只读） */}
@@ -232,39 +222,44 @@ export function ProfileModal({
           <div className="text-sm text-gray-500 mb-1 flex items-center justify-between">
             <span>昵称</span>
             {!editingNickname ? (
-              <button
+              <Button
                 onClick={() => setEditingNickname(true)}
-                className="text-blue-500 text-xs hover:text-blue-600"
+                variant="ghost"
+                size="sm"
+                className="text-xs h-auto py-0 px-1 text-blue-500 hover:text-blue-600"
                 disabled={saving}
               >
                 编辑
-              </button>
+              </Button>
             ) : (
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => {
                     setEditingNickname(false);
                     setNickname(profile.nickname || "");
                   }}
-                  className="text-gray-500 text-xs hover:text-gray-600"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-auto py-0 px-1 text-gray-500 hover:text-gray-600"
                   disabled={saving}
                 >
                   取消
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSaveNickname}
-                  className="text-blue-500 text-xs hover:text-blue-600"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-auto py-0 px-1 text-blue-500 hover:text-blue-600"
                   disabled={saving}
                 >
                   保存
-                </button>
+                </Button>
               </div>
             )}
           </div>
           {editingNickname ? (
-            <input
+            <Input
               type="text"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="请输入昵称"
@@ -282,39 +277,44 @@ export function ProfileModal({
           <div className="text-sm text-gray-500 mb-1 flex items-center justify-between">
             <span>邮箱</span>
             {!editingEmail ? (
-              <button
+              <Button
                 onClick={() => setEditingEmail(true)}
-                className="text-blue-500 text-xs hover:text-blue-600"
+                variant="ghost"
+                size="sm"
+                className="text-xs h-auto py-0 px-1 text-blue-500 hover:text-blue-600"
                 disabled={saving}
               >
                 编辑
-              </button>
+              </Button>
             ) : (
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={() => {
                     setEditingEmail(false);
                     setEmail(profile.email || "");
                   }}
-                  className="text-gray-500 text-xs hover:text-gray-600"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-auto py-0 px-1 text-gray-500 hover:text-gray-600"
                   disabled={saving}
                 >
                   取消
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleSaveEmail}
-                  className="text-blue-500 text-xs hover:text-blue-600"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-auto py-0 px-1 text-blue-500 hover:text-blue-600"
                   disabled={saving}
                 >
                   保存
-                </button>
+                </Button>
               </div>
             )}
           </div>
           {editingEmail ? (
-            <input
+            <Input
               type="email"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="请输入邮箱"
@@ -327,18 +327,8 @@ export function ProfileModal({
           )}
         </div>
 
-        {/* 关闭按钮 */}
-        <div className="flex justify-end">
-          <button
-            onClick={onClose}
-            disabled={saving || uploading}
-            className="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors"
-          >
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

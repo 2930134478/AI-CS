@@ -8,6 +8,8 @@ export interface InitVisitorConversationPayload {
   os?: string;
   language?: string;
   ipAddress?: string;
+  chatMode?: string; // 对话模式：human（人工客服）、ai（AI客服）
+  aiConfigId?: number; // AI 配置 ID（访客选择的模型配置，AI 模式时必需）
 }
 
 export interface InitVisitorConversationResult {
@@ -29,6 +31,8 @@ export async function initVisitorConversation(
       os: payload.os,
       language: payload.language,
       ip_address: payload.ipAddress,
+      chat_mode: payload.chatMode,
+      ai_config_id: payload.aiConfigId,
     }),
   });
 

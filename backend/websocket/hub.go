@@ -3,13 +3,16 @@ package websocket
 import (
 	"log"
 	"sync"
+
+	"github.com/2930134478/AI-CS/backend/models"
 )
 
 // OnClientConnectCallback 客户端连接时的回调函数。
 // conversationID: 对话ID
 // isVisitor: 是否是访客
 // visitorCount: 该对话当前的访客连接数
-type OnClientConnectCallback func(conversationID uint, isVisitor bool, visitorCount int)
+// agentID: 客服ID（如果是客服连接）
+type OnClientConnectCallback func(conversationID uint, isVisitor bool, visitorCount int, agentID uint)
 
 // OnClientDisconnectCallback 客户端断开连接时的回调函数。
 // conversationID: 对话ID
@@ -85,7 +88,7 @@ func (h *Hub) Run() {
 
 			// 调用连接回调函数
 			if h.onConnect != nil {
-				h.onConnect(client.conversationID, client.isVisitor, visitorCount)
+				h.onConnect(client.conversationID, client.isVisitor, visitorCount, client.agentID)
 			}
 
 		// 客户端断开连接
@@ -194,8 +197,24 @@ func (h *Hub) BroadcastToAllAgents(messageType string, data interface{}) {
 
 	// 为每个客服客户端创建消息并发送
 	for _, client := range allAgents {
+		// 如果 data 是 Message 对象，使用消息的 conversation_id
+		// 否则使用客户端连接的对话ID
+		var conversationID uint
+		if msg, ok := data.(*models.Message); ok {
+			conversationID = msg.ConversationID
+		} else if convID, ok := data.(map[string]interface{})["conversation_id"]; ok {
+			if id, ok := convID.(uint); ok {
+				conversationID = id
+			} else if id, ok := convID.(float64); ok {
+				conversationID = uint(id)
+			} else {
+				conversationID = client.conversationID
+			}
+		} else {
+			conversationID = client.conversationID
+		}
 		message := &Message{
-			ConversationID: client.conversationID, // 使用客户端连接的对话ID
+			ConversationID: conversationID,
 			Type:           messageType,
 			Data:           data,
 		}
@@ -215,4 +234,21 @@ func (h *Hub) BroadcastToAllAgents(messageType string, data interface{}) {
 			h.mu.Unlock()
 		}
 	}
+}
+
+// GetOnlineAgentIDs 获取所有在线客服的用户ID列表（去重）
+// 返回一个 map，key 是 agentID，value 是 true（用于快速查找）
+func (h *Hub) GetOnlineAgentIDs() map[uint]bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	agentIDs := make(map[uint]bool)
+	for _, clients := range h.conversations {
+		for client := range clients {
+			if !client.isVisitor && client.agentID > 0 {
+				agentIDs[client.agentID] = true
+			}
+		}
+	}
+	return agentIDs
 }

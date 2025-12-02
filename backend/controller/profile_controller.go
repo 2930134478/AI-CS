@@ -18,8 +18,9 @@ func NewProfileController(profileService *service.ProfileService) *ProfileContro
 }
 
 type updateProfileRequest struct {
-	Nickname *string `json:"nickname"`
-	Email    *string `json:"email"`
+	Nickname               *string `json:"nickname"`
+	Email                  *string `json:"email"`
+	ReceiveAIConversations *bool   `json:"receive_ai_conversations"` // 是否接收 AI 对话（可选）
 }
 
 // GetProfile 获取当前用户的个人资料。
@@ -56,9 +57,10 @@ func (p *ProfileController) UpdateProfile(c *gin.Context) {
 	}
 
 	profile, err := p.profileService.UpdateProfile(service.UpdateProfileInput{
-		UserID:   uint(userID),
-		Nickname: req.Nickname,
-		Email:    req.Email,
+		UserID:                 uint(userID),
+		Nickname:               req.Nickname,
+		Email:                  req.Email,
+		ReceiveAIConversations: req.ReceiveAIConversations,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

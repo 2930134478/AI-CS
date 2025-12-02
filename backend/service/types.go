@@ -5,6 +5,7 @@ import "time"
 // BroadcastHub 描述 WebSocket Hub 的广播能力。
 type BroadcastHub interface {
 	BroadcastMessage(conversationID uint, messageType string, data interface{})
+	BroadcastToAllAgents(messageType string, data interface{})
 }
 
 // InitConversationInput 对话初始化需要的输入数据。
@@ -16,6 +17,8 @@ type InitConversationInput struct {
 	OS        string
 	Language  string
 	IPAddress string
+	ChatMode   string // 对话模式：human（人工客服）、ai（AI客服）
+	AIConfigID *uint  // AI 配置 ID（访客选择的模型配置，AI 模式时必需）
 }
 
 // InitConversationResult 对话初始化后的返回结果。
@@ -34,15 +37,16 @@ type UpdateConversationContactInput struct {
 
 // ConversationSummary 用于会话列表展示的概要信息。
 type ConversationSummary struct {
-	ID          uint
-	VisitorID   uint
-	AgentID     uint
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	LastMessage *LastMessageSummary
-	UnreadCount int64
-	LastSeenAt  *time.Time // 最后活跃时间，用于判断在线状态
+	ID             uint
+	VisitorID      uint
+	AgentID        uint
+	Status         string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LastMessage    *LastMessageSummary
+	UnreadCount    int64
+	LastSeenAt     *time.Time // 最后活跃时间，用于判断在线状态
+	HasParticipated bool      // 当前用户是否参与过该会话（是否发送过消息）
 }
 
 // LastMessageSummary 会话最后一条消息的摘要信息。
@@ -78,6 +82,12 @@ type CreateMessageInput struct {
 	Content        string
 	SenderID       uint
 	SenderIsAgent  bool
+	// 文件相关字段（可选）
+	FileURL  *string // 文件URL
+	FileType *string // 文件类型：image, document
+	FileName *string // 原始文件名
+	FileSize *int64  // 文件大小（字节）
+	MimeType *string // MIME类型
 }
 
 // CreateAgentInput 创建客服或管理员账号需要的参数。
@@ -97,17 +107,89 @@ type MarkMessagesReadResult struct {
 
 // UpdateProfileInput 更新个人资料时需要的参数。
 type UpdateProfileInput struct {
-	UserID   uint
-	Nickname *string
-	Email    *string
+	UserID                 uint
+	Nickname               *string
+	Email                  *string
+	ReceiveAIConversations *bool // 是否接收 AI 对话（可选）
 }
 
 // ProfileResult 个人资料信息。
 type ProfileResult struct {
-	ID        uint   `json:"id"`
-	Username  string `json:"username"`
-	Role      string `json:"role"`
-	AvatarURL string `json:"avatar_url"`
-	Nickname  string `json:"nickname"`
-	Email     string `json:"email"`
+	ID                     uint   `json:"id"`
+	Username               string `json:"username"`
+	Role                   string `json:"role"`
+	AvatarURL              string `json:"avatar_url"`
+	Nickname               string `json:"nickname"`
+	Email                  string `json:"email"`
+	ReceiveAIConversations bool   `json:"receive_ai_conversations"` // 是否接收 AI 对话
+}
+
+// UserSummary 用户列表摘要信息（不包含密码）。
+type UserSummary struct {
+	ID                     uint      `json:"id"`
+	Username               string    `json:"username"`
+	Role                   string    `json:"role"`
+	Nickname               string    `json:"nickname"`
+	Email                  string    `json:"email"`
+	AvatarURL              string    `json:"avatar_url"`
+	ReceiveAIConversations bool      `json:"receive_ai_conversations"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
+}
+
+// CreateUserInput 创建用户输入。
+type CreateUserInput struct {
+	Username string  // 用户名（必需）
+	Password string  // 密码（必需）
+	Role     string  // 角色："admin" 或 "agent"（必需）
+	Nickname *string // 昵称（可选）
+	Email    *string // 邮箱（可选）
+}
+
+// UpdateUserInput 更新用户输入。
+type UpdateUserInput struct {
+	UserID                 uint    // 用户ID（必需）
+	Role                   *string // 角色（可选）
+	Nickname               *string // 昵称（可选）
+	Email                  *string // 邮箱（可选）
+	ReceiveAIConversations *bool   // 是否接收 AI 对话（可选）
+}
+
+// UpdatePasswordInput 更新密码输入。
+type UpdatePasswordInput struct {
+	UserID      uint    // 用户ID（必需）
+	OldPassword *string // 旧密码（可选，管理员修改其他用户密码时不需要）
+	NewPassword string  // 新密码（必需）
+	IsAdmin     bool    // 是否是管理员操作（必需）
+}
+
+// FAQSummary FAQ（常见问题）摘要信息。
+type FAQSummary struct {
+	ID        uint      `json:"id"`
+	Question  string    `json:"question"`  // 问题
+	Answer    string    `json:"answer"`    // 答案
+	Keywords  string    `json:"keywords"`  // 关键词（用于搜索）
+	CreatedAt time.Time `json:"created_at"` // 创建时间
+	UpdatedAt time.Time `json:"updated_at"` // 更新时间
+}
+
+// CreateFAQInput 创建 FAQ 输入。
+type CreateFAQInput struct {
+	Question string // 问题（必需）
+	Answer   string // 答案（必需）
+	Keywords string // 关键词（可选，用逗号或空格分隔）
+}
+
+// UpdateFAQInput 更新 FAQ 输入。
+type UpdateFAQInput struct {
+	Question *string // 问题（可选）
+	Answer   *string // 答案（可选）
+	Keywords *string // 关键词（可选）
+}
+
+// OnlineAgent 在线客服信息（供访客查看）。
+type OnlineAgent struct {
+	ID        uint   `json:"id"`         // 客服ID
+	Nickname  string `json:"nickname"`   // 昵称
+	AvatarURL string `json:"avatar_url"` // 头像URL
 }

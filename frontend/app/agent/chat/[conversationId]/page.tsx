@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { MessageList } from "@/components/dashboard/MessageList";
 import { MessageInput } from "@/components/dashboard/MessageInput";
 import { ChatHeader } from "@/components/dashboard/ChatHeader";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/agent/hooks/useAuth";
 import { useWebSocket } from "@/features/agent/hooks/useWebSocket";
 import {
@@ -330,8 +331,12 @@ export default function AgentChatPage() {
     conversationId,
     enabled: Boolean(conversationId),
     onMessage: handleWebSocketMessage,
-    onError: (error) => console.error("WebSocket 连接错误:", error),
-    onClose: () => console.log("WebSocket 连接已关闭"),
+    onError: (error) => {
+      // 静默处理错误，避免影响用户体验
+    },
+    onClose: () => {
+      // 静默处理关闭，避免影响用户体验
+    },
   });
 
   const handleBack = useCallback(() => {
@@ -357,12 +362,13 @@ export default function AgentChatPage() {
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200">
         <div className="flex items-center gap-4 px-4 h-16">
-          <button
+          <Button
             onClick={handleBack}
-            className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+            variant="outline"
+            size="sm"
           >
             ← 返回
-          </button>
+          </Button>
           <div className="flex-1">
             <ChatHeader
               conversationId={conversationId}

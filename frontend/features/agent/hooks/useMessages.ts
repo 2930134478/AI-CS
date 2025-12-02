@@ -33,12 +33,16 @@ interface UseMessagesOptions {
     updater: (conversation: ConversationSummary) => ConversationSummary,
     options?: { skipResort?: boolean }
   ) => void;
+  refreshConversations?: () => void; // 刷新对话列表（用于新对话的情况）
+  hasConversation?: (conversationId: number) => boolean; // 检查对话是否存在
 }
 
 export function useMessages({
   conversationId,
   agentId,
   updateConversation,
+  refreshConversations,
+  hasConversation,
 }: UseMessagesOptions) {
   // 消息列表、请求状态、访客详情等基础状态
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -46,6 +50,7 @@ export function useMessages({
   const [sending, setSending] = useState(false);
   const [conversationDetail, setConversationDetail] =
     useState<ConversationDetail | null>(null);
+  const [includeAIMessages, setIncludeAIMessages] = useState(false); // 是否包含 AI 消息（默认不包含）
 
   const refreshConversationDetail = useCallback(
     async (id: number) => {
@@ -155,10 +160,10 @@ export function useMessages({
   );
 
   const loadMessages = useCallback(
-    async (id: number) => {
+    async (id: number, includeAI: boolean = includeAIMessages) => {
       setLoadingMessages(true);
       try {
-        const data = await fetchMessages(id);
+        const data = await fetchMessages(id, includeAI);
         setMessages(data);
         // 注意：不再自动标记访客消息为已读，而是通过滚动检测来处理
       } catch (error) {
@@ -167,7 +172,7 @@ export function useMessages({
         setLoadingMessages(false);
       }
     },
-    []
+    [includeAIMessages]
   );
 
   useEffect(() => {
@@ -176,21 +181,30 @@ export function useMessages({
       setConversationDetail(null);
       return;
     }
-    loadMessages(conversationId);
+    loadMessages(conversationId, includeAIMessages);
     refreshConversationDetail(conversationId);
-  }, [conversationId, agentId, loadMessages, refreshConversationDetail]);
+  }, [conversationId, agentId, includeAIMessages, loadMessages, refreshConversationDetail]);
 
   const handleSendMessage = useCallback(
-    async (content: string) => {
-      if (!conversationId || !agentId || !content.trim() || sending) {
+    async (content: string, fileInfo?: { file_url: string; file_type: string; file_name: string; file_size: number; mime_type: string }) => {
+      if (!conversationId || !agentId || sending) {
+        return;
+      }
+      // 验证：必须有内容或文件
+      if (!content.trim() && !fileInfo) {
         return;
       }
       setSending(true);
       try {
         await sendMessage({
           conversationId,
-          content,
+          content: content.trim(),
           senderId: agentId,
+          fileUrl: fileInfo?.file_url,
+          fileType: fileInfo?.file_type as "image" | "document" | undefined,
+          fileName: fileInfo?.file_name,
+          fileSize: fileInfo?.file_size,
+          mimeType: fileInfo?.mime_type,
         });
       } catch (error) {
         console.error(error);
@@ -204,25 +218,13 @@ export function useMessages({
 
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
-      setMessages((prev) => {
-        const exists = prev.some((item) => item.id === message.id);
-        if (exists) {
-          // 消息已存在，更新消息内容（包括已读状态）
-          return prev.map((msg) =>
-            msg.id === message.id
-              ? {
-                  ...msg,
-                  ...message,
-                  // 如果消息已被标记为已读，保持已读状态
-                  is_read: message.is_read ?? msg.is_read,
-                  read_at: message.read_at ?? msg.read_at,
-                }
-              : msg
-          );
-        }
-        return [...prev, message];
-      });
+      // 检查对话是否存在
+      const conversationExists = hasConversation
+        ? hasConversation(message.conversation_id)
+        : true; // 如果没有提供检查方法，假设对话存在
 
+      // 先更新对话列表（无论是否是当前对话，都需要更新未读数、最后消息等）
+      // 这样即使客服没有选中这个对话，也能看到新消息的提示
       updateConversation(message.conversation_id, (conversation) => {
         const preview = buildMessagePreview(message.content);
         const isSystemMessage =
@@ -251,13 +253,58 @@ export function useMessages({
         };
       });
 
-      // 注意：不再自动标记访客消息为已读，而是通过滚动检测来处理
-
-      if (message.conversation_id === conversationId) {
-        refreshConversationDetail(message.conversation_id);
+      // 如果对话不存在（新对话），延迟刷新对话列表以添加新对话
+      // 使用 setTimeout 延迟刷新，避免频繁刷新，并且给 updateConversation 时间完成
+      if (!conversationExists && refreshConversations) {
+        setTimeout(() => {
+          refreshConversations();
+        }, 500);
       }
+
+      // 只处理当前对话的消息（添加到消息列表）
+      if (message.conversation_id !== conversationId) {
+        return;
+      }
+
+      // 根据 includeAIMessages 状态过滤 AI 消息
+      // 如果隐藏 AI 消息（includeAIMessages === false）且消息的 chat_mode === "ai"，则不添加到消息列表
+      const messageChatMode = message.chat_mode || "human"; // 兼容历史数据，默认为 human
+      const shouldHideAIMessage = !includeAIMessages && messageChatMode === "ai";
+
+      setMessages((prev) => {
+        const exists = prev.some((item) => item.id === message.id);
+        if (exists) {
+          // 消息已存在，需要根据 includeAIMessages 决定是否保留
+          if (shouldHideAIMessage) {
+            // 如果应该隐藏 AI 消息，则从列表中移除
+            return prev.filter((msg) => msg.id !== message.id);
+          }
+          // 消息已存在，更新消息内容（包括已读状态）
+          return prev.map((msg) =>
+            msg.id === message.id
+              ? {
+                  ...msg,
+                  ...message,
+                  // 如果消息已被标记为已读，保持已读状态；否则保持原状态
+                  // 这样可以避免丢失已读状态
+                  is_read: message.is_read ?? msg.is_read ?? false,
+                  read_at: message.read_at ?? msg.read_at ?? null,
+                }
+              : msg
+          );
+        }
+        // 新消息：如果要隐藏 AI 消息且这是 AI 消息，则不添加
+        if (shouldHideAIMessage) {
+          return prev;
+        }
+        // 新消息：添加到列表末尾
+        return [...prev, message];
+      });
+
+      // 注意：不再自动标记访客消息为已读，而是通过滚动检测来处理
+      // 不再调用 refreshConversationDetail，避免不必要的重新加载和状态丢失
     },
-    [conversationId, refreshConversationDetail, updateConversation]
+    [conversationId, updateConversation, refreshConversations, hasConversation, includeAIMessages]
   );
 
   const handleMessagesReadBroadcast = useCallback(
@@ -381,10 +428,22 @@ export function useMessages({
               ...conv,
               last_seen_at: new Date().toISOString(),
             }));
+            // 如果当前正在查看这个对话，也更新对话详情
+            if (payload.conversation_id === conversationId) {
+              setConversationDetail((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      last_seen_at: new Date().toISOString(),
+                    }
+                  : prev
+              );
+            }
+          } else {
+            // 离线：刷新对话详情以获取最新的 last_seen_at（后端会在离线时更新 last_seen_at）
+            // refreshConversationDetail 会自动更新对话列表的 last_seen_at
+            refreshConversationDetail(payload.conversation_id);
           }
-          // 刷新对话详情以获取最新的 last_seen_at（后端会在离线时更新 last_seen_at）
-          // refreshConversationDetail 会自动更新对话列表的 last_seen_at
-          refreshConversationDetail(payload.conversation_id);
         }
       }
     },
@@ -401,10 +460,25 @@ export function useMessages({
     conversationId,
     enabled: Boolean(conversationId),
     isVisitor: false, // 客服端设置为 false
+    agentId: agentId ?? undefined, // 传递客服ID，用于创建系统消息
     onMessage: onWebSocketMessage,
-    onError: (error) => console.error("WebSocket 连接错误:", error),
-    onClose: () => console.log("WebSocket 连接已关闭"),
+    onError: (error) => {
+      // 静默处理错误，避免影响用户体验
+    },
+    onClose: () => {
+      // 静默处理关闭，避免影响用户体验
+    },
   });
+
+  // 切换 AI 消息显示/隐藏
+  const toggleAIMessages = useCallback(async () => {
+    const newValue = !includeAIMessages;
+    setIncludeAIMessages(newValue);
+    // 如果当前有选中的对话，重新加载消息（从服务器获取完整消息列表，确保过滤正确）
+    if (conversationId) {
+      await loadMessages(conversationId, newValue);
+    }
+  }, [includeAIMessages, conversationId, loadMessages]);
 
   const controls = useMemo(
     () => ({
@@ -417,6 +491,8 @@ export function useMessages({
       sendMessage: handleSendMessage,
       markMessagesAsRead: handleMarkMessagesRead,
       updateContactInfo,
+      includeAIMessages,
+      toggleAIMessages,
     }),
     [
       conversationDetail,
@@ -428,6 +504,8 @@ export function useMessages({
       refreshConversationDetail,
       sending,
       updateContactInfo,
+      includeAIMessages,
+      toggleAIMessages,
     ]
   );
 

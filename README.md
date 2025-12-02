@@ -1,209 +1,194 @@
 # AI-CS 智能客服系统
 
-## 项目简介
+> 一个融合 AI 技术与人工客服的现代化智能客服解决方案
 
-这是一个基于Go后端和Next.js前端的智能客服系统，用于处理访客与客服之间的对话交流。
+## ✨ 核心特性
 
-## 项目结构
+- 🤖 **AI 客服支持**：支持多厂商 AI 模型，可配置 API 和模型选择
+- 👥 **人工客服**：实时在线状态显示，支持多客服协作
+- 💬 **实时通信**：基于 WebSocket 的双向实时消息推送
+- 📁 **文件传输**：支持图片、文档上传和预览
+- 📚 **FAQ 管理**：知识库管理，关键词搜索
+- 👤 **用户管理**：完整的用户权限管理系统
+- 🎨 **现代化 UI**：基于 Shadcn UI 的响应式设计
+- 🔌 **访客小窗插件**：可嵌入任何网站的客服小窗组件
+- 🌐 **产品官网**：内置产品展示页面
+
+## 🏗️ 技术栈
+
+### 后端
+- **语言**: Go 1.21+
+- **框架**: Gin (Web 框架)
+- **ORM**: GORM
+- **数据库**: MySQL 8.0+
+- **实时通信**: WebSocket (gorilla/websocket)
+- **密码加密**: bcrypt
+- **文件存储**: 本地存储（可扩展为云存储）
+
+### 前端
+- **框架**: Next.js 14+ (App Router)
+- **语言**: TypeScript
+- **UI 组件**: Shadcn UI
+- **样式**: Tailwind CSS
+- **状态管理**: React Hooks
+- **实时通信**: WebSocket Client
+
+## 📁 项目结构
 
 ```
 AI-CS/
-├── backend/          # Go后端服务
-│   ├── controller/   # 控制器层
-│   ├── models/       # 数据模型
-│   ├── service/      # 业务逻辑层
-│   ├── repository/   # 数据访问层
-│   ├── middleware/   # 中间件
-│   ├── router/       # 路由配置
-│   ├── infra/        # 基础设施（数据库等）
-│   └── utils/        # 工具函数
-└── frontend/         # Next.js前端应用
-    ├── app/          # 应用页面
-    ├── public/       # 静态资源
-    └── ...
+├── backend/              # Go 后端服务
+│   ├── controller/       # 控制器层（HTTP 处理）
+│   ├── service/          # 业务逻辑层
+│   ├── repository/       # 数据访问层
+│   ├── models/           # 数据模型
+│   ├── router/           # 路由配置
+│   ├── middleware/       # 中间件（认证、CORS、日志）
+│   ├── websocket/        # WebSocket Hub
+│   ├── infra/            # 基础设施（数据库、存储）
+│   ├── utils/            # 工具函数（加密、验证等）
+│   └── main.go           # 入口文件
+├── frontend/             # Next.js 前端应用
+│   ├── app/              # 页面和路由
+│   │   ├── page.tsx      # 官网首页
+│   │   ├── chat/         # 访客聊天页面
+│   │   └── agent/        # 客服工作台
+│   ├── components/       # React 组件
+│   │   ├── ui/           # Shadcn UI 基础组件
+│   │   ├── dashboard/    # 客服端组件
+│   │   ├── visitor/      # 访客端组件
+│   │   └── layout/       # 布局组件
+│   ├── features/         # 功能模块
+│   │   ├── agent/        # 客服端功能
+│   │   └── visitor/      # 访客端功能
+│   └── lib/              # 工具库和配置
+├── doc/                  # 项目文档
+│   ├── CHANGELOG.md      # 更新日志
+│   ├── 测试指南.md       # 测试文档
+│   ├── 后端学习笔记.md   # 后端架构说明
+│   └── 前端学习笔记.md   # 前端架构说明
+└── README.md             # 本文件
 ```
 
-## 核心功能
+## 🚀 快速开始
 
-### 1. 用户管理
-- **用户注册** (`Register`): 创建新用户账户
-- **用户登录** (`Login`): 验证用户身份
+### 环境要求
 
-### 2. 对话管理
-- **初始化对话** (`InitConversation`): 为访客创建或获取现有对话
-- **发送消息**: 处理消息发送
-- **拉取消息**: 获取对话历史
+- Go 1.21 或更高版本
+- Node.js 18+ 和 npm/yarn
+- MySQL 8.0 或更高版本
 
-## 数据模型
+### 1. 克隆项目
 
-### User (用户)
-```go
-type User struct {
-    ID       uint   `json:"id" gorm:"primarykey"`
-    Username string `json:"username" gorm:"unique"`
-    Password string `json:"password"`
-    Role     string `json:"role"`
-}
+```bash
+git clone <repository-url>
+cd AI-CS
 ```
 
-### Conversation (对话)
-```go
-type Conversation struct {
-    ID        uint      `json:"id" gorm:"primaryKey"`
-    VisitorID uint      `json:"visiter_id"`
-    AgentID   uint      `json:"agent_id"`
-    Status    string    `json:"status"`
-    CreatedAt time.Time `json:"created_at"`
-    UpdatedAt time.Time `json:"updated_at"`
-}
-```
+### 2. 配置后端
 
-### Message (消息)
-```go
-type Message struct {
-    ID             uint      `json:"id" gorm:"primarykey"`
-    ConversationID uint      `json:"conversation_id"`
-    SenderID       uint      `json:"sender_id"`
-    SenderIsAgent  bool      `json:"sender_is_agent"`
-    Content        string    `json:"content"`
-    CreatedAt      time.Time `json:"created_at"`
-}
-```
-
-## API接口说明
-
-### 用户相关接口
-
-#### 用户注册
-- **路径**: `POST /register`
-- **参数**: 
-  ```json
-  {
-    "username": "用户名",
-    "password": "密码",
-    "role": "角色"
-  }
-  ```
-- **返回**: 注册成功或失败信息
-
-#### 用户登录
-- **路径**: `POST /login`
-- **参数**:
-  ```json
-  {
-    "username": "用户名",
-    "password": "密码"
-  }
-  ```
-- **返回**: 登录成功或失败信息
-
-### 对话相关接口
-
-#### 初始化对话
-- **路径**: `POST /conversation/init`
-- **参数**:
-  ```json
-  {
-    "visitor_id": 访客ID
-  }
-  ```
-- **返回**:
-  ```json
-  {
-    "conversation_id": 对话ID,
-    "status": "对话状态"
-  }
-  ```
-
-#### 发送消息
-- **路径**: `POST /messages`
-- **参数**:
-  ```json
-  {
-    "conversation_id": 对话ID,
-    "content": "消息内容",
-    "sender_is_agent": 是否客服,
-    "sender_id": 发送者ID（客服必填，访客可省略或传0）
-  }
-  ```
-- **返回**: { "message": "创建消息成功" }
-
-#### 拉取消息
-- **路径**: `GET /messages?conversation_id=对话ID`
-- **返回**: 消息数组，按创建时间升序
-
-## 对话初始化逻辑详解
-
-当你调用对话初始化接口时，系统会执行以下步骤：
-
-1. **检查现有对话**: 系统会查找该访客是否已有未关闭的对话
-2. **复用或创建**: 
-   - 如果找到现有对话，直接返回该对话信息
-   - 如果没有找到，创建一个新的对话并返回
-
-这就像你去银行办事：
-- 如果之前有没办完的业务，继续办理
-- 如果没有，开一个新的业务单
-
-## 技术栈
-
-### 后端
-- **语言**: Go
-- **框架**: Gin (Web框架)
-- **数据库**: GORM (ORM)
-- **密码加密**: bcrypt
-
-### 前端
-- **框架**: Next.js
-- **语言**: TypeScript
-- **样式**: CSS
-
-## 开发环境设置
-
-### 后端启动
 ```bash
 cd backend
-cp .env.example .env  # 按需修改数据库配置
-go mod tidy
-go run main.go
-```
 
-### 前端启动
-```bash
-cd frontend
-cp .env.local.example .env.local  # 可选：如需自定义 API 地址
-npm install
-npm run dev
-```
-
-## 注意事项
-
-1. 确保数据库连接配置正确（后端从环境变量读取）
-2. 用户密码会自动加密存储
-3. 对话状态包括: "open"(开放), "closed"(关闭)
-4. 消息发送者通过 `SenderIsAgent` 字段区分是访客还是客服
-
-### 后端环境变量
-在 `backend/.env` 中配置以下变量（主进程会自动加载）：
-
-```
+# 创建 .env 文件
+cat > .env << EOF
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_password
-DB_NAME=CS
+DB_NAME=ai_cs
+EOF
+
+# 安装依赖
+go mod tidy
+
+# 启动服务（默认端口 8080）
+go run main.go
+```
+
+### 3. 配置前端
+
+```bash
+cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务器（默认端口 3000）
+npm run dev
+```
+
+### 4. 访问应用
+
+- **官网首页**: http://localhost:3000
+- **访客聊天**: http://localhost:3000/chat
+- **客服登录**: http://localhost:3000/agent/login
+
+### 5. 默认账号
+
+系统会自动创建默认管理员账号：
+- **用户名**: `admin`
+- **密码**: `admin123`
+
+> ⚠️ 生产环境请务必修改默认密码！
+
+## 📖 主要功能
+
+### 访客端
+- 人工/AI 客服模式切换
+- 实时消息收发
+- 文件/图片上传
+- 在线客服列表查看
+- 访客小窗插件（可嵌入第三方网站）
+
+### 客服端
+- 对话列表管理（全部/我的/他人的对话）
+- 实时消息推送
+- 访客信息查看和编辑
+- 在线状态显示
+- 消息已读状态同步
+- AI 配置管理（多厂商支持）
+- FAQ 知识库管理
+- 用户权限管理
+- 个人资料管理
+
+## ⚙️ 配置说明
+
+### 后端环境变量
+
+在 `backend/.env` 中配置：
+
+```env
+DB_HOST=localhost          # 数据库主机
+DB_PORT=3306              # 数据库端口
+DB_USER=root              # 数据库用户名
+DB_PASSWORD=your_password # 数据库密码
+DB_NAME=ai_cs             # 数据库名称
 ```
 
 ### 前端环境变量（可选）
-在 `frontend/.env.local` 中配置以下变量（不配置则使用默认值）：
 
-```
+在 `frontend/.env.local` 中配置（不配置则使用默认值）：
+
+```env
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 ```
 
-说明：本地开发无需配置，已默认 `http://127.0.0.1:8080`。部署到生产环境时修改为实际后端地址（如 `https://api.yourdomain.com`）。
+> 本地开发无需配置，已默认 `http://127.0.0.1:8080`。生产环境请修改为实际后端地址。
 
-## 更新日志
 
-详见 `doc/CHANGELOG.md` 文件
+## 🤝 贡献
 
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 许可证
+
+[待添加]
+
+## 🙏 致谢
+
+感谢所有为这个项目做出贡献的开发者！
+
+---
+
+**最后更新**: 2025-01-XX

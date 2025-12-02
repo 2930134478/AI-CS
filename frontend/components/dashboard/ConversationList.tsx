@@ -18,8 +18,8 @@ export function ConversationList({
 }: ConversationListProps) {
   if (conversations.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="text-center text-gray-400 mt-8 text-sm">
+      <div className="flex-1 overflow-y-auto scrollbar-auto">
+        <div className="text-center text-muted-foreground mt-8 text-sm">
           {searchQuery ? "未找到匹配的对话" : "暂无对话"}
         </div>
       </div>
@@ -27,7 +27,7 @@ export function ConversationList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto px-2 py-2 scrollbar-auto">
       {conversations.map((conversation) => (
         <ConversationListItem
           key={conversation.id}

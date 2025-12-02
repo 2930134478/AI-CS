@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/config";
+import { Button } from "@/components/ui/button";
 
 // 对话类型定义
 interface Conversation {
@@ -119,20 +120,21 @@ export default function ConversationsPage() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* 顶部标题栏 */}
-      <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white p-4 shadow-md">
+      <div className="bg-card border-b p-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold">对话列表</h1>
-            <div className="text-sm opacity-90 mt-1">
+            <h1 className="text-xl font-bold text-foreground">对话列表</h1>
+            <div className="text-sm text-muted-foreground mt-1">
               {username} ({role === "admin" ? "管理员" : "客服"})
             </div>
           </div>
-          <button
+          <Button
             onClick={handleLogout}
-            className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-colors text-sm"
+            variant="outline"
+            size="sm"
           >
             退出登录
-          </button>
+          </Button>
         </div>
       </div>
 

@@ -1,0 +1,53 @@
+# ---- Go ----
+# 编译后的二进制文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# go build / install 产生的可执行文件
+bin/
+build/
+dist/
+
+# Go modules 缓存（不要上传）
+vendor/
+
+# IDE 临时文件
+*.out
+
+# ---- Node / Next.js ----
+# 依赖包
+node_modules/
+
+# 构建输出目录
+.next/
+out/
+
+# 调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 环境变量文件（敏感信息）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 覆盖率结果
+coverage/
+
+# Mac / Windows / Linux 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器配置
+.vscode/
+.idea/
+
+# 文档目录不上传
+doc/

@@ -22,6 +22,7 @@ type MessageService struct {
 	conversations *repository.ConversationRepository
 	messages      *repository.MessageRepository
 	hub           BroadcastHub
+	aiService     *AIService // AI 服务（用于 AI 自动回复）
 }
 
 // NewMessageService 创建 MessageService 实例。
@@ -29,11 +30,13 @@ func NewMessageService(
 	conversations *repository.ConversationRepository,
 	messages *repository.MessageRepository,
 	hub BroadcastHub,
+	aiService *AIService,
 ) *MessageService {
 	return &MessageService{
 		conversations: conversations,
 		messages:      messages,
 		hub:           hub,
+		aiService:     aiService,
 	}
 }
 
@@ -58,31 +61,135 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		SenderIsAgent:  input.SenderIsAgent,
 		Content:        input.Content,
 		MessageType:    "user_message",
+		ChatMode:       conv.ChatMode, // 记录消息发送时的对话模式
 		IsRead:         false,
+		// 文件相关字段（可选）
+		FileURL:  input.FileURL,
+		FileType: input.FileType,
+		FileName: input.FileName,
+		FileSize: input.FileSize,
+		MimeType: input.MimeType,
 	}
 
 	if err := s.messages.Create(message); err != nil {
 		return nil, err
 	}
 
-	if err := s.conversations.UpdateFields(conv.ID, map[string]interface{}{
+	// 如果客服发送消息，且会话的 agent_id 为 0，则更新为当前客服的 ID
+	updateFields := map[string]interface{}{
 		"updated_at": message.CreatedAt,
-	}); err != nil {
+	}
+	if input.SenderIsAgent && input.SenderID > 0 && conv.AgentID == 0 {
+		updateFields["agent_id"] = input.SenderID
+	}
+
+	if err := s.conversations.UpdateFields(conv.ID, updateFields); err != nil {
 		return nil, err
 	}
 
 	if s.hub != nil {
+		// 1. 先广播到该对话的所有客户端（访客和已连接该对话的客服）
 		s.hub.BroadcastMessage(message.ConversationID, "new_message", message)
+		// 2. 如果是访客发送的消息，且对话模式是人工客服，才广播到所有客服
+		//    这样即使客服没有连接到这个对话，也能收到新消息的通知
+		//    注意：AI 模式下的访客消息不广播给客服（避免干扰）
+		if !input.SenderIsAgent && conv.ChatMode == "human" {
+			s.hub.BroadcastToAllAgents("new_message", message)
+		}
 	} else {
 		log.Printf("⚠️ WebSocket Hub 为空，无法广播消息: 消息ID=%d, 对话ID=%d", message.ID, message.ConversationID)
+	}
+
+	// 3. 如果是 AI 客服模式，且是访客发送的消息，自动调用 AI 生成回复
+	if conv.ChatMode == "ai" && !input.SenderIsAgent && s.aiService != nil {
+		// 异步调用 AI 生成回复（避免阻塞）
+		go func() {
+			// 获取对话的 AgentID（用于查找 AI 配置）
+			// 如果 AgentID 为 0，使用默认管理员 ID（1）
+			userID := conv.AgentID
+			if userID == 0 {
+				userID = 1 // 默认使用管理员 ID
+			}
+
+			aiResponse, err := s.aiService.GenerateAIResponse(message.ConversationID, input.Content, userID)
+			if err != nil {
+				log.Printf("❌ AI 生成回复失败: %v", err)
+				// 使用友好的错误消息
+				aiResponse = "AI客服好像出了点差错，请联系人工客服解决"
+			}
+
+			// 创建 AI 回复消息
+			aiMessage := &models.Message{
+				ConversationID: message.ConversationID,
+				SenderID:       0, // AI 消息的 SenderID 为 0
+				SenderIsAgent:  true, // AI 回复视为客服消息
+				Content:        aiResponse,
+				MessageType:    "user_message",
+				ChatMode:       "ai", // AI 回复消息的模式为 "ai"
+				IsRead:         false,
+			}
+
+			if err := s.messages.Create(aiMessage); err != nil {
+				log.Printf("❌ 创建 AI 回复消息失败: %v", err)
+				return
+			}
+
+			// 更新对话的更新时间
+			if err := s.conversations.UpdateFields(conv.ID, map[string]interface{}{
+				"updated_at": aiMessage.CreatedAt,
+			}); err != nil {
+				log.Printf("⚠️ 更新对话时间失败: %v", err)
+			}
+
+			// 广播 AI 回复消息
+			if s.hub != nil {
+				// AI 回复只广播给访客，不广播给客服（避免干扰）
+				// 客服可以在会话页面手动开启"显示 AI 消息"来查看
+				s.hub.BroadcastMessage(aiMessage.ConversationID, "new_message", aiMessage)
+				// 不再广播到所有客服
+				// s.hub.BroadcastToAllAgents("new_message", aiMessage)
+			}
+		}()
 	}
 
 	return message, nil
 }
 
-// ListMessages 返回会话内的全部消息。
-func (s *MessageService) ListMessages(conversationID uint) ([]models.Message, error) {
-	return s.messages.ListByConversationID(conversationID)
+// ListMessages 返回会话内的消息列表。
+// includeAIMessages: 是否包含 AI 消息（默认 false，不包含）
+// 如果 includeAIMessages == false，过滤掉所有 chat_mode == "ai" 的消息
+// 这样就能准确区分 AI 模式下的消息和人工模式下的消息，即使对话模式切换了也能正确过滤
+func (s *MessageService) ListMessages(conversationID uint, includeAIMessages bool) ([]models.Message, error) {
+	messages, err := s.messages.ListByConversationID(conversationID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果不包含 AI 消息，过滤掉所有 chat_mode == "ai" 的消息
+	// 这样，无论对话当前是什么模式，都能准确过滤掉 AI 模式下的所有消息
+	// 包括：访客在 AI 模式下发送的消息、AI 回复消息
+	if !includeAIMessages {
+		filtered := make([]models.Message, 0, len(messages))
+		for _, msg := range messages {
+			// 只显示 chat_mode != "ai" 的消息（人工模式下的消息）
+			// 如果 chat_mode 为空（兼容历史数据），则根据 SenderID 和 SenderIsAgent 判断
+			if msg.ChatMode != "" {
+				// 有 chat_mode 字段，直接根据字段过滤
+				if msg.ChatMode != "ai" {
+					filtered = append(filtered, msg)
+				}
+			} else {
+				// 兼容历史数据：chat_mode 为空时，使用旧逻辑
+				// 过滤掉 AI 回复消息（SenderID == 0 && SenderIsAgent == true）
+				if msg.SenderID != 0 || !msg.SenderIsAgent {
+					filtered = append(filtered, msg)
+				}
+			}
+		}
+		return filtered, nil
+	}
+
+	return messages, nil
 }
 
 // MarkMessagesRead 将消息标记为已读并通知监听方。

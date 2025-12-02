@@ -37,16 +37,20 @@ type Client struct {
 
 	// 是否是访客（true 表示访客，false 表示客服）
 	isVisitor bool
+
+	// 客服ID（如果是客服连接，存储客服的用户ID）
+	agentID uint
 }
 
 // NewClient 创建一个新的客户端
-func NewClient(hub *Hub, conn *websocket.Conn, conversationID uint, isVisitor bool) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, conversationID uint, isVisitor bool, agentID uint) *Client {
 	return &Client{
 		hub:            hub,
 		conn:           conn,
 		send:           make(chan *Message, 256),
 		conversationID: conversationID,
 		isVisitor:      isVisitor,
+		agentID:        agentID,
 	}
 }
 

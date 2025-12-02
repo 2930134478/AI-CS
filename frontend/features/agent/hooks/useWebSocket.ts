@@ -7,6 +7,7 @@ interface UseWebSocketOptions<T> {
   conversationId: number | null;
   enabled?: boolean;
   isVisitor?: boolean; // 是否是访客（默认为 true）
+  agentId?: number; // 客服ID（如果是客服连接，需要传递）
   onMessage: (payload: WSMessage<T>) => void;
   onError?: (error: Event) => void;
   onClose?: () => void;
@@ -16,6 +17,7 @@ export function useWebSocket<T>({
   conversationId,
   enabled = true,
   isVisitor = true, // 默认是访客
+  agentId,
   onMessage,
   onError,
   onClose,
@@ -40,6 +42,7 @@ export function useWebSocket<T>({
     const client = new WSClient<T>({
       conversationId,
       isVisitor,
+      agentId,
       // 使用 ref 的 current 值，这样即使回调函数变化也不会导致重新连接
       onMessage: (payload) => onMessageRef.current(payload),
       onError: onErrorRef.current
@@ -53,8 +56,8 @@ export function useWebSocket<T>({
     return () => {
       client.disconnect();
     };
-    // 只依赖 conversationId、enabled 和 isVisitor，不依赖回调函数
+    // 只依赖 conversationId、enabled、isVisitor 和 agentId，不依赖回调函数
     // 回调函数通过 useRef 存储，不会导致重新连接
-  }, [conversationId, enabled, isVisitor]);
+  }, [conversationId, enabled, isVisitor, agentId]);
 }
 

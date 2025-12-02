@@ -38,6 +38,17 @@ func HandleWebSocket(hub *Hub) gin.HandlerFunc {
 		isVisitorStr := c.DefaultQuery("is_visitor", "true")
 		isVisitor := isVisitorStr == "true" || isVisitorStr == "1"
 
+		// 从查询参数获取客服ID（如果是客服连接，需要传递 agent_id）
+		var agentID uint
+		if !isVisitor {
+			agentIDStr := c.Query("agent_id")
+			if agentIDStr != "" {
+				if parsed, err := strconv.ParseUint(agentIDStr, 10, 32); err == nil {
+					agentID = uint(parsed)
+				}
+			}
+		}
+
 		// 升级 HTTP 连接为 WebSocket 连接
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -46,7 +57,7 @@ func HandleWebSocket(hub *Hub) gin.HandlerFunc {
 		}
 
 		// 创建客户端
-		client := NewClient(hub, conn, uint(conversationID), isVisitor)
+		client := NewClient(hub, conn, uint(conversationID), isVisitor, agentID)
 
 		// 注册客户端到 Hub
 		client.hub.register <- client
