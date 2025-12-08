@@ -62,11 +62,6 @@ AI-CS/
 │   │   ├── agent/        # 客服端功能
 │   │   └── visitor/      # 访客端功能
 │   └── lib/              # 工具库和配置
-├── doc/                  # 项目文档
-│   ├── CHANGELOG.md      # 更新日志
-│   ├── 测试指南.md       # 测试文档
-│   ├── 后端学习笔记.md   # 后端架构说明
-│   └── 前端学习笔记.md   # 前端架构说明
 └── README.md             # 本文件
 ```
 
@@ -81,7 +76,7 @@ AI-CS/
 ### 1. 克隆项目
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/2930134478/AI-CS.git
 cd AI-CS
 ```
 

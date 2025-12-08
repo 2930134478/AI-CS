@@ -137,7 +137,7 @@ export function Footer() {
           <p>
             Powered by Next.js & Go | 
             <a
-              href="https://github.com/your-username/ai-cs"
+              href={websiteConfig.github.repo}
               target="_blank"
               rel="noopener noreferrer"
               className="ml-1 hover:text-foreground transition-colors"

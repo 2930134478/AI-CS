@@ -4,12 +4,12 @@
  */
 
 export const websiteConfig = {
-  // GitHub 仓库地址（请替换为您的实际仓库地址）
+  // GitHub 仓库地址
   github: {
-    repo: "https://github.com/your-username/ai-cs",
-    releases: "https://github.com/your-username/ai-cs/releases",
-    issues: "https://github.com/your-username/ai-cs/issues",
-    readme: "https://github.com/your-username/ai-cs/blob/main/README.md",
+    repo: "https://github.com/2930134478/AI-CS",
+    releases: "https://github.com/2930134478/AI-CS/releases",
+    issues: "https://github.com/2930134478/AI-CS/issues",
+    readme: "https://github.com/2930134478/AI-CS/blob/master/README.md",
   },
   
   // 联系方式

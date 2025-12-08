@@ -51,3 +51,6 @@ Thumbs.db
 
 # 文档目录不上传
 doc/
+
+# ---- 用户上传文件（隐私文件，不要上传） ----
+backend/uploads/
