@@ -183,7 +183,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 ## 📄 许可证
 
-[待添加]
+[MIT](LICENSE) © 2025 2930134478
 
 ## 🙏 致谢
 
