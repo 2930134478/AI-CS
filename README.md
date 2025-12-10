@@ -14,57 +14,6 @@
 - 🔌 **访客小窗插件**：可嵌入任何网站的客服小窗组件
 - 🌐 **产品官网**：内置产品展示页面
 
-## 🏗️ 技术栈
-
-### 后端
-- **语言**: Go 1.21+
-- **框架**: Gin (Web 框架)
-- **ORM**: GORM
-- **数据库**: MySQL 8.0+
-- **实时通信**: WebSocket (gorilla/websocket)
-- **密码加密**: bcrypt
-- **文件存储**: 本地存储（可扩展为云存储）
-
-### 前端
-- **框架**: Next.js 14+ (App Router)
-- **语言**: TypeScript
-- **UI 组件**: Shadcn UI
-- **样式**: Tailwind CSS
-- **状态管理**: React Hooks
-- **实时通信**: WebSocket Client
-
-## 📁 项目结构
-
-```
-AI-CS/
-├── backend/              # Go 后端服务
-│   ├── controller/       # 控制器层（HTTP 处理）
-│   ├── service/          # 业务逻辑层
-│   ├── repository/       # 数据访问层
-│   ├── models/           # 数据模型
-│   ├── router/           # 路由配置
-│   ├── middleware/       # 中间件（认证、CORS、日志）
-│   ├── websocket/        # WebSocket Hub
-│   ├── infra/            # 基础设施（数据库、存储）
-│   ├── utils/            # 工具函数（加密、验证等）
-│   └── main.go           # 入口文件
-├── frontend/             # Next.js 前端应用
-│   ├── app/              # 页面和路由
-│   │   ├── page.tsx      # 官网首页
-│   │   ├── chat/         # 访客聊天页面
-│   │   └── agent/        # 客服工作台
-│   ├── components/       # React 组件
-│   │   ├── ui/           # Shadcn UI 基础组件
-│   │   ├── dashboard/    # 客服端组件
-│   │   ├── visitor/      # 访客端组件
-│   │   └── layout/       # 布局组件
-│   ├── features/         # 功能模块
-│   │   ├── agent/        # 客服端功能
-│   │   └── visitor/      # 访客端功能
-│   └── lib/              # 工具库和配置
-└── README.md             # 本文件
-```
-
 ## 🚀 快速开始
 
 ### 环境要求
@@ -87,11 +36,24 @@ cd backend
 
 # 创建 .env 文件
 cat > .env << EOF
+# 数据库配置
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=ai_cs
+
+# 管理员账号配置（必填）
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_admin_password
+
+# 服务器配置
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+GIN_MODE=debug
+
+# 加密密钥（用于加密 AI API Keys，可选）
+ENCRYPTION_KEY=$(openssl rand -hex 32)
 EOF
 
 # 安装依赖
@@ -100,6 +62,8 @@ go mod tidy
 # 启动服务（默认端口 8080）
 go run main.go
 ```
+
+> ⚠️ **重要**：`ADMIN_PASSWORD` 是必填项，如果不设置，系统不会创建默认管理员账号。
 
 ### 3. 配置前端
 
@@ -119,47 +83,38 @@ npm run dev
 - **访客聊天**: http://localhost:3000/chat
 - **客服登录**: http://localhost:3000/agent/login
 
-### 5. 默认账号
+### 5. 默认管理员账号
 
-系统会自动创建默认管理员账号：
-- **用户名**: `admin`
-- **密码**: `admin123`
-
-> ⚠️ 生产环境请务必修改默认密码！
-
-## 📖 主要功能
-
-### 访客端
-- 人工/AI 客服模式切换
-- 实时消息收发
-- 文件/图片上传
-- 在线客服列表查看
-- 访客小窗插件（可嵌入第三方网站）
-
-### 客服端
-- 对话列表管理（全部/我的/他人的对话）
-- 实时消息推送
-- 访客信息查看和编辑
-- 在线状态显示
-- 消息已读状态同步
-- AI 配置管理（多厂商支持）
-- FAQ 知识库管理
-- 用户权限管理
-- 个人资料管理
-
-## ⚙️ 配置说明
+系统会在首次启动时自动创建管理员账号（如果不存在）。
 
 ### 后端环境变量
 
 在 `backend/.env` 中配置：
 
 ```env
+# 数据库配置
 DB_HOST=localhost          # 数据库主机
 DB_PORT=3306              # 数据库端口
 DB_USER=root              # 数据库用户名
 DB_PASSWORD=your_password # 数据库密码
 DB_NAME=ai_cs             # 数据库名称
+
+# 管理员账号配置
+ADMIN_USERNAME=admin                    # 管理员用户名（可选，默认为 admin）
+ADMIN_PASSWORD=your_admin_password      # ⚠️ 管理员密码（必填）
+
+# 服务器配置
+SERVER_HOST=0.0.0.0                    # 服务器监听地址
+SERVER_PORT=8080                        # 服务器端口
+GIN_MODE=debug                          # 运行模式（debug/release）
+
+# 加密密钥（用于加密 AI API Keys）
+ENCRYPTION_KEY=your_32_byte_key         # 使用 openssl rand -hex 32 生成
 ```
+
+**重要提示**：
+- `ADMIN_PASSWORD` 是必填项，如果不设置，系统不会创建默认管理员账号
+- 生产环境请使用强密码并设置 `GIN_MODE=release`
 
 ### 前端环境变量（可选）
 
@@ -170,6 +125,91 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 ```
 
 > 本地开发无需配置，已默认 `http://127.0.0.1:8080`。生产环境请修改为实际后端地址。
+
+## 🔌 集成客服插件到你的网站
+
+#### 步骤 1：在 HTML 中添加代码
+
+在你的网站 HTML 的 `</body>` 标签之前添加：
+
+```html
+<!-- 浮动按钮和聊天窗口 -->
+<div id="ai-cs-widget" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+  <!-- 浮动按钮 -->
+  <button 
+    id="ai-cs-toggle-btn" 
+    style="width: 56px; height: 56px; border-radius: 50%; background: #3b82f6; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"
+    onclick="toggleChat()"
+  >
+    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+    </svg>
+  </button>
+  
+  <!-- 聊天窗口 iframe -->
+  <iframe 
+    id="ai-cs-chat-iframe"
+    src="https://your-domain.com/chat" 
+    style="display: none; position: fixed; bottom: 80px; right: 20px; width: 400px; height: 600px; max-width: calc(100vw - 40px); max-height: calc(100vh - 100px); border: none; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);"
+    allow="microphone"
+  ></iframe>
+</div>
+
+<script>
+  function toggleChat() {
+    const iframe = document.getElementById('ai-cs-chat-iframe');
+    const btn = document.getElementById('ai-cs-toggle-btn');
+    const isVisible = iframe.style.display !== 'none';
+    
+    iframe.style.display = isVisible ? 'none' : 'block';
+    
+    // 切换按钮图标
+    if (isVisible) {
+      btn.innerHTML = '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>';
+    } else {
+      btn.innerHTML = '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+    }
+  }
+</script>
+```
+
+#### 步骤 2：修改域名
+
+将代码中的 `https://your-domain.com` 替换为你的实际域名（部署 AI-CS 的域名）。
+
+**示例**：
+```html
+<!-- 如果你的 AI-CS 部署在 https://cs.example.com -->
+<iframe src="https://cs.example.com/chat" ...></iframe>
+```
+
+### 响应式设计
+
+插件会自动适配不同设备：
+
+- **移动端**：小窗宽度自适应，最大高度优化
+- **平板端**：中等尺寸窗口
+- **桌面端**：完整尺寸窗口
+
+
+### 自定义样式
+
+如果需要自定义样式，可以通过 CSS 覆盖：
+
+```css
+/* 自定义浮动按钮 */
+#ai-cs-toggle-btn {
+  background-color: #your-color !important;
+  width: 60px !important;
+  height: 60px !important;
+}
+
+/* 自定义聊天窗口 */
+#ai-cs-chat-iframe {
+  border-radius: 16px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+```
 
 
 ## 🤝 贡献

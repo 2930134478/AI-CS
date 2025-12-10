@@ -20,21 +20,37 @@ import (
 )
 
 // 初始化默认管理员账号（如果不存在）
-// 默认账号：admin / admin123
+// 用户名从环境变量 ADMIN_USERNAME 读取（默认：admin）
+// 密码从环境变量 ADMIN_PASSWORD 读取（必须设置）
 func initDefaultAdmin(userRepo *repository.UserRepository) {
-	if _, err := userRepo.FindByUsername("admin"); err == nil {
-		log.Println("✅ 管理员账号已存在")
+	// 从环境变量读取管理员用户名和密码
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	if adminUsername == "" {
+		adminUsername = "admin" // 默认用户名
+	}
+
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		log.Println("⚠️ 警告：未设置 ADMIN_PASSWORD 环境变量，跳过创建默认管理员账号")
+		log.Println("   请在 .env 文件中设置 ADMIN_PASSWORD 后重启服务")
 		return
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+	// 检查管理员账号是否已存在
+	if _, err := userRepo.FindByUsername(adminUsername); err == nil {
+		log.Printf("✅ 管理员账号 '%s' 已存在", adminUsername)
+		return
+	}
+
+	// 加密密码
+	hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("⚠️ 创建默认管理员失败：密码加密错误 %v", err)
 		return
 	}
 
 	admin := &models.User{
-		Username: "admin",
+		Username: adminUsername,
 		Password: string(hash),
 		Role:     "admin",
 	}
@@ -44,9 +60,8 @@ func initDefaultAdmin(userRepo *repository.UserRepository) {
 		return
 	}
 
-	log.Println("✅ 默认管理员账号创建成功")
-	log.Println("   用户名: admin")
-	log.Println("   密码: admin123")
+	log.Printf("✅ 默认管理员账号创建成功")
+	log.Printf("   用户名: %s", adminUsername)
 	log.Println("   ⚠️ 请首次登录后立即修改密码！")
 }
 
