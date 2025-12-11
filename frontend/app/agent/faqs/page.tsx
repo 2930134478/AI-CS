@@ -39,7 +39,7 @@ interface FAQsPageProps {
   embedded?: boolean; // 是否嵌入模式（不使用 ResponsiveLayout）
 }
 
-export default function FAQsPage({ embedded = false }: FAQsPageProps = {}) {
+export default function FAQsPage({ embedded = false }: FAQsPageProps) {
   const router = useRouter();
   const { agent } = useAuth();
   const [faqs, setFaqs] = useState<FAQSummary[]>([]);

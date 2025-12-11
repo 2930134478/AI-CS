@@ -253,7 +253,7 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps = {
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 开启后，AI 对话将不会显示在对话列表中，也不会收到 AI 消息通知。
-                但您仍可以在会话页面手动开启"显示 AI 消息"来查看 AI 对话历史。
+                但您仍可以在会话页面手动开启&quot;显示 AI 消息&quot;来查看 AI 对话历史。
               </p>
             </CardContent>
           </Card>
