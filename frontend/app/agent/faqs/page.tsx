@@ -472,5 +472,13 @@ export default function FAQsPage({ embedded = false }: FAQsPageProps) {
       </Dialog>
     </>
   );
+  }
+
+  return (
+    <ResponsiveLayout
+      main={mainContent}
+      header={headerContent}
+    />
+  );
 }
 

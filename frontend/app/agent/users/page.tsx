@@ -663,5 +663,13 @@ export default function UsersPage({ embedded = false }: UsersPageProps) {
       </Dialog>
     </>
   );
+  }
+
+  return (
+    <ResponsiveLayout
+      main={mainContent}
+      header={headerContent}
+    />
+  );
 }
 
