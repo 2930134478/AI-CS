@@ -126,7 +126,7 @@ export function useConversations(options?: UseConversationsOptions) {
     return () => clearTimeout(handler);
   }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId]);
 
-  const selectConversation = useCallback((conversationId: number) => {
+  const selectConversation = useCallback((conversationId: number | null) => {
     setSelectedConversationId((prev) =>
       prev === conversationId ? prev : conversationId
     );
