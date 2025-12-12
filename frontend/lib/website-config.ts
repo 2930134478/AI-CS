@@ -24,7 +24,7 @@ export const websiteConfig = {
     // 示例：添加您的友情链接
     // { name: "合作伙伴1", url: "https://example.com" },
     // { name: "合作伙伴2", url: "https://example2.com" },
-  ],
+  ] as Array<{ name: string; url: string }>,
   
   // 其他配置
   copyright: {
