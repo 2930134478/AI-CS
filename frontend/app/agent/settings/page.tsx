@@ -229,7 +229,7 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps = {
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="receive_ai_conversations"
-                  checked={!profile?.receive_ai_conversations ?? false}
+                  checked={!(profile?.receive_ai_conversations ?? false)}
                   onCheckedChange={async (checked) => {
                     if (userId) {
                       try {
