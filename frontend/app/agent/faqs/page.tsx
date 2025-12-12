@@ -445,7 +445,7 @@ export default function FAQsPage({ embedded = false }: FAQsPageProps) {
           {selectedFAQ && (
             <div className="space-y-4">
               <p className="text-foreground">
-                确定要删除事件 <strong>"{selectedFAQ.question}"</strong> 吗？
+                确定要删除事件 <strong>&quot;{selectedFAQ.question}&quot;</strong> 吗？
               </p>
               <p className="text-sm text-muted-foreground">
                 此操作不可恢复，请谨慎操作。
