@@ -2,6 +2,14 @@
 
 > 一个融合 AI 技术与人工客服的现代化智能客服解决方案
 
+## 🌐 在线演示
+
+**Demo 站点**: https://demo.cscorp.top
+
+- **官网首页**: https://demo.cscorp.top
+- **访客聊天**: https://demo.cscorp.top/chat（或点击首页右下角客服插件按钮）
+- **客服登录**: https://demo.cscorp.top/agent/login
+
 ## ✨ 核心特性
 
 - 🤖 **AI 客服支持**：支持多厂商 AI 模型，可配置 API 和模型选择
@@ -80,12 +88,33 @@ npm run dev
 ### 4. 访问应用
 
 - **官网首页**: http://localhost:3000
-- **访客聊天**: http://localhost:3000/chat
+- **访客聊天**: 
+  - 直接访问：http://localhost:3000/chat
+  - 或点击首页右下角的客服插件按钮
 - **客服登录**: http://localhost:3000/agent/login
 
 ### 5. 默认管理员账号
 
-系统会在首次启动时自动创建管理员账号（如果不存在）。
+⚠️ **重要说明**：
+
+系统会在首次启动时**自动创建**管理员账号（如果不存在），但**必须先在 `backend/.env` 文件中配置 `ADMIN_PASSWORD` 环境变量**。
+
+**配置步骤**：
+
+1. 在 `backend/.env` 文件中设置：
+   ```env
+   ADMIN_USERNAME=admin          # 可选，默认为 admin
+   ADMIN_PASSWORD=your_password  # ⚠️ 必填，首次登录后请立即修改密码
+   ```
+
+2. 启动后端服务，系统会自动创建管理员账号
+
+3. 使用配置的用户名和密码登录
+
+**安全提示**：
+- 生产环境请使用强密码
+- 首次登录后请立即修改密码
+- `ADMIN_PASSWORD` 是必填项，如果不设置，系统不会创建管理员账号
 
 ### 后端环境变量
 
@@ -149,7 +178,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
   <!-- 聊天窗口 iframe -->
   <iframe 
     id="ai-cs-chat-iframe"
-    src="https://your-domain.com/chat" 
+    src="https://demo.cscorp.top/chat" 
     style="display: none; position: fixed; bottom: 80px; right: 20px; width: 400px; height: 600px; max-width: calc(100vw - 40px); max-height: calc(100vh - 100px); border: none; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);"
     allow="microphone"
   ></iframe>
@@ -175,7 +204,7 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 #### 步骤 2：修改域名
 
-将代码中的 `https://your-domain.com` 替换为你的实际域名（部署 AI-CS 的域名）。
+将代码中的 `https://demo.cscorp.top` 替换为你的实际域名（部署 AI-CS 的域名）。
 
 **示例**：
 ```html
@@ -226,4 +255,4 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 
 ---
 
-**最后更新**: 2025-01-XX
+**最后更新**: 2025-01-12
