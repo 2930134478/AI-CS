@@ -7,7 +7,7 @@
 **Demo 站点**: https://demo.cscorp.top
 
 - **官网首页**: https://demo.cscorp.top
-- **访客聊天**: https://demo.cscorp.top/chat（或点击首页右下角客服插件按钮）
+- **访客聊天**: 点击首页右下角客服插件按钮
 - **客服登录**: https://demo.cscorp.top/agent/login
 
 ## ✨ 核心特性
