@@ -20,11 +20,7 @@ import { API_BASE_URL } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
-interface SettingsPageProps {
-  embedded?: boolean; // 是否嵌入模式（不使用 ResponsiveLayout）
-}
-
-export default function SettingsPage({ embedded = false }: SettingsPageProps = {}) {
+export default function SettingsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const [userId, setUserId] = useState<number | null>(null);
   const [configs, setConfigs] = useState<AIConfig[]>([]);

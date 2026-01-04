@@ -37,11 +37,7 @@ import {
   X,
 } from "lucide-react";
 
-interface UsersPageProps {
-  embedded?: boolean; // 是否嵌入模式（不使用 ResponsiveLayout）
-}
-
-export default function UsersPage({ embedded = false }: UsersPageProps) {
+export default function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const { agent } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);
