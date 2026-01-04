@@ -24,20 +24,179 @@
 
 ## 🚀 快速开始
 
-### 环境要求
+### 方式一：预构建镜像一键部署（推荐，最简单）⭐
 
-- Go 1.21 或更高版本
-- Node.js 18+ 和 npm/yarn
-- MySQL 8.0 或更高版本
+> **最简单快捷的方式**，直接使用预构建的 Docker 镜像，无需构建，一行命令启动。
 
-### 1. 克隆项目
+#### 前置要求
+
+- Docker Desktop（Windows/Mac）或 Docker + Docker Compose（Linux）
+
+#### 部署步骤
+
+1. **克隆项目并进入目录**
 
 ```bash
 git clone https://github.com/2930134478/AI-CS.git
 cd AI-CS
 ```
 
-### 2. 配置后端
+2. **配置环境变量**
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env 文件，至少修改以下配置：
+# - MYSQL_ROOT_PASSWORD: MySQL root 密码
+# - ADMIN_PASSWORD: 管理员密码（首次登录使用）
+# - ENCRYPTION_KEY: 加密密钥（生成 64 位十六进制字符串）
+```
+
+生成加密密钥：
+
+```bash
+# Linux/Mac
+openssl rand -hex 32
+
+# Windows PowerShell
+-join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+```
+
+3. **一键启动**
+
+```bash
+# 使用预构建镜像启动（自动从 Docker Hub 拉取镜像）
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+就这么简单！🎉
+
+4. **访问应用**
+
+- **前端首页**: http://localhost:3000
+- **访客聊天**: http://localhost:3000/chat
+- **客服登录**: http://localhost:3000/agent/login
+  - 用户名：`admin`（或 `.env` 中配置的 `ADMIN_USERNAME`）
+  - 密码：`.env` 中配置的 `ADMIN_PASSWORD`
+
+#### 常用命令
+
+```bash
+# 查看日志
+docker-compose -f docker-compose.prod.yml logs -f
+
+# 查看服务状态
+docker-compose -f docker-compose.prod.yml ps
+
+# 停止服务
+docker-compose -f docker-compose.prod.yml stop
+
+# 停止并删除容器（保留数据）
+docker-compose -f docker-compose.prod.yml down
+
+# 完全重置（删除所有数据）
+docker-compose -f docker-compose.prod.yml down -v
+```
+
+---
+
+### 方式二：Docker 本地构建部署
+
+> 适合需要自定义构建或网络无法访问 Docker Hub 的情况。
+
+#### 前置要求
+
+- Docker Desktop（Windows/Mac）或 Docker + Docker Compose（Linux）
+- Git
+
+#### 部署步骤
+
+1. **克隆项目**
+
+```bash
+git clone https://github.com/2930134478/AI-CS.git
+cd AI-CS
+```
+
+2. **配置环境变量**
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env 文件，至少修改以下配置：
+# - MYSQL_ROOT_PASSWORD: MySQL root 密码
+# - ADMIN_PASSWORD: 管理员密码（首次登录使用）
+# - ENCRYPTION_KEY: 加密密钥（生成 64 位十六进制字符串）
+```
+
+生成加密密钥：
+
+```bash
+# Linux/Mac
+openssl rand -hex 32
+
+# Windows PowerShell
+-join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+```
+
+3. **构建并启动服务**
+
+```bash
+# 构建并启动所有服务（首次构建需要一些时间）
+docker-compose up -d --build
+
+# 查看日志
+docker-compose logs -f
+
+# 查看服务状态
+docker-compose ps
+```
+
+4. **访问应用**
+
+- **前端首页**: http://localhost:3000
+- **访客聊天**: http://localhost:3000/chat
+- **客服登录**: http://localhost:3000/agent/login
+  - 用户名：`admin`（或 `.env` 中配置的 `ADMIN_USERNAME`）
+  - 密码：`.env` 中配置的 `ADMIN_PASSWORD`
+
+#### 常用命令
+
+```bash
+# 停止服务
+docker-compose stop
+
+# 停止并删除容器（保留数据）
+docker-compose down
+
+# 完全重置（删除所有数据）
+docker-compose down -v
+
+# 查看日志
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+---
+
+### 方式三：传统部署（手动安装）
+
+#### 环境要求
+
+- Go 1.24 或更高版本
+- Node.js 18+ 和 npm/yarn
+- MySQL 8.0 或更高版本
+
+#### 1. 克隆项目
+
+```bash
+git clone https://github.com/2930134478/AI-CS.git
+cd AI-CS
+```
+
+#### 2. 配置后端
 
 ```bash
 cd backend
@@ -73,7 +232,7 @@ go run main.go
 
 > ⚠️ **重要**：`ADMIN_PASSWORD` 是必填项，如果不设置，系统不会创建默认管理员账号。
 
-### 3. 配置前端
+#### 3. 配置前端
 
 ```bash
 cd frontend
@@ -85,7 +244,7 @@ npm install
 npm run dev
 ```
 
-### 4. 访问应用
+#### 4. 访问应用
 
 - **官网首页**: http://localhost:3000
 - **访客聊天**: 
@@ -93,7 +252,7 @@ npm run dev
   - 或点击首页右下角的客服插件按钮
 - **客服登录**: http://localhost:3000/agent/login
 
-### 5. 默认管理员账号
+#### 5. 默认管理员账号
 
 ⚠️ **重要说明**：
 

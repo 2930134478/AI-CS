@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# 编译产物
+backend.exe
+backend
+*.exe
+*.dll
+*.so
+
+# 环境变量
+.env
+.env.local
+
+# 上传文件（保留目录结构但不包含文件）
+uploads/*
+!uploads/.gitkeep
+
+# 日志
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 其他
+node_modules
+package.json
+package-lock.json

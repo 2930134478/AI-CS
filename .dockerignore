@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# 环境变量文件
+.env
+.env.local
+.env.production
+
+# 文档
+doc/
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 日志
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import MatomoTracker from "@/components/MatomoTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,9 @@ export const metadata: Metadata = {
   description: "融合 AI 技术与人工客服，为企业提供高效、智能的客户服务解决方案",
 };
 
+// Matomo 容器 URL（格式：container_*.js）
+const MATOMO_CONTAINER_URL = process.env.NEXT_PUBLIC_MATOMO_CONTAINER_URL || '';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,6 +32,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        {MATOMO_CONTAINER_URL && <MatomoTracker containerUrl={MATOMO_CONTAINER_URL} />}
       </body>
     </html>
   );
