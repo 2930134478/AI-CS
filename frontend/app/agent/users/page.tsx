@@ -37,7 +37,8 @@ import {
   X,
 } from "lucide-react";
 
-export default function UsersPage({ embedded = false }: { embedded?: boolean } = {}) {
+export default function UsersPage(props: any = {}) {
+  const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);

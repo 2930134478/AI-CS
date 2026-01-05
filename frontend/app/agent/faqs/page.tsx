@@ -35,7 +35,8 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
-export default function FAQsPage({ embedded = false }: { embedded?: boolean } = {}) {
+export default function FAQsPage(props: any = {}) {
+  const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
   const [faqs, setFaqs] = useState<FAQSummary[]>([]);

@@ -20,7 +20,8 @@ import { API_BASE_URL } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
-export default function SettingsPage({ embedded = false }: { embedded?: boolean } = {}) {
+export default function SettingsPage(props: any = {}) {
+  const { embedded = false } = props;
   const router = useRouter();
   const [userId, setUserId] = useState<number | null>(null);
   const [configs, setConfigs] = useState<AIConfig[]>([]);
