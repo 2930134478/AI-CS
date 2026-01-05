@@ -304,16 +304,6 @@ ENCRYPTION_KEY=your_32_byte_key         # 使用 openssl rand -hex 32 生成
 - `ADMIN_PASSWORD` 是必填项，如果不设置，系统不会创建默认管理员账号
 - 生产环境请使用强密码并设置 `GIN_MODE=release`
 
-### 前端环境变量（可选）
-
-在 `frontend/.env.local` 中配置（不配置则使用默认值）：
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
-```
-
-> 本地开发无需配置，已默认 `http://127.0.0.1:8080`。生产环境请修改为实际后端地址。
-
 ## 🔌 集成客服插件到你的网站
 
 #### 步骤 1：在 HTML 中添加代码

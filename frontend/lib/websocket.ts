@@ -49,12 +49,11 @@ export class WSClient<T = unknown> {
       this.ws = null;
     }
 
-    // 获取 API 基地址
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
-    // 将 http:// 替换为 ws://，将 https:// 替换为 wss://
-    let wsUrl =
-      apiBaseUrl.replace(/^http/, "ws") +
-      `/ws?conversation_id=${this.conversationId}&is_visitor=${this.isVisitor}`;
+    // 使用相对路径构建 WebSocket URL（自动适配当前域名和协议）
+    // 根据当前页面的协议自动选择 ws:// 或 wss://
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = typeof window !== 'undefined' ? window.location.host : '';
+    let wsUrl = `${protocol}//${host}/ws?conversation_id=${this.conversationId}&is_visitor=${this.isVisitor}`;
     // 如果是客服连接，添加 agent_id 参数
     if (!this.isVisitor && this.agentId) {
       wsUrl += `&agent_id=${this.agentId}`;
