@@ -2,6 +2,13 @@
 
 import { useEffect } from 'react';
 
+// 扩展 Window 接口以支持 Matomo Tag Manager
+declare global {
+  interface Window {
+    _mtm?: Array<any>;
+  }
+}
+
 interface MatomoTrackerProps {
   containerUrl?: string;
 }
