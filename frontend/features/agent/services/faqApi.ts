@@ -27,12 +27,13 @@ export interface UpdateFAQRequest {
 // 获取 FAQ 列表（支持关键词搜索）
 // query 格式：关键词之间用 % 分隔，例如 "openai%api%调用"
 export async function fetchFAQs(query?: string): Promise<FAQSummary[]> {
-  const url = new URL(`${API_BASE_URL}/faqs`);
+  // 使用相对路径构建 URL，支持查询参数
+  let url = `${API_BASE_URL}/faqs`;
   if (query) {
-    url.searchParams.set("query", query);
+    url += `?query=${encodeURIComponent(query)}`;
   }
 
-  const res = await fetch(url.toString(), {
+  const res = await fetch(url, {
     cache: "no-store",
   });
 
