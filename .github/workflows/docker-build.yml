@@ -29,6 +29,7 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: 537yaha/ai-cs-backend:latest
+          platforms: linux/amd64,linux/arm64
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -52,3 +53,7 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: 537yaha/ai-cs-frontend:latest
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=http://localhost:18080
+            NEXT_PUBLIC_BACKEND_PORT=18080

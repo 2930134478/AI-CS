@@ -80,6 +80,14 @@ docker-compose -f docker-compose.prod.yml up -d
   - 用户名：`admin`（或 `.env` 中配置的 `ADMIN_USERNAME`）
   - 密码：`.env` 中配置的 `ADMIN_PASSWORD`
 
+#### 端口配置
+
+**默认端口**：后端 `18080`，前端 `3000`
+
+**修改端口**：在 `.env` 文件中设置 `BACKEND_PORT` 和 `FRONTEND_PORT`
+
+⚠️ **注意**：预构建镜像的图片加载已硬编码为 `18080` 端口，如需修改端口，请使用方式二（本地构建）重新构建镜像。
+
 #### 常用命令
 
 ```bash
@@ -162,6 +170,15 @@ docker-compose ps
   - 用户名：`admin`（或 `.env` 中配置的 `ADMIN_USERNAME`）
   - 密码：`.env` 中配置的 `ADMIN_PASSWORD`
 
+#### 端口配置
+
+**默认端口**：后端 `18080`，前端 `3000`
+
+**修改端口**：在 `.env` 文件中设置 `BACKEND_PORT` 和 `FRONTEND_PORT`，然后重新构建：
+```bash
+docker-compose up -d --build
+```
+
 #### 常用命令
 
 ```bash
@@ -216,7 +233,7 @@ ADMIN_PASSWORD=your_admin_password
 
 # 服务器配置
 SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
+SERVER_PORT=18080        # 默认端口 18080，可修改
 GIN_MODE=debug
 
 # 加密密钥（用于加密 AI API Keys，可选）
@@ -243,6 +260,11 @@ npm install
 # 启动开发服务器（默认端口 3000）
 npm run dev
 ```
+
+**端口配置**：
+- 后端端口：修改 `backend/.env` 中的 `SERVER_PORT`（默认 `8080`）
+- 前端端口：启动时通过 `PORT` 环境变量修改，如 `PORT=4000 npm run dev`
+- 图片加载端口：创建 `frontend/.env.local`，设置 `NEXT_PUBLIC_BACKEND_PORT=你的后端端口`
 
 #### 4. 访问应用
 

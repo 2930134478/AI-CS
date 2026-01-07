@@ -42,7 +42,7 @@ services:
       GIN_MODE: ${GIN_MODE:-release}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-default-key}
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_PORT:-18080}:8080"
     volumes:
       - ./backend/uploads:/app/uploads
     depends_on:

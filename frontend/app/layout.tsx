@@ -21,6 +21,9 @@ export const metadata: Metadata = {
 // Matomo 容器 URL（格式：container_*.js）
 const MATOMO_CONTAINER_URL = process.env.NEXT_PUBLIC_MATOMO_CONTAINER_URL || '';
 
+// 后端端口配置（用于 widget.js）
+const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || '18080';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,6 +31,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.AICS_BACKEND_PORT = '${BACKEND_PORT}';`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

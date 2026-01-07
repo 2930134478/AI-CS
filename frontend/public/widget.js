@@ -15,9 +15,18 @@
 (function() {
   'use strict';
 
-  // 配置
+  // 配置（从全局变量或默认值读取后端端口）
+  const getDefaultBackendPort = () => {
+    // 优先使用全局变量（可在页面中通过 script 标签设置）
+    if (typeof window !== 'undefined' && window.AICS_BACKEND_PORT) {
+      return window.AICS_BACKEND_PORT;
+    }
+    // 默认端口 18080（避免与常用端口冲突）
+    return '18080';
+  };
+
   const defaultConfig = {
-    apiUrl: 'http://localhost:8080',
+    apiUrl: 'http://localhost:' + getDefaultBackendPort(),
     position: 'bottom-right', // 'bottom-right' | 'bottom-left'
     theme: 'default'
   };
