@@ -48,6 +48,7 @@ Thumbs.db
 # 编辑器配置
 .vscode/
 .idea/
+.cursor/
 
 # 文档目录不上传
 doc/
