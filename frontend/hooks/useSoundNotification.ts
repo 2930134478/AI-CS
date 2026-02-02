@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
-import { playNotificationSound } from "@/utils/sound";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useSoundNotification(enabled: boolean = true) {
+export function useSoundNotification(initialEnabled: boolean = true) {
+  const [enabled, setEnabled] = useState(initialEnabled);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -20,13 +20,17 @@ export function useSoundNotification(enabled: boolean = true) {
     };
   }, [enabled]);
 
-  const play = () => {
+  const play = useCallback(() => {
     if (enabled && audioRef.current) {
       audioRef.current.play().catch(() => {
         // 忽略播放错误
       });
     }
-  };
+  }, [enabled]);
 
-  return { play };
+  const toggle = useCallback(() => {
+    setEnabled((prev) => !prev);
+  }, []);
+
+  return { enabled, toggle, play };
 }
