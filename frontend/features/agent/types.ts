@@ -10,15 +10,17 @@ export interface LastMessage {
 
 export interface ConversationSummary {
   id: number;
+  conversation_type?: string; // "visitor" | "internal"
   visitor_id: number;
   agent_id: number;
   status: string;
+  chat_mode?: string;
   created_at: string;
   updated_at: string;
   last_message?: LastMessage;
   unread_count?: number;
-  last_seen_at?: string | null; // 最后活跃时间，用于判断在线状态
-  has_participated?: boolean; // 当前用户是否参与过该会话（是否发送过消息）
+  last_seen_at?: string | null;
+  has_participated?: boolean;
 }
 
 export interface MessageItem {

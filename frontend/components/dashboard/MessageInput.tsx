@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { uploadFile, UploadFileResult } from "@/features/agent/services/messageApi";
 import { X, Paperclip, Image as ImageIcon } from "lucide-react";
+import { toast } from "@/hooks/useToast";
 
 interface MessageInputProps {
   value: string;
@@ -57,7 +58,7 @@ export function MessageInput({
       // 验证文件大小（10MB）
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
-        alert("文件大小超过限制（最大10MB）");
+        toast.error("文件大小超过限制（最大10MB）");
         return;
       }
 
@@ -65,7 +66,7 @@ export function MessageInput({
       const ext = file.name.toLowerCase().split(".").pop();
       const allowedExts = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"];
       if (!ext || !allowedExts.includes(ext)) {
-        alert("不支持的文件类型");
+        toast.error("不支持的文件类型");
         return;
       }
 
@@ -177,7 +178,7 @@ export function MessageInput({
         try {
           fileInfo = await uploadFile(filePreview.file, conversationId);
         } catch (error) {
-          alert((error as Error).message || "文件上传失败");
+          toast.error((error as Error).message || "文件上传失败");
           setUploading(false);
           return;
         }

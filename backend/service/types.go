@@ -37,16 +37,18 @@ type UpdateConversationContactInput struct {
 
 // ConversationSummary 用于会话列表展示的概要信息。
 type ConversationSummary struct {
-	ID             uint
-	VisitorID      uint
-	AgentID        uint
-	Status         string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	LastMessage    *LastMessageSummary
-	UnreadCount    int64
-	LastSeenAt     *time.Time // 最后活跃时间，用于判断在线状态
-	HasParticipated bool      // 当前用户是否参与过该会话（是否发送过消息）
+	ID               uint
+	ConversationType string // visitor | internal
+	VisitorID        uint
+	AgentID          uint
+	Status           string
+	ChatMode         string // human | ai
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	LastMessage      *LastMessageSummary
+	UnreadCount      int64
+	LastSeenAt       *time.Time // 最后活跃时间，用于判断在线状态
+	HasParticipated  bool       // 当前用户是否参与过该会话（是否发送过消息）
 }
 
 // LastMessageSummary 会话最后一条消息的摘要信息。
@@ -192,4 +194,72 @@ type OnlineAgent struct {
 	ID        uint   `json:"id"`         // 客服ID
 	Nickname  string `json:"nickname"`   // 昵称
 	AvatarURL string `json:"avatar_url"` // 头像URL
+}
+
+// DocumentSummary 文档摘要信息。
+type DocumentSummary struct {
+	ID               uint      `json:"id"`
+	KnowledgeBaseID  uint      `json:"knowledge_base_id"`
+	Title            string    `json:"title"`
+	Content          string    `json:"content"`
+	Summary          string    `json:"summary"`
+	Type             string    `json:"type"`
+	Status           string    `json:"status"`
+	EmbeddingStatus  string    `json:"embedding_status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// CreateDocumentInput 创建文档输入。
+type CreateDocumentInput struct {
+	KnowledgeBaseID uint            // 知识库 ID（必需）
+	Title           string          // 文档标题（必需）
+	Content         string          // 文档内容（必需）
+	Summary         string          // 文档摘要（可选）
+	Type            string          // 文档类型（可选，默认：document）
+	Status          string          // 文档状态（可选，默认：draft）
+	Metadata        map[string]interface{} // 元数据（可选）
+}
+
+// UpdateDocumentInput 更新文档输入。
+type UpdateDocumentInput struct {
+	Title    *string                 // 文档标题（可选）
+	Content  *string                 // 文档内容（可选）
+	Summary  *string                 // 文档摘要（可选）
+	Type     *string                 // 文档类型（可选）
+	Status   *string                 // 文档状态（可选）
+	Metadata *map[string]interface{} // 元数据（可选）
+}
+
+// DocumentListResult 文档列表查询结果。
+type DocumentListResult struct {
+	Documents []DocumentSummary `json:"documents"`   // 文档列表
+	Total     int64             `json:"total"`       // 总记录数
+	Page      int               `json:"page"`       // 当前页码
+	PageSize  int               `json:"page_size"`  // 每页大小
+	TotalPage int               `json:"total_page"` // 总页数
+}
+
+// KnowledgeBaseSummary 知识库摘要信息。
+type KnowledgeBaseSummary struct {
+	ID             uint      `json:"id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	DocumentCount  int64     `json:"document_count"` // 文档数量（统计信息）
+	RAGEnabled     bool      `json:"rag_enabled"`    // 是否参与 RAG（对 AI 开放）
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// CreateKnowledgeBaseInput 创建知识库输入。
+type CreateKnowledgeBaseInput struct {
+	Name        string // 知识库名称（必需）
+	Description string // 知识库描述（可选）
+}
+
+// UpdateKnowledgeBaseInput 更新知识库输入。
+type UpdateKnowledgeBaseInput struct {
+	Name        *string // 知识库名称（可选）
+	Description *string // 知识库描述（可选）
+	RAGEnabled  *bool   // 是否参与 RAG（可选）
 }

@@ -72,9 +72,10 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 			}
 
 			conv = &models.Conversation{
-				VisitorID:  input.VisitorID,
-				Status:     "open",
-				Website:    input.Website,
+				ConversationType: "visitor",
+				VisitorID:        input.VisitorID,
+				Status:           "open",
+				Website:          input.Website,
 				Referrer:   input.Referrer,
 				Browser:    input.Browser,
 				OS:         input.OS,
@@ -254,14 +255,16 @@ func (s *ConversationService) buildSummary(conv models.Conversation, userID uint
 	}
 
 	summary := ConversationSummary{
-		ID:              conv.ID,
-		VisitorID:       conv.VisitorID,
-		AgentID:         conv.AgentID,
-		Status:          conv.Status,
-		CreatedAt:       conv.CreatedAt,
-		UpdatedAt:       conv.UpdatedAt,
-		LastSeenAt:      lastSeen,        // 添加 last_seen_at 字段
-		HasParticipated: hasParticipated, // 当前用户是否参与过该会话
+		ID:               conv.ID,
+		ConversationType: conv.ConversationType,
+		VisitorID:        conv.VisitorID,
+		AgentID:           conv.AgentID,
+		Status:            conv.Status,
+		ChatMode:          conv.ChatMode,
+		CreatedAt:         conv.CreatedAt,
+		UpdatedAt:         conv.UpdatedAt,
+		LastSeenAt:        lastSeen,
+		HasParticipated:   hasParticipated,
 	}
 
 	if message, err := s.messages.LatestByConversationID(conv.ID); err == nil && message != nil {
@@ -331,11 +334,14 @@ func (s *ConversationService) ListConversations(userID uint) ([]ConversationSumm
 	return result, nil
 }
 
-// GetConversationDetail 获取指定会话的详细信息。
+// GetConversationDetail 获取指定会话的详细信息。内部对话仅创建者（agent_id）可查看。
 func (s *ConversationService) GetConversationDetail(id uint, userID uint) (*ConversationDetail, error) {
 	conv, err := s.conversations.GetByID(id)
 	if err != nil {
 		return nil, err
+	}
+	if conv.ConversationType == "internal" && userID > 0 && conv.AgentID != userID {
+		return nil, gorm.ErrRecordNotFound
 	}
 
 	summary, err := s.buildSummary(*conv, userID)
@@ -442,4 +448,45 @@ func (s *ConversationService) UpdateLastSeenAt(conversationID uint) error {
 	return s.conversations.UpdateFields(conversationID, map[string]interface{}{
 		"last_seen_at": &now,
 	})
+}
+
+// InitInternalConversation 为客服创建一条新的内部对话（知识库测试用）。每次调用创建新会话。
+func (s *ConversationService) InitInternalConversation(agentID uint) (*InitConversationResult, error) {
+	if agentID == 0 {
+		return nil, errors.New("agent_id is required for internal conversation")
+	}
+	conv := &models.Conversation{
+		ConversationType: "internal",
+		VisitorID:        0,
+		AgentID:          agentID,
+		Status:           "open",
+		ChatMode:         "ai",
+	}
+	if err := s.conversations.Create(conv); err != nil {
+		return nil, err
+	}
+	return &InitConversationResult{
+		ConversationID: conv.ID,
+		Status:         conv.Status,
+	}, nil
+}
+
+// ListInternalConversations 返回当前客服的全部内部对话（知识库测试用）。
+func (s *ConversationService) ListInternalConversations(agentID uint) ([]ConversationSummary, error) {
+	if agentID == 0 {
+		return []ConversationSummary{}, nil
+	}
+	conversations, err := s.conversations.ListActiveInternalByAgentID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ConversationSummary, 0, len(conversations))
+	for _, conv := range conversations {
+		summary, err := s.buildSummary(conv, agentID)
+		if err != nil {
+			continue
+		}
+		result = append(result, summary)
+	}
+	return result, nil
 }

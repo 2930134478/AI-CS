@@ -12,8 +12,8 @@ export function ConversationSearch({
   onChange,
 }: ConversationSearchProps) {
   return (
-    <div className="p-4">
-      <div className="relative">
+    <div className="p-4 min-w-0">
+      <div className="relative min-w-0">
         <Input
           type="text"
           placeholder="Q Search"

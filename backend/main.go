@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 	"github.com/2930134478/AI-CS/backend/repository"
 	appRouter "github.com/2930134478/AI-CS/backend/router"
 	"github.com/2930134478/AI-CS/backend/service"
+	"github.com/2930134478/AI-CS/backend/service/embedding"
+	"github.com/2930134478/AI-CS/backend/service/rag"
 	"github.com/2930134478/AI-CS/backend/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -97,7 +100,7 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
@@ -106,6 +109,9 @@ func main() {
 	messageRepo := repository.NewMessageRepository(db)
 	aiConfigRepo := repository.NewAIConfigRepository(db)
 	faqRepo := repository.NewFAQRepository(db)
+	kbRepo := repository.NewKnowledgeBaseRepository(db)
+	docRepo := repository.NewDocumentRepository(db)
+	embeddingConfigRepo := repository.NewEmbeddingConfigRepository(db)
 
 	// 初始化默认管理员账号（如果不存在）
 	initDefaultAdmin(userRepo)
@@ -127,14 +133,68 @@ func main() {
 	publicPath := "/uploads"
 	storageService := infra.NewLocalStorageService(uploadDir, publicPath)
 
+	// 初始化 Milvus 客户端（向量数据库）
+	milvusClient, err := infra.NewMilvusClient()
+	if err != nil {
+		log.Fatalf("连接 Milvus 失败: %v", err)
+	}
+	defer milvusClient.Close()
+
+	// 检查 Milvus 健康状态
+	if err := infra.HealthCheck(milvusClient); err != nil {
+		log.Fatalf("Milvus 健康检查失败: %v", err)
+	}
+	log.Println("✅ Milvus 连接成功")
+
+	// 嵌入服务按需从 DB 配置获取（保存即生效，无需重启）
+	embeddingConfigService := service.NewEmbeddingConfigService(embeddingConfigRepo, userRepo)
+	embeddingFactory := embedding.NewEmbeddingFactory()
+	embeddingProvider := service.NewConfigBackedEmbeddingProvider(embeddingConfigService, embeddingFactory)
+
+	// 启动时获取一次维度用于创建/校验向量集合
+	initCtx := context.Background()
+	initSvc, _ := embeddingProvider.Get(initCtx)
+	if initSvc != nil {
+		log.Printf("✅ 嵌入服务按需从「知识库向量配置」加载，模型: %s (维度: %d)，修改配置后立即生效", initSvc.GetModelName(), initSvc.GetDimension())
+	} else {
+		log.Printf("⚠️ 未配置嵌入服务；知识库/RAG 需在「设置 - 知识库向量模型」中配置 API 后再使用")
+	}
+	dimension := 1536
+	if initSvc != nil {
+		dimension = initSvc.GetDimension()
+	}
+
+	// 向量存储：迁移时通过 getEmbedding 从当前配置重新向量化
+	getEmbedding := func(ctx context.Context) (infra.EmbeddingService, error) {
+		svc, err := embeddingProvider.Get(ctx)
+		if err != nil || svc == nil {
+			return nil, err
+		}
+		return svc, nil
+	}
+	vectorStore, err := infra.NewVectorStore(milvusClient, "documents", dimension, getEmbedding)
+	if err != nil {
+		log.Fatalf("创建向量存储失败: %v", err)
+	}
+	vectorStoreService := rag.NewVectorStoreService(vectorStore)
+
+	// 文档向量化 / RAG 检索 / 健康检查均使用 provider，配置保存即生效
+	documentEmbeddingService := rag.NewDocumentEmbeddingService(vectorStoreService, embeddingProvider)
+	retrievalService := rag.NewRetrievalService(vectorStoreService, embeddingProvider, docRepo, kbRepo)
+	retrievalService.EnableCache(5 * time.Minute)
+	healthChecker := rag.NewHealthChecker(embeddingProvider, vectorStoreService)
+
 	// 初始化服务层
 	authService := service.NewAuthService(userRepo)
 	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo)
 	profileService := service.NewProfileService(userRepo, storageService)
 	aiConfigService := service.NewAIConfigService(aiConfigRepo, userRepo)
-	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo)
-	userService := service.NewUserService(userRepo) // 用户管理服务
-	faqService := service.NewFAQService(faqRepo)    // FAQ 管理服务
+	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService)           // 添加 RAG 检索服务
+	userService := service.NewUserService(userRepo)                                                            // 用户管理服务
+	faqService := service.NewFAQService(faqRepo, retrievalService, documentEmbeddingService)                   // FAQ 管理服务
+	documentService := service.NewDocumentService(docRepo, kbRepo, documentEmbeddingService, retrievalService) // 文档管理服务
+	knowledgeBaseService := service.NewKnowledgeBaseService(kbRepo, docRepo)                                   // 知识库管理服务
+	importService := service.NewImportService(docRepo, kbRepo, documentService, documentEmbeddingService)      // 导入服务
 
 	// 声明 Hub 变量（用于在回调函数中访问）
 	var wsHub *websocket.Hub
@@ -252,19 +312,29 @@ func main() {
 	profileController := controller.NewProfileController(profileService)
 	aiConfigController := controller.NewAIConfigController(aiConfigService)
 	faqController := controller.NewFAQController(faqService)
+	documentController := controller.NewDocumentController(documentService, embeddingConfigService)
+	embeddingConfigController := controller.NewEmbeddingConfigController(embeddingConfigService)
+	knowledgeBaseController := controller.NewKnowledgeBaseController(knowledgeBaseService, embeddingConfigService)
+	importController := controller.NewImportController(importService, embeddingConfigService) // 导入控制器
 	visitorController := controller.NewVisitorController(visitorService)
+	healthController := controller.NewHealthController(healthChecker, retrievalService) // 健康检查控制器
 
 	appRouter.RegisterRoutes(
 		r,
 		appRouter.ControllerSet{
-			Auth:         authController,
-			Conversation: conversationController,
-			Message:      messageController,
-			Admin:        adminController,
-			Profile:      profileController,
-			AIConfig:     aiConfigController,
-			FAQ:          faqController,
-			Visitor:      visitorController,
+			Auth:              authController,
+			Conversation:      conversationController,
+			Message:           messageController,
+			Admin:             adminController,
+			Profile:           profileController,
+			AIConfig:          aiConfigController,
+			EmbeddingConfig:   embeddingConfigController,
+			FAQ:               faqController,
+			Document:          documentController,
+			KnowledgeBase:     knowledgeBaseController,
+			Import:            importController, // 导入控制器
+			Visitor:           visitorController,
+			Health:            healthController, // 健康检查控制器
 		},
 		websocket.HandleWebSocket(wsHub),
 	)

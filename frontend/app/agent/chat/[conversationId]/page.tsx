@@ -23,6 +23,7 @@ import {
   ChatWebSocketPayload,
 } from "@/features/agent/types";
 import type { WSMessage } from "@/lib/websocket";
+import { toast } from "@/hooks/useToast";
 
 export default function AgentChatPage() {
   const params = useParams();
@@ -163,7 +164,7 @@ export default function AgentChatPage() {
       setMessageInput("");
     } catch (error) {
       console.error(error);
-      alert((error as Error).message);
+      toast.error((error as Error).message);
     } finally {
       setSending(false);
     }

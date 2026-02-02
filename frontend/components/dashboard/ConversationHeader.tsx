@@ -1,6 +1,7 @@
 "use client";
 
-import { Separator } from "@/components/ui/separator";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 
 export type ConversationFilter = "all" | "mine" | "others";
 
@@ -9,50 +10,64 @@ interface ConversationHeaderProps {
   onFilterChange: (filter: ConversationFilter) => void;
 }
 
+const FILTER_OPTIONS: { value: ConversationFilter; label: string }[] = [
+  { value: "all", label: "全部对话" },
+  { value: "mine", label: "我的对话" },
+  { value: "others", label: "他人对话" },
+];
+
 export function ConversationHeader({
   filter,
   onFilterChange,
 }: ConversationHeaderProps) {
-  const getFilterLabel = (f: ConversationFilter) => {
-    switch (f) {
-      case "all":
-        return "全部";
-      case "mine":
-        return "自己的";
-      case "others":
-        return "其他的";
-      default:
-        return "全部";
-    }
-  };
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const currentLabel = FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? "全部对话";
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   return (
-    <div className="h-16 flex items-center justify-between px-4 bg-background flex-shrink-0 relative">
-      <div className="flex items-center gap-1 relative">
-        <select
-          value={filter}
-          onChange={(e) => onFilterChange(e.target.value as ConversationFilter)}
-          className="font-semibold text-foreground bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 min-w-fit"
+    <div className="h-14 flex items-center px-3 border-b border-border bg-background flex-shrink-0">
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted/50 text-sm font-medium text-foreground transition-colors min-w-0"
         >
-          <option value="all">All chats</option>
-          <option value="mine">My chats</option>
-          <option value="others">Others chats</option>
-        </select>
-        <svg
-          className="w-4 h-4 text-muted-foreground pointer-events-none flex-shrink-0"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
+          <span className="truncate">{currentLabel}</span>
+          <ChevronDown
+            className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           />
-        </svg>
+        </button>
+        {open && (
+          <div className="absolute top-full left-0 mt-1 py-1 rounded-lg border border-border bg-popover shadow-md z-50 min-w-[theme(spacing.32)]">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onFilterChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                  filter === opt.value
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <Separator className="absolute bottom-0 left-0 right-0" />
     </div>
   );
 }

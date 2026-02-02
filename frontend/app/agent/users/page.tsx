@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/useToast";
 import {
   Plus,
   Edit,
@@ -92,7 +93,7 @@ export default function UsersPage(props: any = {}) {
       setUsers(data);
     } catch (error) {
       console.error("加载用户列表失败:", error);
-      alert((error as Error).message || "加载用户列表失败");
+      toast.error((error as Error).message || "加载用户列表失败");
     } finally {
       setLoading(false);
     }
@@ -134,7 +135,7 @@ export default function UsersPage(props: any = {}) {
       return;
     }
     if (!createForm.username.trim() || !createForm.password.trim()) {
-      alert("用户名和密码不能为空");
+      toast.error("用户名和密码不能为空");
       return;
     }
     setSubmitting(true);
@@ -142,9 +143,9 @@ export default function UsersPage(props: any = {}) {
       await createUser(createForm, agent.id);
       setCreateDialogOpen(false);
       await loadUsers();
-      alert("创建成功");
+      toast.success("创建成功");
     } catch (error) {
-      alert((error as Error).message || "创建用户失败");
+      toast.error((error as Error).message || "创建用户失败");
     } finally {
       setSubmitting(false);
     }
@@ -173,9 +174,9 @@ export default function UsersPage(props: any = {}) {
       setEditDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
-      alert("更新成功");
+      toast.success("更新成功");
     } catch (error) {
-      alert((error as Error).message || "更新用户失败");
+      toast.error((error as Error).message || "更新用户失败");
     } finally {
       setSubmitting(false);
     }
@@ -197,13 +198,13 @@ export default function UsersPage(props: any = {}) {
       return;
     }
     if (!passwordForm.new_password.trim()) {
-      alert("新密码不能为空");
+      toast.error("新密码不能为空");
       return;
     }
     // 如果修改的是当前用户，需要旧密码；如果是其他用户，不需要旧密码
     const isCurrentUser = selectedUser.id === agent.id;
     if (isCurrentUser && !passwordForm.old_password?.trim()) {
-      alert("修改自己的密码需要提供旧密码");
+      toast.error("修改自己的密码需要提供旧密码");
       return;
     }
 
@@ -217,9 +218,9 @@ export default function UsersPage(props: any = {}) {
       setPasswordDialogOpen(false);
       setSelectedUser(null);
       setPasswordForm({ old_password: "", new_password: "" });
-      alert("密码更新成功");
+      toast.success("密码更新成功");
     } catch (error) {
-      alert((error as Error).message || "更新密码失败");
+      toast.error((error as Error).message || "更新密码失败");
     } finally {
       setSubmitting(false);
     }
@@ -242,9 +243,9 @@ export default function UsersPage(props: any = {}) {
       setDeleteDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
-      alert("删除成功");
+      toast.success("删除成功");
     } catch (error) {
-      alert((error as Error).message || "删除用户失败");
+      toast.error((error as Error).message || "删除用户失败");
     } finally {
       setSubmitting(false);
     }

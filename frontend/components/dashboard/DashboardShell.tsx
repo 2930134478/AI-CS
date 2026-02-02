@@ -1,15 +1,22 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/features/agent/hooks/useAuth";
 import { useConversations } from "@/features/agent/hooks/useConversations";
 import { useMessages } from "@/features/agent/hooks/useMessages";
+import { initInternalConversation } from "@/features/agent/services/conversationApi";
+import { toast } from "@/hooks/useToast";
 import { useProfile } from "@/features/agent/hooks/useProfile";
 import { Profile } from "@/features/agent/types";
 import { ResponsiveLayout } from "@/components/layout";
 import { LAYOUT } from "@/lib/constants/breakpoints";
+import {
+  getPageFromSearchParams,
+  getAgentPage,
+} from "@/lib/constants/agent-pages";
+import { Loader2 } from "lucide-react";
 import { ChatHeader } from "./ChatHeader";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { MessageInput } from "./MessageInput";
@@ -17,18 +24,17 @@ import { MessageList } from "./MessageList";
 import { NavigationSidebar, type NavigationPage } from "./NavigationSidebar";
 import { ProfileModal } from "./ProfileModal";
 import { VisitorDetailPanel } from "./VisitorDetailPanel";
-
-// 动态导入其他页面组件
-const FAQsPage = dynamic(() => import("@/app/agent/faqs/page").then(mod => ({ default: mod.default })), { ssr: false });
-const UsersPage = dynamic(() => import("@/app/agent/users/page").then(mod => ({ default: mod.default })), { ssr: false });
-const SettingsPage = dynamic(() => import("@/app/agent/settings/page").then(mod => ({ default: mod.default })), { ssr: false });
+import { useSoundNotification } from "@/hooks/useSoundNotification";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 export function DashboardShell() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentPage = getPageFromSearchParams(searchParams);
+
   // 登录状态：负责从本地存储读取客服信息，并提供登出方法
   const { agent, loading: authLoading, logout } = useAuth();
-  
-  // 页面状态管理（必须在所有其他 Hooks 之前声明，确保 Hooks 调用顺序一致）
-  const [currentPage, setCurrentPage] = useState<NavigationPage>("dashboard");
 
   // 个人资料状态
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -46,23 +52,38 @@ export function DashboardShell() {
   // 会话过滤状态
   const [conversationFilter, setConversationFilter] = useState<"all" | "mine" | "others">("all");
 
-  // 会话状态：包含会话列表、搜索关键字、选中的会话等
+  // 声音通知开关（客服端）
+  const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(false);
+
+  const currentPageMeta = getAgentPage(currentPage);
+  const isInternalChat = currentPage === "internal-chat";
+  const isChatPage = currentPageMeta?.isChatPage ?? false;
+  // 会话状态：访客对话或内部对话（知识库测试）根据 currentPage 切换
   const {
-            conversations,
-            filteredConversations,
-            selectedConversationId,
-            searchQuery,
-            loading,
-            isInitialLoad,
-            setSearchQuery,
-            selectConversation,
-            updateConversation,
-            refresh: refreshConversations,
-            hasConversation,
-          } = useConversations({
-            agentId: agent?.id ?? null, // 传递客服ID，用于建立全局 WebSocket 连接
-            filter: conversationFilter, // 传递过滤类型
-          });
+    conversations,
+    filteredConversations,
+    selectedConversationId,
+    searchQuery,
+    loading,
+    isInitialLoad,
+    setSearchQuery,
+    selectConversation,
+    updateConversation,
+    refresh: refreshConversations,
+    hasConversation,
+  } = useConversations({
+    agentId: agent?.id ?? null,
+    filter: conversationFilter,
+    listType: isInternalChat ? "internal" : "visitor",
+  });
+
+  // 计算总未读消息数
+  const totalUnreadCount = useMemo(() => {
+    return conversations.reduce((sum, conv) => sum + (conv.unread_count ?? 0), 0);
+  }, [conversations]);
+
+  // 更新页面标题显示未读消息数
+  usePageTitle(totalUnreadCount, "AI-CS");
 
   // 输入框内容与搜索高亮关键字
   const [messageInput, setMessageInput] = useState("");
@@ -90,12 +111,15 @@ export function DashboardShell() {
     updateContactInfo,
     includeAIMessages,
     toggleAIMessages,
+    aiThinking,
   } = useMessages({
     conversationId: selectedConversationId,
     agentId: agent?.id ?? null,
     updateConversation,
     refreshConversations,
     hasConversation,
+    soundEnabled,
+    forceIncludeAIMessages: isInternalChat,
   });
 
   // 左侧选择会话时，记录关键字用于消息高亮
@@ -118,7 +142,7 @@ export function DashboardShell() {
       await sendMessage(content, fileInfo);
       setMessageInput("");
     } catch (error) {
-      alert((error as Error).message);
+      toast.error((error as Error).message);
     }
   }, [messageInput, sendMessage]);
 
@@ -162,14 +186,26 @@ export function DashboardShell() {
     [refreshProfile]
   );
 
-  // 处理导航切换（必须在所有条件返回之前声明）
+  // 处理导航切换：更新 URL ?page=，与访客端路由一致，刷新后保留当前页
   const handleNavigate = useCallback((page: NavigationPage) => {
-    setCurrentPage(page);
-    // 如果切换到非 dashboard 页面，清空选中的对话
-    if (page !== "dashboard") {
+    router.push(pathname + "?page=" + page);
+    if (page !== "dashboard" && page !== "internal-chat") {
       selectConversation(null);
     }
-  }, [selectConversation]);
+  }, [pathname, router, selectConversation]);
+
+  // 新建内部对话（知识库测试）- 必须在条件 return 之前声明，保证 Hooks 顺序一致
+  const handleNewInternalConversation = useCallback(async () => {
+    if (!agent?.id) return;
+    try {
+      const { conversation_id } = await initInternalConversation(agent.id);
+      refreshConversations();
+      selectConversation(conversation_id);
+    } catch (e) {
+      console.error("创建内部对话失败:", e);
+      toast.error((e as Error).message || "创建内部对话失败");
+    }
+  }, [agent?.id, refreshConversations, selectConversation]);
 
   if (authLoading || (loading && isInitialLoad)) {
     return (
@@ -183,12 +219,9 @@ export function DashboardShell() {
     return null;
   }
 
-  // 构建侧边栏内容（包含导航栏和对话列表）
-  // 在 dashboard 页面时，显示导航栏 + 对话列表
-  // 在其他页面时，只显示导航栏
-  const sidebarContent = currentPage === "dashboard" ? (
+  const sidebarContent = isChatPage ? (
     <div className="flex h-full">
-      <NavigationSidebar 
+      <NavigationSidebar
         currentPage={currentPage}
         onNavigate={handleNavigate}
         onProfileClick={() => setProfileModalOpen(true)}
@@ -203,6 +236,8 @@ export function DashboardShell() {
         onSelectConversation={handleConversationSelect}
         filter={conversationFilter}
         onFilterChange={setConversationFilter}
+        mode={isInternalChat ? "internal" : "visitor"}
+        onNewClick={isInternalChat ? handleNewInternalConversation : undefined}
       />
     </div>
   ) : (
@@ -217,10 +252,9 @@ export function DashboardShell() {
     </div>
   );
 
-  // 构建主内容区
   const mainContent = (
     <div className="flex-1 flex flex-col bg-background min-h-0">
-      {currentPage === "dashboard" ? (
+      {isChatPage ? (
         selectedConversationId ? (
           <>
             <ChatHeader
@@ -231,6 +265,9 @@ export function DashboardShell() {
               onRefresh={handleRefreshChat}
               includeAIMessages={includeAIMessages}
               onToggleAIMessages={toggleAIMessages}
+              soundEnabled={soundEnabled}
+              onToggleSound={toggleSound}
+              hideAIToggle={isInternalChat}
             />
             <MessageList
               messages={messages}
@@ -240,6 +277,17 @@ export function DashboardShell() {
               currentUserIsAgent={true}
               conversationId={selectedConversationId ?? null}
               onMarkMessagesRead={markMessagesAsRead}
+              internalChatMode={isInternalChat}
+              bottomSlot={
+                isInternalChat && aiThinking ? (
+                  <div className="flex justify-start mt-2">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                      <span>AI 正在思考...</span>
+                    </div>
+                  </div>
+                ) : null
+              }
             />
             <MessageInput
               value={messageInput}
@@ -251,20 +299,22 @@ export function DashboardShell() {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            选择一个对话开始聊天
+            {isInternalChat ? "选择或新建内部对话，测试知识库效果" : "选择一个对话开始聊天"}
           </div>
         )
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {currentPage === "faqs" && <FAQsPage embedded={true} />}
-          {currentPage === "users" && <UsersPage embedded={true} />}
-          {currentPage === "settings" && <SettingsPage embedded={true} />}
+          {(() => {
+            const PageComponent = currentPageMeta?.component;
+            return PageComponent != null ? (
+              <PageComponent embedded={true} />
+            ) : null;
+          })()}
         </div>
       )}
     </div>
   );
 
-  // 构建右侧面板（仅在 dashboard 页面且选中对话时显示）
   const rightPanelContent = currentPage === "dashboard" && selectedConversationId ? (
     <VisitorDetailPanel
       conversation={selectedConversation}
@@ -280,7 +330,7 @@ export function DashboardShell() {
         sidebar={sidebarContent}
         main={mainContent}
         rightPanel={rightPanelContent}
-        sidebarWidth={currentPage === "dashboard" ? undefined : LAYOUT.navigationWidth}
+        sidebarWidth={isChatPage ? LAYOUT.dashboardSidebarWidth : LAYOUT.navigationWidth}
       />
 
       {/* 个人资料弹窗 */}

@@ -19,10 +19,11 @@ type User struct {
 }
 
 type Conversation struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	VisitorID uint      `json:"visitor_id"`
-	AgentID   uint      `json:"agent_id"`
-	Status    string    `json:"status"`
+	ID               uint      `json:"id" gorm:"primaryKey"`
+	ConversationType string    `json:"conversation_type" gorm:"type:varchar(20);default:'visitor'"` // visitor（访客对话）、internal（内部/知识库测试）
+	VisitorID        uint      `json:"visitor_id"`
+	AgentID          uint      `json:"agent_id"`
+	Status           string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	// 访客信息字段（自动收集）

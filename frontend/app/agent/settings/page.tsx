@@ -15,10 +15,17 @@ import {
   type CreateAIConfigRequest,
   type UpdateAIConfigRequest,
 } from "@/features/agent/services/aiConfigApi";
+import {
+  fetchEmbeddingConfig,
+  updateEmbeddingConfig,
+  type EmbeddingConfig,
+  type UpdateEmbeddingConfigRequest,
+} from "@/features/agent/services/embeddingConfigApi";
 import { useProfile } from "@/features/agent/hooks/useProfile";
 import { API_BASE_URL } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/useToast";
 
 export default function SettingsPage(props: any = {}) {
   const { embedded = false } = props;
@@ -39,6 +46,19 @@ export default function SettingsPage(props: any = {}) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // 知识库向量配置（平台级，仅管理员可修改）
+  const [embeddingConfig, setEmbeddingConfig] = useState<EmbeddingConfig | null>(null);
+  const [embeddingForm, setEmbeddingForm] = useState({
+    embedding_type: "openai",
+    api_url: "",
+    api_key: "",
+    model: "text-embedding-3-small",
+    customer_can_use_kb: true,
+  });
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
+  const [embeddingSubmitting, setEmbeddingSubmitting] = useState(false);
+  const [embeddingError, setEmbeddingError] = useState("");
 
   // 检查登录状态
   useEffect(() => {
@@ -80,6 +100,60 @@ export default function SettingsPage(props: any = {}) {
       loadConfigs();
     }
   }, [userId]);
+
+  // 加载知识库向量配置
+  const loadEmbeddingConfig = async () => {
+    if (!userId) return;
+    try {
+      setEmbeddingLoading(true);
+      const data = await fetchEmbeddingConfig(userId);
+      setEmbeddingConfig(data);
+      setEmbeddingForm({
+        embedding_type: data.embedding_type || "openai",
+        api_url: data.api_url || "",
+        api_key: "",
+        model: data.model || "text-embedding-3-small",
+        customer_can_use_kb: data.customer_can_use_kb ?? true,
+      });
+    } catch (e) {
+      console.error("加载知识库向量配置失败:", e);
+      setEmbeddingError("加载失败");
+    } finally {
+      setEmbeddingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
+      loadEmbeddingConfig();
+    }
+  }, [userId]);
+
+  // 保存知识库向量配置（仅管理员；保存后立即生效，无需重启）
+  const handleSaveEmbeddingConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+    setEmbeddingSubmitting(true);
+    setEmbeddingError("");
+    try {
+      const data: UpdateEmbeddingConfigRequest = {
+        embedding_type: embeddingForm.embedding_type,
+        api_url: embeddingForm.api_url || undefined,
+        model: embeddingForm.model || undefined,
+        customer_can_use_kb: embeddingForm.customer_can_use_kb,
+      };
+      if (embeddingForm.api_key) {
+        data.api_key = embeddingForm.api_key;
+      }
+      await updateEmbeddingConfig(userId, data);
+      await loadEmbeddingConfig();
+      toast.success("保存成功，配置已立即生效。");
+    } catch (err) {
+      setEmbeddingError((err as Error).message);
+    } finally {
+      setEmbeddingSubmitting(false);
+    }
+  };
 
   // 重置表单
   const resetForm = () => {
@@ -235,7 +309,7 @@ export default function SettingsPage(props: any = {}) {
                         });
                       } catch (error) {
                         console.error("更新设置失败:", error);
-                        alert("更新设置失败，请重试");
+                        toast.error("更新设置失败，请重试");
                       }
                     }
                   }}
@@ -252,6 +326,93 @@ export default function SettingsPage(props: any = {}) {
                 开启后，AI 对话将不会显示在对话列表中，也不会收到 AI 消息通知。
                 但您仍可以在会话页面手动开启&quot;显示 AI 消息&quot;来查看 AI 对话历史。
               </p>
+            </CardContent>
+          </Card>
+
+          {/* 知识库向量模型（平台级，仅管理员可修改；保存后立即生效） */}
+          <Card>
+            <CardHeader>
+              <CardTitle>知识库向量模型</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                用于知识库文档向量化与 RAG 检索。仅管理员可修改；保存后立即生效，无需重启。
+              </p>
+            </CardHeader>
+            <CardContent>
+              {embeddingLoading ? (
+                <div className="text-center py-6 text-muted-foreground">加载中...</div>
+              ) : (
+                <form onSubmit={handleSaveEmbeddingConfig} className="space-y-4">
+                  {embeddingError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {embeddingError}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">类型</Label>
+                      <select
+                        value={embeddingForm.embedding_type}
+                        onChange={(e) =>
+                          setEmbeddingForm({ ...embeddingForm, embedding_type: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-input rounded-md text-sm bg-background"
+                      >
+                        <option value="openai">OpenAI / 兼容 API</option>
+                        <option value="bge">BGE 本地</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">API 地址</Label>
+                      <Input
+                        value={embeddingForm.api_url}
+                        onChange={(e) =>
+                          setEmbeddingForm({ ...embeddingForm, api_url: e.target.value })
+                        }
+                        placeholder="https://api.openai.com/v1 或兼容地址"
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">API Key</Label>
+                      <Input
+                        type="password"
+                        value={embeddingForm.api_key}
+                        onChange={(e) =>
+                          setEmbeddingForm({ ...embeddingForm, api_key: e.target.value })
+                        }
+                        placeholder={embeddingConfig?.api_key_masked ? "留空则不更新" : "输入 API Key"}
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">模型</Label>
+                      <Input
+                        value={embeddingForm.model}
+                        onChange={(e) =>
+                          setEmbeddingForm({ ...embeddingForm, model: e.target.value })
+                        }
+                        placeholder="text-embedding-3-small"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="customer_can_use_kb"
+                      checked={embeddingForm.customer_can_use_kb}
+                      onCheckedChange={(checked) =>
+                        setEmbeddingForm({
+                          ...embeddingForm,
+                          customer_can_use_kb: checked === true,
+                        })
+                      }
+                    />
+                    <Label htmlFor="customer_can_use_kb" className="text-sm cursor-pointer">
+                      开放知识库给客服使用（允许创建知识库、上传文档、对话中引用）
+                    </Label>
+                  </div>
+                  <Button type="submit" disabled={embeddingSubmitting}>
+                    {embeddingSubmitting ? "保存中..." : "保存配置"}
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
 

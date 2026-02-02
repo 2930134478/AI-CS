@@ -13,10 +13,12 @@
 ## ✨ 核心特性
 
 - 🤖 **AI 客服支持**：支持多厂商 AI 模型，可配置 API 和模型选择
+- 🔍 **RAG 智能检索**：基于向量数据库的知识库检索，AI 对话自动使用知识库内容
+- 📚 **知识库管理**：完整的文档管理、知识库组织、批量导入功能
 - 👥 **人工客服**：实时在线状态显示，支持多客服协作
 - 💬 **实时通信**：基于 WebSocket 的双向实时消息推送
 - 📁 **文件传输**：支持图片、文档上传和预览
-- 📚 **FAQ 管理**：知识库管理，关键词搜索
+- 📖 **FAQ 管理**：知识库管理，支持向量检索和关键词搜索
 - 👤 **用户管理**：完整的用户权限管理系统
 - 🎨 **现代化 UI**：基于 Shadcn UI 的响应式设计
 - 🔌 **访客小窗插件**：可嵌入任何网站的客服小窗组件
@@ -238,6 +240,22 @@ GIN_MODE=debug
 
 # 加密密钥（用于加密 AI API Keys，可选）
 ENCRYPTION_KEY=$(openssl rand -hex 32)
+
+# Milvus 向量数据库配置（知识库功能需要）
+MILVUS_HOST=localhost
+MILVUS_PORT=19530
+
+# 嵌入服务配置（知识库功能需要）
+# 方式一：使用 OpenAI 嵌入服务
+EMBEDDING_TYPE=api
+EMBEDDING_API_URL=https://api.openai.com/v1
+EMBEDDING_API_KEY=your_openai_api_key
+EMBEDDING_MODEL=text-embedding-3-small
+
+# 方式二：使用本地 BGE 嵌入服务
+# EMBEDDING_TYPE=local
+# BGE_API_URL=http://localhost:8080
+# BGE_MODEL_NAME=bge-small-zh-v1.5
 EOF
 
 # 安装依赖

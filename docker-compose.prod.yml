@@ -22,6 +22,21 @@ services:
     networks:
       - ai-cs-network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 512M
 
   # 后端服务（使用预构建镜像）
   backend:
@@ -49,6 +64,23 @@ services:
     networks:
       - ai-cs-network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 2G
+      reservations:
+        cpus: '0.5'
+        memory: 512M
 
   # 前端服务（使用预构建镜像）
   frontend:

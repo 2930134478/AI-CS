@@ -19,6 +19,10 @@ interface MessageListProps {
   disableAutoScroll?: boolean;
   conversationId?: number | null;
   onMarkMessagesRead?: (conversationId: number, readerIsAgent: boolean) => void;
+  /** 底部插槽（如 AI 正在输入提示），会渲染在消息列表最下方并参与滚动 */
+  bottomSlot?: React.ReactNode;
+  /** 知识库测试（内部对话）模式：AI 回复（sender_id=0）显示在左侧，客服消息显示在右侧 */
+  internalChatMode?: boolean;
 }
 
 export function MessageList({
@@ -30,6 +34,8 @@ export function MessageList({
   disableAutoScroll = false,
   conversationId = null,
   onMarkMessagesRead,
+  bottomSlot,
+  internalChatMode = false,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -77,11 +83,11 @@ export function MessageList({
         markReadTimerRef.current = setTimeout(() => {
           // 检查是否有未读的消息（对方发送的消息）
           const unreadMessages = messages.filter((msg) => {
-            // 对于客服端：检查访客发送的未读消息
-            // 对于访客端：检查客服发送的未读消息
-            const isFromOther = currentUserIsAgent
-              ? !msg.sender_is_agent
-              : msg.sender_is_agent;
+            const isFromOther = internalChatMode
+              ? msg.sender_is_agent && msg.sender_id === 0 // 内部对话：AI 回复视为对方
+              : currentUserIsAgent
+                ? !msg.sender_is_agent
+                : msg.sender_is_agent;
             return isFromOther && !msg.is_read;
           });
 
@@ -107,7 +113,7 @@ export function MessageList({
         clearTimeout(markReadTimerRef.current);
       }
     };
-  }, [conversationId, onMarkMessagesRead, messages, currentUserIsAgent]);
+  }, [conversationId, onMarkMessagesRead, messages, currentUserIsAgent, internalChatMode]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -174,8 +180,9 @@ export function MessageList({
         const shouldAutoScroll =
           isInitialLoad ||
           (hasNewMessage &&
-            (isLastMessageFromCurrentUser || isNearBottom));
-        
+            (isLastMessageFromCurrentUser ||
+              isNearBottom ||
+              (!currentUserIsAgent && !isLastMessageFromCurrentUser)));
 
         if (keyword) {
           const keywordLower = keyword.toLowerCase();
@@ -227,26 +234,35 @@ export function MessageList({
             if (!container) {
               return;
             }
-            
-            // 如果 scrollHeight === clientHeight，说明没有滚动条，强制设置高度
-            // 这通常发生在 flex 布局中，子元素高度没有正确限制时
             if (container.scrollHeight === container.clientHeight && container.parentElement) {
               const parent = container.parentElement;
               const parentHeight = parent.offsetHeight;
               container.style.height = `${parentHeight}px`;
               container.style.maxHeight = `${parentHeight}px`;
             }
-            
-            container.scrollTo({
-              top: container.scrollHeight,
-              behavior: isInitialLoad ? "auto" : "smooth", // 初始加载时使用 instant，避免动画
-            });
-            // 标记初始滚动已完成
+            // 访客端收到对方（如 AI）的新消息时：从该气泡头部开始显示，长消息无需往上翻
+            const lastMsgEl = messageRefs.current[lastMessage.id];
+            if (
+              lastMsgEl &&
+              !currentUserIsAgent &&
+              !isLastMessageFromCurrentUser
+            ) {
+              lastMsgEl.scrollIntoView({
+                block: "start",
+                behavior: isInitialLoad ? "auto" : "smooth",
+                inline: "nearest",
+              });
+            } else {
+              container.scrollTo({
+                top: container.scrollHeight,
+                behavior: isInitialLoad ? "auto" : "smooth",
+              });
+            }
             if (isInitialLoad) {
               hasInitialScrolledRef.current = true;
             }
           };
-          setTimeout(scrollBottom, isInitialLoad ? 0 : 100); // 初始加载时立即滚动
+          setTimeout(scrollBottom, isInitialLoad ? 0 : 100);
         }
 
         // 当消息列表更新且自动滚动到底部时，检查是否需要标记为已读
@@ -264,9 +280,11 @@ export function MessageList({
             }
 
             const unreadMessages = messages.filter((msg) => {
-              const isFromOther = currentUserIsAgent
-                ? !msg.sender_is_agent
-                : msg.sender_is_agent;
+              const isFromOther = internalChatMode
+                ? msg.sender_is_agent && msg.sender_id === 0
+                : currentUserIsAgent
+                  ? !msg.sender_is_agent
+                  : msg.sender_is_agent;
               return isFromOther && !msg.is_read;
             });
 
@@ -318,6 +336,7 @@ export function MessageList({
     currentUserIsAgent,
     conversationId,
     onMarkMessagesRead,
+    internalChatMode,
   ]);
 
   if (loading) {
@@ -393,11 +412,13 @@ export function MessageList({
             );
           }
 
-          // 确保 sender_is_agent 是布尔值
           const isSenderAgent = Boolean(message.sender_is_agent);
-          const isCurrentUser = currentUserIsAgent
-            ? isSenderAgent
-            : !isSenderAgent;
+          // 内部对话（知识库测试）：AI 回复 sender_id=0 显示左侧，客服消息显示右侧
+          const isCurrentUser = internalChatMode
+            ? isSenderAgent && message.sender_id !== 0
+            : currentUserIsAgent
+              ? isSenderAgent
+              : !isSenderAgent;
           const alignment = isCurrentUser ? "justify-end" : "justify-start";
           const bubbleColor = isCurrentUser
             ? "bg-primary text-primary-foreground shadow-md"
@@ -527,6 +548,7 @@ export function MessageList({
           );
         })}
         </div>
+        {bottomSlot}
       </div>
     </>
   );

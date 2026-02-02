@@ -25,6 +25,8 @@ export const LAYOUT = {
   navigationWidth: '4rem',
   /** 侧边栏宽度：320px (20rem) */
   sidebarWidth: '20rem',
+  /** 对话页侧边栏总宽度：导航 4rem + 对话列表 20rem = 24rem */
+  dashboardSidebarWidth: '24rem',
   /** 右侧面板宽度：320px (20rem) */
   rightPanelWidth: '20rem',
   /** 顶部栏高度：64px (4rem) */

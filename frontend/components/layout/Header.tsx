@@ -11,76 +11,56 @@ import { websiteConfig } from "@/lib/website-config";
  */
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo 和品牌名称 */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">AI</span>
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                AI-CS
-              </span>
+        <div className="flex h-14 md:h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-semibold text-sm">AI</span>
             </div>
+            <span className="text-lg font-semibold text-foreground tracking-tight">AI-CS</span>
           </Link>
 
-          {/* 右侧：导航链接和操作按钮 */}
-          <div className="flex items-center space-x-6">
-            {/* 导航链接 */}
-            <nav className="hidden md:flex items-center space-x-6">
+          <div className="flex items-center gap-6 md:gap-8">
+            <nav className="hidden md:flex items-center gap-6">
               <Link
                 href="#features"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 功能特性
               </Link>
               <Link
                 href="#screenshots"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 界面展示
               </Link>
               <Link
                 href="#faq"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 常见问题
               </Link>
               <Link
                 href="/agent/login"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 客服登录
               </Link>
             </nav>
 
-            {/* GitHub 链接 */}
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="hidden sm:flex"
-            >
+            <Button variant="ghost" size="sm" asChild className="hidden sm:flex text-muted-foreground hover:text-foreground">
               <a
                 href={websiteConfig.github.repo}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center space-x-2"
+                className="flex items-center gap-2"
               >
                 <Github className="w-4 h-4" />
                 <span>GitHub</span>
               </a>
             </Button>
-            
-            {/* 移动端 GitHub 图标按钮 */}
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className="sm:hidden"
-            >
+            <Button variant="ghost" size="icon" asChild className="sm:hidden text-muted-foreground hover:text-foreground">
               <a
                 href={websiteConfig.github.repo}
                 target="_blank"

@@ -4,13 +4,17 @@ import {
   ConversationSummary,
 } from "../types";
 
-export async function fetchConversations(userId?: number): Promise<ConversationSummary[]> {
-  const url = userId 
-    ? `${API_BASE_URL}/conversations?user_id=${userId}`
-    : `${API_BASE_URL}/conversations`;
-  const res = await fetch(url, {
-    cache: "no-store",
-  });
+export type ConversationListType = "visitor" | "internal";
+
+export async function fetchConversations(
+  userId?: number,
+  opts?: { type?: ConversationListType }
+): Promise<ConversationSummary[]> {
+  const params = new URLSearchParams();
+  if (userId) params.set("user_id", String(userId));
+  if (opts?.type) params.set("type", opts.type);
+  const url = `${API_BASE_URL}/conversations?${params.toString()}`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error("获取对话列表失败");
   }
@@ -23,6 +27,20 @@ export async function fetchConversations(userId?: number): Promise<ConversationS
     unread_count: item.unread_count ?? 0,
     has_participated: item.has_participated ?? false,
   }));
+}
+
+/** 创建一条内部对话（知识库测试），返回新对话 ID */
+export async function initInternalConversation(userId: number): Promise<{ conversation_id: number }> {
+  const res = await fetch(`${API_BASE_URL}/conversations/internal?user_id=${userId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || "创建内部对话失败");
+  }
+  const data = await res.json();
+  return { conversation_id: data.conversation_id };
 }
 
 export async function searchConversations(
@@ -50,11 +68,13 @@ export async function searchConversations(
 }
 
 export async function fetchConversationDetail(
-  conversationId: number
+  conversationId: number,
+  userId?: number
 ): Promise<ConversationDetail | null> {
-  const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
-    cache: "no-store",
-  });
+  const url = userId
+    ? `${API_BASE_URL}/conversations/${conversationId}?user_id=${userId}`
+    : `${API_BASE_URL}/conversations/${conversationId}`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     return null;
   }

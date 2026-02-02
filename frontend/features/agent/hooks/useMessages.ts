@@ -24,6 +24,7 @@ import {
 import { useWebSocket } from "./useWebSocket";
 import { WSMessage } from "@/lib/websocket";
 import { buildMessagePreview } from "@/utils/format";
+import { playNotificationSound } from "@/utils/sound";
 
 interface UseMessagesOptions {
   conversationId: number | null;
@@ -33,8 +34,11 @@ interface UseMessagesOptions {
     updater: (conversation: ConversationSummary) => ConversationSummary,
     options?: { skipResort?: boolean }
   ) => void;
-  refreshConversations?: () => void; // 刷新对话列表（用于新对话的情况）
-  hasConversation?: (conversationId: number) => boolean; // 检查对话是否存在
+  refreshConversations?: () => void;
+  hasConversation?: (conversationId: number) => boolean;
+  soundEnabled?: boolean;
+  /** 内部对话（知识库测试）时强制包含 AI 消息 */
+  forceIncludeAIMessages?: boolean;
 }
 
 export function useMessages({
@@ -43,18 +47,21 @@ export function useMessages({
   updateConversation,
   refreshConversations,
   hasConversation,
+  soundEnabled = false,
+  forceIncludeAIMessages = false,
 }: UseMessagesOptions) {
-  // 消息列表、请求状态、访客详情等基础状态
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [conversationDetail, setConversationDetail] =
     useState<ConversationDetail | null>(null);
-  const [includeAIMessages, setIncludeAIMessages] = useState(false); // 是否包含 AI 消息（默认不包含）
+  const [includeAIMessages, setIncludeAIMessages] = useState(forceIncludeAIMessages);
+  /** 内部对话（知识库测试）下发消息后等待 AI 回复时显示「正在思考」（与访客小窗逻辑一致） */
+  const [aiThinking, setAiThinking] = useState(false);
 
   const refreshConversationDetail = useCallback(
     async (id: number) => {
-      const detail = await fetchConversationDetail(id);
+      const detail = await fetchConversationDetail(id, agentId ?? undefined);
       setConversationDetail(detail);
       // 同时更新对话列表中的 last_seen_at（用于判断在线状态）
       if (detail) {
@@ -159,20 +166,21 @@ export function useMessages({
     [updateConversation]
   );
 
+  const effectiveIncludeAIMessages = forceIncludeAIMessages || includeAIMessages;
   const loadMessages = useCallback(
-    async (id: number, includeAI: boolean = includeAIMessages) => {
+    async (id: number, includeAI?: boolean) => {
+      const include = includeAI ?? effectiveIncludeAIMessages;
       setLoadingMessages(true);
       try {
-        const data = await fetchMessages(id, includeAI);
+        const data = await fetchMessages(id, include);
         setMessages(data);
-        // 注意：不再自动标记访客消息为已读，而是通过滚动检测来处理
       } catch (error) {
         console.error("拉取消息失败:", error);
       } finally {
         setLoadingMessages(false);
       }
     },
-    [includeAIMessages]
+    [effectiveIncludeAIMessages]
   );
 
   useEffect(() => {
@@ -181,9 +189,9 @@ export function useMessages({
       setConversationDetail(null);
       return;
     }
-    loadMessages(conversationId, includeAIMessages);
+    loadMessages(conversationId, effectiveIncludeAIMessages);
     refreshConversationDetail(conversationId);
-  }, [conversationId, agentId, includeAIMessages, loadMessages, refreshConversationDetail]);
+  }, [conversationId, agentId, effectiveIncludeAIMessages, loadMessages, refreshConversationDetail]);
 
   const handleSendMessage = useCallback(
     async (content: string, fileInfo?: { file_url: string; file_type: string; file_name: string; file_size: number; mime_type: string }) => {
@@ -195,6 +203,9 @@ export function useMessages({
         return;
       }
       setSending(true);
+      if (forceIncludeAIMessages) {
+        setAiThinking(true);
+      }
       try {
         await sendMessage({
           conversationId,
@@ -208,16 +219,24 @@ export function useMessages({
         });
       } catch (error) {
         console.error(error);
+        if (forceIncludeAIMessages) {
+          setAiThinking(false);
+        }
         throw error;
       } finally {
         setSending(false);
       }
     },
-    [agentId, conversationId, sending]
+    [agentId, conversationId, sending, forceIncludeAIMessages]
   );
 
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
+      // 如果是访客发送的消息（不是客服自己发送的），播放提示音
+      if (!message.sender_is_agent && soundEnabled) {
+        playNotificationSound(soundEnabled);
+      }
+      
       // 检查对话是否存在
       const conversationExists = hasConversation
         ? hasConversation(message.conversation_id)
@@ -269,12 +288,12 @@ export function useMessages({
       // 根据 includeAIMessages 状态过滤 AI 消息
       // 如果隐藏 AI 消息（includeAIMessages === false）且消息的 chat_mode === "ai"，则不添加到消息列表
       const messageChatMode = message.chat_mode || "human"; // 兼容历史数据，默认为 human
-      const shouldHideAIMessage = !includeAIMessages && messageChatMode === "ai";
+      const shouldHideAIMessage = !effectiveIncludeAIMessages && messageChatMode === "ai";
 
       setMessages((prev) => {
         const exists = prev.some((item) => item.id === message.id);
         if (exists) {
-          // 消息已存在，需要根据 includeAIMessages 决定是否保留
+          // 消息已存在，需要根据 effectiveIncludeAIMessages 决定是否保留
           if (shouldHideAIMessage) {
             // 如果应该隐藏 AI 消息，则从列表中移除
             return prev.filter((msg) => msg.id !== message.id);
@@ -301,10 +320,18 @@ export function useMessages({
         return [...prev, message];
       });
 
+      // 内部对话（知识库测试）：收到 AI 回复时关闭「正在思考」（与访客小窗一致：收到对方回复即关闭）
+      if (forceIncludeAIMessages && message.conversation_id === conversationId) {
+        const msgChatMode = message.chat_mode || "human";
+        if (msgChatMode === "ai") {
+          setAiThinking(false);
+        }
+      }
+
       // 注意：不再自动标记访客消息为已读，而是通过滚动检测来处理
       // 不再调用 refreshConversationDetail，避免不必要的重新加载和状态丢失
     },
-    [conversationId, updateConversation, refreshConversations, hasConversation, includeAIMessages]
+    [conversationId, updateConversation, refreshConversations, hasConversation, effectiveIncludeAIMessages, soundEnabled, forceIncludeAIMessages]
   );
 
   const handleMessagesReadBroadcast = useCallback(
@@ -491,8 +518,10 @@ export function useMessages({
       sendMessage: handleSendMessage,
       markMessagesAsRead: handleMarkMessagesRead,
       updateContactInfo,
-      includeAIMessages,
+      includeAIMessages: effectiveIncludeAIMessages,
       toggleAIMessages,
+      forceIncludeAIMessages,
+      aiThinking,
     }),
     [
       conversationDetail,
@@ -504,8 +533,10 @@ export function useMessages({
       refreshConversationDetail,
       sending,
       updateContactInfo,
-      includeAIMessages,
+      effectiveIncludeAIMessages,
       toggleAIMessages,
+      forceIncludeAIMessages,
+      aiThinking,
     ]
   );
 

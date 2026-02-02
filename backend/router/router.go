@@ -7,14 +7,19 @@ import (
 
 // ControllerSet 用于收集路由需要的控制器集合。
 type ControllerSet struct {
-	Auth         *controller.AuthController
-	Conversation *controller.ConversationController
-	Message      *controller.MessageController
-	Admin        *controller.AdminController
-	Profile      *controller.ProfileController
-	AIConfig     *controller.AIConfigController
-	FAQ          *controller.FAQController
-	Visitor      *controller.VisitorController
+	Auth             *controller.AuthController
+	Conversation     *controller.ConversationController
+	Message          *controller.MessageController
+	Admin            *controller.AdminController
+	Profile          *controller.ProfileController
+	AIConfig         *controller.AIConfigController
+	EmbeddingConfig  *controller.EmbeddingConfigController
+	FAQ              *controller.FAQController
+	Document         *controller.DocumentController
+	KnowledgeBase    *controller.KnowledgeBaseController
+	Import           *controller.ImportController
+	Visitor          *controller.VisitorController
+	Health           *controller.HealthController
 }
 
 // RegisterRoutes 注册 HTTP 路由及对应的处理函数。
@@ -25,6 +30,7 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 
 	// Conversation
 	r.POST("/conversation/init", controllers.Conversation.InitConversation)
+	r.POST("/conversations/internal", controllers.Conversation.InitInternalConversation) // 创建内部对话（知识库测试）
 	r.GET("/conversations", controllers.Conversation.ListConversations)
 	r.GET("/conversations/:id", controllers.Conversation.GetConversationDetail)
 	r.PUT("/conversations/:id/contact", controllers.Conversation.UpdateContactInfo)
@@ -59,6 +65,10 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 	r.PUT("/agent/ai-config/:user_id/:id", controllers.AIConfig.UpdateAIConfig)
 	r.DELETE("/agent/ai-config/:user_id/:id", controllers.AIConfig.DeleteAIConfig)
 
+	// Embedding Config（知识库向量模型配置，平台级）
+	r.GET("/agent/embedding-config", controllers.EmbeddingConfig.Get)
+	r.PUT("/agent/embedding-config", controllers.EmbeddingConfig.Update)
+
 	// FAQ（事件管理/常见问题）
 	r.GET("/faqs", controllers.FAQ.ListFAQs)           // 获取 FAQ 列表（支持关键词搜索）
 	r.GET("/faqs/:id", controllers.FAQ.GetFAQ)         // 获取 FAQ 详情
@@ -66,8 +76,37 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 	r.PUT("/faqs/:id", controllers.FAQ.UpdateFAQ)      // 更新 FAQ
 	r.DELETE("/faqs/:id", controllers.FAQ.DeleteFAQ)   // 删除 FAQ
 
+	// Document（文档管理）
+	r.GET("/documents", controllers.Document.ListDocuments)                    // 获取文档列表（支持分页、搜索、状态过滤）
+	r.GET("/documents/:id", controllers.Document.GetDocument)                  // 获取文档详情
+	r.POST("/documents", controllers.Document.CreateDocument)                  // 创建文档
+	r.PUT("/documents/:id", controllers.Document.UpdateDocument)               // 更新文档
+	r.DELETE("/documents/:id", controllers.Document.DeleteDocument)            // 删除文档
+	r.GET("/documents/search", controllers.Document.SearchDocuments)           // 向量检索搜索文档
+	r.GET("/documents/hybrid-search", controllers.Document.HybridSearchDocuments) // 混合检索搜索文档
+	r.PUT("/documents/:id/status", controllers.Document.UpdateDocumentStatus)  // 更新文档状态
+	r.POST("/documents/:id/publish", controllers.Document.PublishDocument)     // 发布文档
+	r.POST("/documents/:id/unpublish", controllers.Document.UnpublishDocument) // 取消发布文档
+
+	// KnowledgeBase（知识库管理）
+	r.GET("/knowledge-bases", controllers.KnowledgeBase.ListKnowledgeBases)              // 获取知识库列表
+	r.GET("/knowledge-bases/:id", controllers.KnowledgeBase.GetKnowledgeBase)            // 获取知识库详情
+	r.POST("/knowledge-bases", controllers.KnowledgeBase.CreateKnowledgeBase)            // 创建知识库
+	r.PUT("/knowledge-bases/:id", controllers.KnowledgeBase.UpdateKnowledgeBase)         // 更新知识库
+	r.PATCH("/knowledge-bases/:id/rag-enabled", controllers.KnowledgeBase.UpdateKnowledgeBaseRAGEnabled) // 知识库是否参与 RAG
+	r.DELETE("/knowledge-bases/:id", controllers.KnowledgeBase.DeleteKnowledgeBase)      // 删除知识库
+	r.GET("/knowledge-bases/:id/documents", controllers.KnowledgeBase.ListDocumentsByKnowledgeBase) // 获取知识库的文档列表
+
+	// Import（文档导入）
+	r.POST("/import/documents", controllers.Import.ImportDocuments) // 批量导入文档（文件上传）
+	r.POST("/import/urls", controllers.Import.ImportFromURLs)       // 批量导入文档（URL 爬取）
+
 	// Visitor（访客相关）
 	r.GET("/visitor/online-agents", controllers.Visitor.GetOnlineAgents) // 获取在线客服列表
+
+	// Health（健康检查）
+	r.GET("/health", controllers.Health.HealthCheck)       // 健康检查
+	r.GET("/health/metrics", controllers.Health.Metrics)   // 性能指标
 
 	// WebSocket
 	r.GET("/ws", wsHandler)

@@ -23,6 +23,9 @@ import { fetchOnlineAgents } from "@/features/visitor/services/visitorApi";
 import { fetchPublicAIModels } from "@/features/agent/services/aiConfigApi";
 import { useWebSocket } from "@/features/agent/hooks/useWebSocket";
 import type { WSMessage } from "@/lib/websocket";
+import { useSoundNotification } from "@/hooks/useSoundNotification";
+import { playNotificationSound } from "@/utils/sound";
+import { Loader2 } from "lucide-react";
 
 interface ChatWidgetProps {
   visitorId: number;
@@ -82,6 +85,11 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
   >([]);
   const [onlineAgents, setOnlineAgents] = useState<OnlineAgent[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
+  /** AI 模式下发消息后等待回复时显示「正在输入」提示 */
+  const [aiTyping, setAiTyping] = useState(false);
+
+  // 声音通知开关（访客端）
+  const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(true);
 
   const noopHighlight = useCallback(() => {}, []);
 
@@ -216,28 +224,27 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
     [conversationId]
   );
 
-  // 拉取历史消息
+  // 拉取历史消息（AI 模式时包含 AI 对话记录，人工模式时仅人工消息）
   const loadMessages = useCallback(async () => {
     if (!conversationId) {
       return;
     }
     setLoadingMessages(true);
     try {
-      const data = await fetchMessages(conversationId);
+      const includeAIMessages = chatMode === "ai";
+      const data = await fetchMessages(conversationId, includeAIMessages);
       const normalizedMessages = data.map((msg) => ({
         ...msg,
         is_read: msg.is_read ?? false,
         read_at: msg.read_at ?? null,
       }));
-      // 刷新消息列表时，移除所有临时消息（ID 大于 1000000000000 的消息是临时消息）
-      // 临时消息使用 Date.now() 作为 ID，真实消息的 ID 通常较小
       setMessages(normalizedMessages);
     } catch (error) {
       console.error("拉取消息失败:", error);
     } finally {
       setLoadingMessages(false);
     }
-  }, [conversationId]);
+  }, [conversationId, chatMode]);
 
   useEffect(() => {
     if (isOpen && conversationId) {
@@ -252,6 +259,12 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       if (!conversationId || message.conversation_id !== conversationId) {
         return;
       }
+      
+      // 如果是客服发送的消息（不是访客自己发送的），播放提示音
+      if (message.sender_is_agent) {
+        playNotificationSound(soundEnabled);
+      }
+      
       setMessages((prev) => {
         // 检查是否已存在相同ID的消息（真实消息）
         const exists = prev.some((item) => item.id === message.id);
@@ -382,7 +395,12 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         return;
       }
       if (event.type === "new_message" && event.data) {
-        handleNewMessage(event.data as MessageItem);
+        const msg = event.data as MessageItem;
+        handleNewMessage(msg);
+        // AI 模式下收到对方（客服/AI）回复时关闭「正在输入」提示
+        if (chatMode === "ai" && msg.sender_is_agent) {
+          setAiTyping(false);
+        }
       } else if (event.type === "messages_read") {
         const payload = event.data as MessagesReadPayload;
         if (!payload.conversation_id && event.conversation_id) {
@@ -390,9 +408,9 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         }
         handleMessagesReadEvent(payload);
       }
-    },
-    [handleMessagesReadEvent, handleNewMessage]
-  );
+        },
+        [handleMessagesReadEvent, handleNewMessage, soundEnabled, chatMode]
+      );
 
   useWebSocket<ChatWebSocketPayload>({
     conversationId,
@@ -436,7 +454,10 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       setMessages((prev) => [...prev, tempMessage]);
       setInput("");
       setSending(true);
-      
+      if (chatMode === "ai") {
+        setAiTyping(true);
+      }
+
       try {
         await sendMessage({
           conversationId,
@@ -455,6 +476,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       } catch (error) {
         // 发送失败，移除临时消息
         setMessages((prev) => prev.filter((msg) => msg.id !== tempMessage.id));
+        if (chatMode === "ai") setAiTyping(false);
         console.error("❌ 发送消息失败:", error);
         alert((error as Error).message || "发送消息失败，请稍后重试");
         // 恢复输入内容
@@ -493,29 +515,76 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           </div>
           <h2 className="text-lg font-bold text-white">客服聊天</h2>
         </div>
-        {/* GitHub 链接按钮（替换关闭按钮） */}
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-          className="text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
-          aria-label="GitHub"
-          title="查看 GitHub 仓库"
-        >
-          <a
-            href={websiteConfig.github.repo}
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="flex items-center gap-2">
+          {/* 声音开关按钮 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleSound}
+            className="text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
+            aria-label={soundEnabled ? "关闭声音" : "开启声音"}
+            title={soundEnabled ? "关闭声音提示" : "开启声音提示"}
           >
-            <svg
-              className="w-5 h-5"
-              fill="currentColor"
-              viewBox="0 0 24 24"
+            {soundEnabled ? (
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              </svg>
+            )}
+          </Button>
+          {/* GitHub 链接按钮 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
+            aria-label="GitHub"
+            title="查看 GitHub 仓库"
+          >
+            <a
+              href={websiteConfig.github.repo}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-            </svg>
-          </a>
-        </Button>
+              <svg
+                className="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+              </svg>
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* 模式切换和在线客服列表 */}
@@ -586,7 +655,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       {/* 消息列表 */}
       <div className="flex-1 overflow-hidden min-h-0 bg-gradient-to-b from-background to-muted/20">
         <MessageList
-          key={`messages-${conversationId}`} // 简化 key，只使用 conversationId，避免不必要的重新挂载
+          key={`messages-${conversationId}`}
           messages={messages}
           loading={loadingMessages}
           highlightKeyword=""
@@ -595,6 +664,16 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           disableAutoScroll={false}
           conversationId={conversationId}
           onMarkMessagesRead={handleMarkAgentMessagesRead}
+          bottomSlot={
+            chatMode === "ai" && aiTyping ? (
+              <div className="flex justify-start mt-2">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  <span>AI 正在思考...</span>
+                </div>
+              </div>
+            ) : null
+          }
         />
       </div>
 

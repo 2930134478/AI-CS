@@ -6,6 +6,7 @@ import {
   fetchConversations,
   searchConversations,
 } from "../../agent/services/conversationApi";
+import type { ConversationListType } from "../../agent/services/conversationApi";
 import { ConversationSummary, VisitorStatusUpdatePayload } from "../../agent/types";
 import { useWebSocket } from "./useWebSocket";
 import { WSMessage } from "@/lib/websocket";
@@ -20,12 +21,14 @@ const sortByUpdatedAtDesc = (list: ConversationSummary[]) =>
 import type { ConversationFilter } from "@/components/dashboard/ConversationHeader";
 
 interface UseConversationsOptions {
-  agentId?: number | null; // 客服ID（用于建立 WebSocket 连接接收全局事件）
-  filter?: ConversationFilter; // 会话过滤类型
+  agentId?: number | null;
+  filter?: ConversationFilter;
+  /** 内部对话（知识库测试）时传 "internal"，默认访客对话 "visitor" */
+  listType?: ConversationListType;
 }
 
 export function useConversations(options?: UseConversationsOptions) {
-  const { agentId, filter = "all" } = options || {};
+  const { agentId, filter = "all", listType = "visitor" } = options || {};
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<
     ConversationSummary[]
@@ -65,9 +68,9 @@ export function useConversations(options?: UseConversationsOptions) {
   const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchConversations(agentId ?? undefined);
+      const data = await fetchConversations(agentId ?? undefined, listType === "internal" ? { type: "internal" } : undefined);
       setConversations(data);
-      const filtered = applyFilter(data);
+      const filtered = listType === "internal" ? data : applyFilter(data);
       if (!searchRef.current.trim()) {
         setFilteredConversations(filtered);
       }
@@ -83,20 +86,20 @@ export function useConversations(options?: UseConversationsOptions) {
       setLoading(false);
       setIsInitialLoad(false);
     }
-  }, [applyFilter, agentId, filter]);
+  }, [applyFilter, agentId, filter, listType]);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
-  // 当 filter 改变时，重新应用过滤（不重新加载数据）
+  // 当 filter / listType 改变时，重新应用过滤（不重新加载数据）
   useEffect(() => {
     if (isInitialLoad) {
       return;
     }
-    const filtered = applyFilter(conversations);
+    const filtered = listType === "internal" ? conversations : applyFilter(conversations);
     setFilteredConversations(sortByUpdatedAtDesc(filtered));
-  }, [filter, conversations, isInitialLoad, applyFilter]);
+  }, [filter, listType, conversations, isInitialLoad, applyFilter]);
 
   useEffect(() => {
     if (isInitialLoad) {
@@ -106,8 +109,13 @@ export function useConversations(options?: UseConversationsOptions) {
       const query = searchQuery.trim();
       searchRef.current = query;
       if (!query) {
-        const filtered = applyFilter(conversations);
+        const filtered = listType === "internal" ? conversations : applyFilter(conversations);
         setFilteredConversations(sortByUpdatedAtDesc(filtered));
+        return;
+      }
+      if (listType === "internal") {
+        setFilteredConversations(sortByUpdatedAtDesc(conversations.filter((c) => (c.last_message?.content ?? "").toLowerCase().includes(query.toLowerCase()))));
+        setLoading(false);
         return;
       }
       try {
@@ -124,7 +132,7 @@ export function useConversations(options?: UseConversationsOptions) {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId]);
+  }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId, listType]);
 
   const selectConversation = useCallback((conversationId: number | null) => {
     setSelectedConversationId((prev) =>

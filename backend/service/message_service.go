@@ -100,15 +100,21 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		log.Printf("⚠️ WebSocket Hub 为空，无法广播消息: 消息ID=%d, 对话ID=%d", message.ID, message.ConversationID)
 	}
 
-	// 3. 如果是 AI 客服模式，且是访客发送的消息，自动调用 AI 生成回复
-	if conv.ChatMode == "ai" && !input.SenderIsAgent && s.aiService != nil {
-		// 异步调用 AI 生成回复（避免阻塞）
+	// 3. 触发 AI 回复的两种情况：
+	//    a) 访客对话 + AI 模式 + 访客发送的消息
+	//    b) 内部对话（知识库测试）+ 客服发送的消息
+	needAIReply := s.aiService != nil && (
+		(conv.ChatMode == "ai" && !input.SenderIsAgent) ||
+		(conv.ConversationType == "internal" && input.SenderIsAgent))
+	if needAIReply {
 		go func() {
-			// 获取对话的 AgentID（用于查找 AI 配置）
-			// 如果 AgentID 为 0，使用默认管理员 ID（1）
+			// 用于查找 AI 配置的用户 ID：访客对话用 AgentID，内部对话用发送者（客服）ID
 			userID := conv.AgentID
 			if userID == 0 {
-				userID = 1 // 默认使用管理员 ID
+				userID = 1
+			}
+			if conv.ConversationType == "internal" && input.SenderID > 0 {
+				userID = input.SenderID
 			}
 
 			aiResponse, err := s.aiService.GenerateAIResponse(message.ConversationID, input.Content, userID)

@@ -33,6 +33,7 @@ import {
   Save,
   X,
 } from "lucide-react";
+import { toast } from "@/hooks/useToast";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function FAQsPage(props: any = {}) {
@@ -72,7 +73,7 @@ export default function FAQsPage(props: any = {}) {
       setFaqs(data);
     } catch (error) {
       console.error("加载 FAQ 列表失败:", error);
-      alert((error as Error).message || "加载 FAQ 列表失败");
+      toast.error((error as Error).message || "加载 FAQ 列表失败");
     } finally {
       setLoading(false);
     }
@@ -101,7 +102,7 @@ export default function FAQsPage(props: any = {}) {
   // 创建 FAQ
   const handleCreate = async () => {
     if (!createForm.question.trim() || !createForm.answer.trim()) {
-      alert("问题和答案不能为空");
+      toast.error("问题和答案不能为空");
       return;
     }
     setSubmitting(true);
@@ -110,9 +111,9 @@ export default function FAQsPage(props: any = {}) {
       setCreateDialogOpen(false);
       setCreateForm({ question: "", answer: "", keywords: "" });
       await loadFAQs();
-      alert("创建成功");
+      toast.success("创建成功");
     } catch (error) {
-      alert((error as Error).message || "创建 FAQ 失败");
+      toast.error((error as Error).message || "创建 FAQ 失败");
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +136,7 @@ export default function FAQsPage(props: any = {}) {
       return;
     }
     if (!editForm.question?.trim() || !editForm.answer?.trim()) {
-      alert("问题和答案不能为空");
+      toast.error("问题和答案不能为空");
       return;
     }
     setSubmitting(true);
@@ -144,9 +145,9 @@ export default function FAQsPage(props: any = {}) {
       setEditDialogOpen(false);
       setSelectedFAQ(null);
       await loadFAQs();
-      alert("更新成功");
+      toast.success("更新成功");
     } catch (error) {
-      alert((error as Error).message || "更新 FAQ 失败");
+      toast.error((error as Error).message || "更新 FAQ 失败");
     } finally {
       setSubmitting(false);
     }
@@ -169,9 +170,9 @@ export default function FAQsPage(props: any = {}) {
       setDeleteDialogOpen(false);
       setSelectedFAQ(null);
       await loadFAQs();
-      alert("删除成功");
+      toast.success("删除成功");
     } catch (error) {
-      alert((error as Error).message || "删除 FAQ 失败");
+      toast.error((error as Error).message || "删除 FAQ 失败");
     } finally {
       setSubmitting(false);
     }

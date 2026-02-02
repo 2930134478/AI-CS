@@ -19,14 +19,20 @@
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 217.2 91.2% 59.8%; /* 与 primary 颜色一致，使用蓝色而不是黑色 */
-  --radius: 0.5rem;
+  --ring: 217.2 91.2% 59.8%;
+  --radius: 0.75rem;
   
   /* 增强视觉细节，让 Shadcn UI 迁移更明显 */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* Chatbase 风格 - 更大阴影（用于卡片 hover） */
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  /* 渐变背景变量（用于 Hero 等） */
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%);
+  --gradient-hero: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--muted) / 0.2) 100%);
 }
 
 .dark {
@@ -82,10 +88,42 @@
   scrollbar-color: hsl(var(--border)) transparent;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Chatbase 风格 - Hero 渐变背景动画 */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* 卡片 hover 过渡（可与 Tailwind 类组合使用） */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
 }
 
 /* 自定义滚动条样式 - 更隐蔽、更现代 */

@@ -41,7 +41,7 @@ export function ConversationListItem({
           event.preventDefault();
         }
       }}
-      className={`p-4 mb-2 cursor-pointer transition-all select-none border-0 shadow-sm hover:shadow-md ${
+      className={`p-4 mb-2 cursor-pointer transition-all select-none border border-border shadow-sm hover:shadow-md ${
         selected
           ? "bg-primary/5 border-l-4 border-l-primary shadow-md"
           : "hover:bg-accent/50"
@@ -91,9 +91,9 @@ export function ConversationListItem({
             )}
             <span className="truncate">{lastMessagePreview}</span>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>访客 #{conversation.visitor_id}</span>
-            <span>{formatConversationTime(conversation.updated_at)}</span>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground min-w-0">
+            <span className="truncate">访客 #{conversation.visitor_id}</span>
+            <span className="flex-shrink-0 whitespace-nowrap">{formatConversationTime(conversation.updated_at)}</span>
           </div>
         </div>
       </div>

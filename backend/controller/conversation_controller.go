@@ -86,6 +86,29 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 	})
 }
 
+// InitInternalConversation 为当前客服创建一条新的内部对话（知识库测试）。需要 query user_id。
+func (cc *ConversationController) InitInternalConversation(c *gin.Context) {
+	userIDStr := c.Query("user_id")
+	if userIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "需要 user_id"})
+		return
+	}
+	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil || userID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
+		return
+	}
+	result, err := cc.conversationService.InitInternalConversation(uint(userID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"conversation_id": result.ConversationID,
+		"status":          result.Status,
+	})
+}
+
 // GetPublicAIModels 获取所有开放的模型配置（供访客选择）。
 func (cc *ConversationController) GetPublicAIModels(c *gin.Context) {
 	modelType := c.DefaultQuery("model_type", "text")
@@ -138,18 +161,27 @@ func (cc *ConversationController) UpdateContactInfo(c *gin.Context) {
 	})
 }
 
-// ListConversations 返回当前活跃会话的列表。
+// ListConversations 返回当前活跃会话的列表。type=internal 时返回该客服的内部对话（知识库测试）。
 func (cc *ConversationController) ListConversations(c *gin.Context) {
-	// 从查询参数获取 user_id（可选）
 	var userID uint
 	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		// 使用 strconv 解析查询参数（不是路径参数）
 		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
 			userID = uint(parsed)
 		}
 	}
 
-	conversations, err := cc.conversationService.ListConversations(userID)
+	conversationType := c.DefaultQuery("type", "visitor")
+	var conversations []service.ConversationSummary
+	var err error
+	if conversationType == "internal" {
+		if userID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "内部对话列表需要 user_id"})
+			return
+		}
+		conversations, err = cc.conversationService.ListInternalConversations(userID)
+	} else {
+		conversations, err = cc.conversationService.ListConversations(userID)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询对话列表失败"})
 		return
@@ -158,14 +190,16 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 	items := make([]gin.H, 0, len(conversations))
 	for _, conv := range conversations {
 		item := gin.H{
-			"id":               conv.ID,
-			"visitor_id":       conv.VisitorID,
-			"agent_id":         conv.AgentID,
-			"status":           conv.Status,
-			"created_at":       formatTimeValue(conv.CreatedAt),
-			"updated_at":       formatTimeValue(conv.UpdatedAt),
-			"unread_count":     conv.UnreadCount,
-			"has_participated": conv.HasParticipated, // 当前用户是否参与过该会话
+			"id":                conv.ID,
+			"conversation_type": conv.ConversationType,
+			"visitor_id":        conv.VisitorID,
+			"agent_id":          conv.AgentID,
+			"status":            conv.Status,
+			"chat_mode":         conv.ChatMode,
+			"created_at":        formatTimeValue(conv.CreatedAt),
+			"updated_at":        formatTimeValue(conv.UpdatedAt),
+			"unread_count":      conv.UnreadCount,
+			"has_participated":  conv.HasParticipated,
 		}
 
 		// 添加 last_seen_at 字段（用于判断在线状态）
