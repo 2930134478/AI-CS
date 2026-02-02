@@ -52,6 +52,7 @@ export const AGENT_PAGES = [
     label: "对话",
     title: "对话",
     Icon: MessageCircle,
+    adminOnly: false,
     isChatPage: true,
   },
   {
@@ -59,6 +60,7 @@ export const AGENT_PAGES = [
     label: "知识库测试",
     title: "知识库测试",
     Icon: Lightbulb,
+    adminOnly: false,
     isChatPage: true,
   },
   {
@@ -66,6 +68,7 @@ export const AGENT_PAGES = [
     label: "知识库",
     title: "知识库",
     Icon: BookOpen,
+    adminOnly: false,
     component: KnowledgePage,
   },
   {
@@ -73,6 +76,7 @@ export const AGENT_PAGES = [
     label: "事件管理",
     title: "事件管理",
     Icon: ClipboardList,
+    adminOnly: false,
     component: FAQsPage,
   },
   {
@@ -88,17 +92,18 @@ export const AGENT_PAGES = [
     label: "AI 配置",
     title: "AI 配置",
     Icon: Settings,
+    adminOnly: false,
     component: SettingsPage,
   },
 ] as const;
 
 export type NavigationPage = (typeof AGENT_PAGES)[number]["id"];
 
-const VALID_PAGE_IDS = new Set(AGENT_PAGES.map((p) => p.id));
+const VALID_PAGE_IDS = new Set<string>(AGENT_PAGES.map((p) => p.id));
 
 export function getPageFromSearchParams(searchParams: URLSearchParams | null): NavigationPage {
   const p = searchParams?.get("page") ?? null;
-  if (p && VALID_PAGE_IDS.has(p)) return p as NavigationPage;
+  if (p != null && VALID_PAGE_IDS.has(p)) return p as NavigationPage;
   return "dashboard";
 }
 

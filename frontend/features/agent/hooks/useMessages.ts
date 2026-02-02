@@ -234,7 +234,7 @@ export function useMessages({
     (message: MessageItem) => {
       // 如果是访客发送的消息（不是客服自己发送的），播放提示音
       if (!message.sender_is_agent && soundEnabled) {
-        playNotificationSound(soundEnabled);
+        playNotificationSound();
       }
       
       // 检查对话是否存在

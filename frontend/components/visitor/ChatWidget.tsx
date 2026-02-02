@@ -260,9 +260,9 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         return;
       }
       
-      // 如果是客服发送的消息（不是访客自己发送的），播放提示音
-      if (message.sender_is_agent) {
-        playNotificationSound(soundEnabled);
+      // 如果是客服发送的消息（不是访客自己发送的）且开启声音，播放提示音
+      if (message.sender_is_agent && soundEnabled) {
+        playNotificationSound();
       }
       
       setMessages((prev) => {

@@ -1,7 +1,11 @@
+import { Suspense } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 export default function AgentDashboardPage() {
-  // 页面采用纯客户端渲染，所有业务逻辑由 DashboardShell 承担
-  return <DashboardShell />;
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen bg-background"><div className="text-muted-foreground">加载中...</div></div>}>
+      <DashboardShell />
+    </Suspense>
+  );
 }
 
