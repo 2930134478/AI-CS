@@ -95,13 +95,6 @@ services:
       - CHOWN
       - DAC_OVERRIDE
       - FOWNER
-    resources:
-      limits:
-        cpus: '2.0'
-        memory: 2G
-      reservations:
-        cpus: '0.5'
-        memory: 512M
 
   # 后端服务（使用预构建镜像）
   backend:
@@ -143,13 +136,6 @@ services:
     tmpfs:
       - /tmp
       - /var/tmp
-    resources:
-      limits:
-        cpus: '2.0'
-        memory: 2G
-      reservations:
-        cpus: '0.5'
-        memory: 512M
 
   # 前端服务（使用预构建镜像）
   frontend:
@@ -175,13 +161,6 @@ services:
       - /tmp
       - /var/tmp
       - /app/.next/cache  # Next.js 需要缓存目录
-    resources:
-      limits:
-        cpus: '2.0'
-        memory: 2G
-      reservations:
-        cpus: '0.5'
-        memory: 512M
 
 volumes:
   mysql_data:
