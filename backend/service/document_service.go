@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"strconv"
 
 	"github.com/2930134478/AI-CS/backend/models"
@@ -72,26 +73,39 @@ func (s *DocumentService) CreateDocument(input CreateDocumentInput) (*DocumentSu
 		return nil, err
 	}
 
-	// 异步向量化
+	// 新建文档后自动异步向量化，状态见文档列表的「向量状态」；日志关键字 [文档向量化]
 	go s.embedDocumentAsync(context.Background(), doc.ID, doc.KnowledgeBaseID, doc.Content)
 
 	return s.toSummary(doc), nil
 }
 
-// embedDocumentAsync 异步向量化文档
+// embedDocumentAsync 异步向量化文档（新建/更新文档后触发）
 func (s *DocumentService) embedDocumentAsync(ctx context.Context, docID uint, kbID uint, content string) {
-	// 更新状态为处理中
-	s.docRepo.UpdateEmbeddingStatus(docID, "processing")
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[文档向量化] panic doc_id=%d: %v", docID, r)
+			_ = s.docRepo.UpdateEmbeddingStatus(docID, "failed")
+		}
+	}()
 
-	// 向量化
-	err := s.documentEmbeddingService.EmbedDocument(ctx, docID, kbID, content)
-	if err != nil {
-		s.docRepo.UpdateEmbeddingStatus(docID, "failed")
+	log.Printf("[文档向量化] 开始 doc_id=%d kb_id=%d content_len=%d", docID, kbID, len([]rune(content)))
+	if err := s.docRepo.UpdateEmbeddingStatus(docID, "processing"); err != nil {
+		log.Printf("[文档向量化] doc_id=%d 更新 processing 失败: %v", docID, err)
 		return
 	}
 
-	// 更新状态为已完成
-	s.docRepo.UpdateEmbeddingStatus(docID, "completed")
+	err := s.documentEmbeddingService.EmbedDocument(ctx, docID, kbID, content)
+	if err != nil {
+		log.Printf("[文档向量化] doc_id=%d 失败: %v", docID, err)
+		_ = s.docRepo.UpdateEmbeddingStatus(docID, "failed")
+		return
+	}
+
+	if err := s.docRepo.UpdateEmbeddingStatus(docID, "completed"); err != nil {
+		log.Printf("[文档向量化] doc_id=%d 更新 completed 失败: %v", docID, err)
+		return
+	}
+	log.Printf("[文档向量化] 完成 doc_id=%d", docID)
 }
 
 // GetDocument 获取文档详情
