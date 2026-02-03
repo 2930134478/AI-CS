@@ -55,6 +55,17 @@ func (s *BGEEmbeddingService) EmbedTexts(ctx context.Context, texts []string) ([
 		return nil, nil
 	}
 
+	// 诊断日志：确认发请求前我们到底发了几条文本
+	log.Printf("[嵌入] BGE EmbedTexts 请求: len(texts)=%d, model=%s, apiURL=%s", len(texts), s.model, strings.TrimSuffix(s.apiURL, "/"))
+	for i, t := range texts {
+		runeLen := len([]rune(t))
+		preview := t
+		if runeLen > 60 {
+			preview = string([]rune(t)[:60]) + "..."
+		}
+		log.Printf("[嵌入]   texts[%d] 长度=%d 字符, 预览: %q", i, runeLen, preview)
+	}
+
 	// 支持填完整路径或仅填 base：若已以 /embeddings 结尾则不再追加，否则追加 /embeddings
 	url := strings.TrimSuffix(s.apiURL, "/")
 	if url != "" && !strings.HasSuffix(strings.ToLower(url), "/embeddings") {
@@ -114,6 +125,14 @@ func (s *BGEEmbeddingService) EmbedTexts(ctx context.Context, texts []string) ([
 			return nil, fmt.Errorf("嵌入 API 返回了 HTML 而非 JSON，请检查「设置 - 知识库向量模型」中的 API 地址与密钥: %w", err)
 		}
 		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	// 诊断日志：API 实际返回了几个向量
+	numIn := len(texts)
+	numOut := len(response)
+	log.Printf("[嵌入] BGE EmbedTexts 响应: len(texts)=%d -> len(response)=%d (API 返回向量数)", numIn, numOut)
+	if numOut != numIn {
+		log.Printf("[嵌入] 数量不一致: 我们发了 %d 条文本，API 返回了 %d 个向量", numIn, numOut)
 	}
 
 	// 转换为 float32

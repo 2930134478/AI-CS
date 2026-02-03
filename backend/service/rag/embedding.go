@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/2930134478/AI-CS/backend/service/embedding"
 )
@@ -55,12 +56,16 @@ func (s *DocumentEmbeddingService) EmbedDocuments(ctx context.Context, documentI
 	if err != nil {
 		return fmt.Errorf("获取嵌入服务失败: %w", err)
 	}
+	// 诊断日志：批量向量化前，我们传给 EmbedTexts 的文档/内容条数
+	log.Printf("[嵌入] EmbedDocuments 调用前: len(documentIDs)=%d, len(contents)=%d（若 contents 已是多条，说明上游在发请求前做了分块）", len(documentIDs), len(contents))
 	// 批量向量化
 	vectors, err := svc.EmbedTexts(ctx, contents)
 	if err != nil {
 		return fmt.Errorf("批量向量化失败: %w", err)
 	}
+	log.Printf("[嵌入] EmbedDocuments 调用后: len(vectors)=%d, len(contents)=%d", len(vectors), len(contents))
 	if len(vectors) != len(contents) {
+		log.Printf("[嵌入] 向量数与内容数不一致，将报错: 我们按 %d 行写入 Milvus 会与 embedding 列 %d 行冲突", len(contents), len(vectors))
 		return fmt.Errorf("向量数量不匹配")
 	}
 
