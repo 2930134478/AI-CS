@@ -38,8 +38,8 @@ ENV NODE_ENV=production
 # 复制 package 文件（用于安装生产依赖）
 COPY package*.json ./
 
-# 只安装生产依赖
-RUN npm ci --only=production && npm cache clean --force
+# 只安装生产依赖；并安装 TypeScript 供 next start 加载 next.config.ts（运行时不再尝试 npm install）
+RUN npm ci --only=production && npm install typescript --no-save && npm cache clean --force
 
 # 从构建阶段复制必要的文件
 COPY --from=builder /app/next.config.ts ./
