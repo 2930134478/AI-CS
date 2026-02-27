@@ -205,7 +205,7 @@ docker-compose logs -f frontend
 #### 环境要求
 
 - Go 1.24 或更高版本
-- Node.js 18+ 和 npm/yarn
+- Node.js 20.9.0+ 和 npm/yarn（Next.js 16 要求）
 - MySQL 8.0 或更高版本
 
 #### 1. 克隆项目

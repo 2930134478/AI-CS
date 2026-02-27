@@ -20,10 +20,10 @@ apt update && apt upgrade -y
 echo "📦 安装基础工具..."
 apt install -y curl wget git vim
 
-# 3. 安装 Node.js 18+
+# 3. 安装 Node.js 20+（Next.js 16 要求 >= 20.9.0）
 echo "📦 安装 Node.js..."
 if ! command -v node &> /dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt install -y nodejs
 else
     echo "✅ Node.js 已安装: $(node -v)"
