@@ -6,9 +6,6 @@ const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || "8080";
 const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true, // 临时禁用构建时的 ESLint 检查
-  },
   // 开发环境：代理 API 请求到后端
   // 生产环境：由 Nginx 处理，这个配置不会生效（因为生产环境是静态构建）
   async rewrites() {

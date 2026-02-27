@@ -8,9 +8,6 @@ const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   async rewrites() {
     if (process.env.NODE_ENV === "development") {
       return [
