@@ -307,7 +307,7 @@ func main() {
 	// 初始化控制器
 	authController := controller.NewAuthController(authService)
 	conversationController := controller.NewConversationController(conversationService, aiConfigService)
-	messageController := controller.NewMessageController(messageService, storageService)
+	messageController := controller.NewMessageController(messageService, conversationService, storageService)
 	adminController := controller.NewAdminController(authService, userService)
 	profileController := controller.NewProfileController(profileService)
 	aiConfigController := controller.NewAIConfigController(aiConfigService)

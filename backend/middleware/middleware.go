@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"log"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -25,4 +27,27 @@ func CORS() gin.HandlerFunc {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		AllowCredentials: false,
 	})
+}
+
+// RequireAuth 认证中间件：要求请求头中包含有效的 X-User-Id
+func RequireAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userIDStr := c.GetHeader("X-User-Id")
+		if userIDStr == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+			c.Abort()
+			return
+		}
+
+		userID, err := strconv.ParseUint(userIDStr, 10, 64)
+		if err != nil || userID == 0 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户ID不合法"})
+			c.Abort()
+			return
+		}
+
+		// 将用户ID存储到上下文中，供后续使用
+		c.Set("user_id", uint(userID))
+		c.Next()
+	}
 }

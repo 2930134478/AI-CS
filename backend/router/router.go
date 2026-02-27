@@ -39,7 +39,7 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 
 	// Message
 	r.POST("/messages", controllers.Message.CreateMessage)
-	r.POST("/messages/upload", controllers.Message.UploadFile) // 文件上传接口
+	r.POST("/messages/upload", controllers.Message.UploadFile) // 文件上传接口（支持客服和访客上传）
 	r.GET("/messages", controllers.Message.ListMessages)
 	r.PUT("/messages/read", controllers.Message.MarkMessagesRead)
 
