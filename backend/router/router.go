@@ -20,6 +20,8 @@ type ControllerSet struct {
 	Import           *controller.ImportController
 	Visitor          *controller.VisitorController
 	Health           *controller.HealthController
+	QuickReply       *controller.QuickReplyController
+	Statistics       *controller.StatisticsController
 }
 
 // RegisterRoutes 注册 HTTP 路由及对应的处理函数。
@@ -107,6 +109,22 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 	// Health（健康检查）
 	r.GET("/health", controllers.Health.HealthCheck)       // 健康检查
 	r.GET("/health/metrics", controllers.Health.Metrics)   // 性能指标
+
+	// QuickReply（快捷回复模板）
+	r.GET("/quick-replies", controllers.QuickReply.ListQuickReplies)       // 获取模板列表
+	r.GET("/quick-replies/categories", controllers.QuickReply.GetCategories) // 获取分类列表
+	r.GET("/quick-replies/:id", controllers.QuickReply.GetQuickReply)      // 获取模板详情
+	r.POST("/quick-replies", controllers.QuickReply.CreateQuickReply)      // 创建模板
+	r.PUT("/quick-replies/:id", controllers.QuickReply.UpdateQuickReply)   // 更新模板
+	r.DELETE("/quick-replies/:id", controllers.QuickReply.DeleteQuickReply) // 删除模板
+	r.POST("/quick-replies/:id/use", controllers.QuickReply.RecordUsage)   // 记录使用
+
+	// Statistics（数据统计）
+	r.GET("/statistics/dashboard", controllers.Statistics.GetDashboardStats)         // Dashboard 概览
+	r.GET("/statistics/conversations/trend", controllers.Statistics.GetConversationTrend) // 对话趋势
+	r.GET("/statistics/agents/workload", controllers.Statistics.GetAgentWorkload)   // 客服工作量
+	r.GET("/statistics/visitors", controllers.Statistics.GetVisitorAnalytics)        // 访客分析
+	r.GET("/statistics/ai", controllers.Statistics.GetAIStats)                       // AI 统计
 
 	// WebSocket
 	r.GET("/ws", wsHandler)

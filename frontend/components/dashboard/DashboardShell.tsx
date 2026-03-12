@@ -295,6 +295,7 @@ export function DashboardShell() {
               onSubmit={handleSendMessage}
               sending={sending}
               conversationId={selectedConversationId ?? undefined}
+              agentId={agent?.id}
             />
           </>
         ) : (

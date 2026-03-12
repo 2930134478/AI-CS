@@ -10,6 +10,8 @@ import {
   ClipboardList,
   Users,
   Settings,
+  Zap,
+  BarChart3,
 } from "lucide-react";
 
 /** 嵌入在 dashboard 内的页面组件（懒加载） */
@@ -27,6 +29,14 @@ const UsersPage = dynamic(
 );
 const SettingsPage = dynamic(
   () => import("@/app/agent/settings/page").then((mod) => ({ default: mod.default })),
+  { ssr: false }
+);
+const QuickRepliesPage = dynamic(
+  () => import("@/app/agent/quick-replies/page").then((mod) => ({ default: mod.default })),
+  { ssr: false }
+);
+const StatisticsPage = dynamic(
+  () => import("@/app/agent/statistics/page").then((mod) => ({ default: mod.default })),
   { ssr: false }
 );
 
@@ -78,6 +88,22 @@ export const AGENT_PAGES = [
     Icon: ClipboardList,
     adminOnly: false,
     component: FAQsPage,
+  },
+  {
+    id: "quick-replies",
+    label: "快捷回复",
+    title: "快捷回复",
+    Icon: Zap,
+    adminOnly: false,
+    component: QuickRepliesPage,
+  },
+  {
+    id: "statistics",
+    label: "数据统计",
+    title: "数据统计",
+    Icon: BarChart3,
+    adminOnly: false,
+    component: StatisticsPage,
   },
   {
     id: "users",

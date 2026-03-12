@@ -92,3 +92,45 @@ export type ChatWebSocketPayload =
   | MessagesReadPayload
   | VisitorStatusUpdatePayload;
 
+// 快捷回复模板类型
+export interface QuickReplySummary {
+  id: number;
+  user_id: number | null;
+  title: string;
+  content: string;
+  category: string;
+  sort_order: number;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 统计数据类型
+export interface DashboardStats {
+  today_conversations: number;
+  today_messages: number;
+  online_agents: number;
+  active_visitors: number;
+  total_conversations: number;
+  total_messages: number;
+}
+
+export interface ConversationTrendData {
+  date: string;
+  count: number;
+  message_count: number;
+}
+
+export interface AgentWorkloadData {
+  agent_id: number;
+  agent_name: string;
+  conversation_count: number;
+  message_count: number;
+  avg_response_time: number;
+}
+
+export interface VisitorSourceData {
+  source: string;
+  count: number;
+}
+
