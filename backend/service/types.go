@@ -263,3 +263,74 @@ type UpdateKnowledgeBaseInput struct {
 	Description *string // 知识库描述（可选）
 	RAGEnabled  *bool   // 是否参与 RAG（可选）
 }
+
+// QuickReplySummary 快捷回复模板摘要信息。
+type QuickReplySummary struct {
+	ID         uint      `json:"id"`
+	UserID     *uint     `json:"user_id"`     // 所属用户ID（null表示公共模板）
+	Title      string    `json:"title"`       // 模板标题
+	Content    string    `json:"content"`     // 模板内容
+	Category   string    `json:"category"`    // 分类
+	SortOrder  int       `json:"sort_order"`  // 排序
+	UsageCount int       `json:"usage_count"` // 使用次数
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// CreateQuickReplyInput 创建快捷回复模板输入。
+type CreateQuickReplyInput struct {
+	UserID    *uint   // 所属用户ID（nil表示公共模板，仅管理员可创建）
+	Title     string  // 模板标题（可选，不填则自动取内容前20字）
+	Content   string  // 模板内容（必需）
+	Category  string  // 分类（可选）
+	SortOrder int     // 排序（可选）
+}
+
+// UpdateQuickReplyInput 更新快捷回复模板输入。
+type UpdateQuickReplyInput struct {
+	Title     *string // 模板标题（可选）
+	Content   *string // 模板内容（可选）
+	Category  *string // 分类（可选）
+	SortOrder *int    // 排序（可选）
+}
+
+// DashboardStats Dashboard 概览统计数据。
+type DashboardStats struct {
+	TodayConversations int64 `json:"today_conversations"` // 今日对话数
+	TodayMessages      int64 `json:"today_messages"`      // 今日消息数
+	OnlineAgents       int64 `json:"online_agents"`       // 在线客服数
+	ActiveVisitors     int64 `json:"active_visitors"`     // 活跃访客数
+	TotalConversations int64 `json:"total_conversations"` // 总对话数
+	TotalMessages      int64 `json:"total_messages"`      // 总消息数
+}
+
+// ConversationTrendData 对话趋势数据。
+type ConversationTrendData struct {
+	Date          string `json:"date"`           // 日期
+	Count         int64  `json:"count"`          // 对话数
+	MessageCount  int64  `json:"message_count"`  // 消息数
+	VisitorCount  int64  `json:"visitor_count"`  // 访客数
+}
+
+// AgentWorkloadData 客服工作量数据。
+type AgentWorkloadData struct {
+	AgentID           uint   `json:"agent_id"`
+	AgentName         string `json:"agent_name"`
+	ConversationCount int64  `json:"conversation_count"` // 对话数
+	MessageCount      int64  `json:"message_count"`      // 消息数
+	AvgResponseTime   int64  `json:"avg_response_time"`  // 平均响应时间（秒）
+}
+
+// VisitorSourceData 访客来源数据。
+type VisitorSourceData struct {
+	Source string `json:"source"` // 来源
+	Count  int64  `json:"count"`  // 数量
+}
+
+// AIStatsData AI 统计数据。
+type AIStatsData struct {
+	TotalAIResponses  int64   `json:"total_ai_responses"`  // AI 总回复数
+	AIResponseRate    float64 `json:"ai_response_rate"`    // AI 回复率
+	AvgResponseTime   int64   `json:"avg_response_time"`   // 平均响应时间（毫秒）
+	HumanTakeoverRate float64 `json:"human_takeover_rate"` // 人工接管率
+}

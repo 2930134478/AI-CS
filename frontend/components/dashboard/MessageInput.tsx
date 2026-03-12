@@ -4,8 +4,13 @@ import { FormEvent, useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { uploadFile, UploadFileResult } from "@/features/agent/services/messageApi";
-import { X, Paperclip, Image as ImageIcon } from "lucide-react";
+import { X, Paperclip, Zap, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/useToast";
+import {
+  fetchQuickReplies,
+  recordQuickReplyUsage,
+  type QuickReplySummary,
+} from "@/features/agent/services/quickReplyApi";
 
 interface MessageInputProps {
   value: string;
@@ -13,6 +18,7 @@ interface MessageInputProps {
   onSubmit: (fileInfo?: UploadFileResult) => Promise<void> | void;
   sending: boolean;
   conversationId?: number; // 对话ID，用于文件上传
+  agentId?: number; // 客服ID，用于获取快捷回复
 }
 
 interface FilePreview {
@@ -26,6 +32,7 @@ export function MessageInput({
   onSubmit,
   sending,
   conversationId,
+  agentId,
 }: MessageInputProps) {
   // 输入框引用，用于发送消息后自动聚焦
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +44,36 @@ export function MessageInput({
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   // 上传中状态
   const [uploading, setUploading] = useState(false);
+  // 快捷回复状态
+  const [quickReplies, setQuickReplies] = useState<QuickReplySummary[]>([]);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const quickReplyRef = useRef<HTMLDivElement>(null);
+
+  // 加载快捷回复
+  useEffect(() => {
+    if (agentId) {
+      fetchQuickReplies(agentId)
+        .then(setQuickReplies)
+        .catch(console.error);
+    }
+  }, [agentId]);
+
+  // 点击外部关闭快捷回复面板
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        quickReplyRef.current &&
+        !quickReplyRef.current.contains(event.target as Node)
+      ) {
+        setShowQuickReplies(false);
+      }
+    };
+
+    if (showQuickReplies) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showQuickReplies]);
 
   // 当发送状态从 true 变为 false 时（发送完成），自动聚焦到输入框
   useEffect(() => {
@@ -157,6 +194,20 @@ export function MessageInput({
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
+  // 处理快捷回复选择
+  const handleQuickReplySelect = useCallback(
+    (reply: QuickReplySummary) => {
+      // 将内容插入到输入框
+      onChange(value ? value + "\n" + reply.content : reply.content);
+      setShowQuickReplies(false);
+      // 记录使用
+      recordQuickReplyUsage(reply.id).catch(console.error);
+      // 聚焦输入框
+      inputRef.current?.focus();
+    },
+    [value, onChange]
+  );
+
   // 处理提交
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -273,6 +324,48 @@ export function MessageInput({
         >
           <Paperclip className="w-4 h-4" />
         </Button>
+
+        {/* 快捷回复按钮 */}
+        {quickReplies.length > 0 && (
+          <div className="relative" ref={quickReplyRef}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowQuickReplies(!showQuickReplies)}
+              disabled={sending || uploading}
+              title="快捷回复"
+              className="hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <Zap className="w-4 h-4" />
+            </Button>
+
+            {/* 快捷回复下拉面板 */}
+            {showQuickReplies && (
+              <div className="absolute bottom-full left-0 mb-2 w-80 max-h-60 overflow-y-auto bg-card border border-border rounded-lg shadow-lg z-50">
+                <div className="p-2 border-b border-border text-xs text-muted-foreground">
+                  快捷回复
+                </div>
+                <div className="p-1">
+                  {quickReplies.map((reply) => (
+                    <button
+                      key={reply.id}
+                      type="button"
+                      onClick={() => handleQuickReplySelect(reply)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted rounded-md transition-colors"
+                    >
+                      <div className="font-medium truncate">{reply.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {reply.content}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <Input
           ref={inputRef}
           type="text"

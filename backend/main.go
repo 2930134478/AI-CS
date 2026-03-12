@@ -100,7 +100,7 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}, &models.QuickReply{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
@@ -112,6 +112,8 @@ func main() {
 	kbRepo := repository.NewKnowledgeBaseRepository(db)
 	docRepo := repository.NewDocumentRepository(db)
 	embeddingConfigRepo := repository.NewEmbeddingConfigRepository(db)
+	quickReplyRepo := repository.NewQuickReplyRepository(db)
+	statisticsRepo := repository.NewStatisticsRepository(db)
 
 	// 初始化默认管理员账号（如果不存在）
 	initDefaultAdmin(userRepo)
@@ -195,6 +197,8 @@ func main() {
 	documentService := service.NewDocumentService(docRepo, kbRepo, documentEmbeddingService, retrievalService) // 文档管理服务
 	knowledgeBaseService := service.NewKnowledgeBaseService(kbRepo, docRepo)                                   // 知识库管理服务
 	importService := service.NewImportService(docRepo, kbRepo, documentService, documentEmbeddingService)      // 导入服务
+	quickReplyService := service.NewQuickReplyService(quickReplyRepo)                                          // 快捷回复服务
+	statisticsService := service.NewStatisticsService(statisticsRepo)                                          // 统计服务
 
 	// 声明 Hub 变量（用于在回调函数中访问）
 	var wsHub *websocket.Hub
@@ -318,6 +322,8 @@ func main() {
 	importController := controller.NewImportController(importService, embeddingConfigService) // 导入控制器
 	visitorController := controller.NewVisitorController(visitorService)
 	healthController := controller.NewHealthController(healthChecker, retrievalService) // 健康检查控制器
+	quickReplyController := controller.NewQuickReplyController(quickReplyService)       // 快捷回复控制器
+	statisticsController := controller.NewStatisticsController(statisticsService)       // 统计控制器
 
 	appRouter.RegisterRoutes(
 		r,
@@ -335,6 +341,8 @@ func main() {
 			Import:            importController, // 导入控制器
 			Visitor:           visitorController,
 			Health:            healthController, // 健康检查控制器
+			QuickReply:        quickReplyController,       // 快捷回复控制器
+			Statistics:        statisticsController,       // 统计控制器
 		},
 		websocket.HandleWebSocket(wsHub),
 	)
