@@ -58,6 +58,8 @@ export function useMessages({
   const [includeAIMessages, setIncludeAIMessages] = useState(forceIncludeAIMessages);
   /** 内部对话（知识库测试）下发消息后等待 AI 回复时显示「正在思考」（与访客小窗逻辑一致） */
   const [aiThinking, setAiThinking] = useState(false);
+  /** 知识库测试：联网选项 */
+  const [needWebSearch, setNeedWebSearch] = useState(false);
 
   const refreshConversationDetail = useCallback(
     async (id: number) => {
@@ -216,6 +218,8 @@ export function useMessages({
           fileName: fileInfo?.file_name,
           fileSize: fileInfo?.file_size,
           mimeType: fileInfo?.mime_type,
+          needWebSearch: forceIncludeAIMessages ? needWebSearch : undefined,
+          useWebSearch: forceIncludeAIMessages && needWebSearch ? true : undefined,
         });
       } catch (error) {
         console.error(error);
@@ -227,7 +231,7 @@ export function useMessages({
         setSending(false);
       }
     },
-    [agentId, conversationId, sending, forceIncludeAIMessages]
+    [agentId, conversationId, sending, forceIncludeAIMessages, needWebSearch]
   );
 
   const handleNewMessage = useCallback(
@@ -320,10 +324,11 @@ export function useMessages({
         return [...prev, message];
       });
 
-      // 内部对话（知识库测试）：收到 AI 回复时关闭「正在思考」（与访客小窗一致：收到对方回复即关闭）
+      // 内部对话（知识库测试）：仅收到 AI 机器人（sender_id=0）回复时关闭「正在思考」。
+      // 之前仅判断 chat_mode=ai，会在回推到“自己刚发出的 AI 模式消息”时被提前关闭，导致一闪而过。
       if (forceIncludeAIMessages && message.conversation_id === conversationId) {
         const msgChatMode = message.chat_mode || "human";
-        if (msgChatMode === "ai") {
+        if (msgChatMode === "ai" && message.sender_is_agent && message.sender_id === 0) {
           setAiThinking(false);
         }
       }
@@ -522,6 +527,8 @@ export function useMessages({
       toggleAIMessages,
       forceIncludeAIMessages,
       aiThinking,
+      needWebSearch,
+      setNeedWebSearch,
     }),
     [
       conversationDetail,
@@ -537,6 +544,7 @@ export function useMessages({
       toggleAIMessages,
       forceIncludeAIMessages,
       aiThinking,
+      needWebSearch,
     ]
   );
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { unlockSound } from "@/utils/sound";
 
 export function useSoundNotification(initialEnabled: boolean = true) {
   const [enabled, setEnabled] = useState(initialEnabled);
@@ -7,10 +8,8 @@ export function useSoundNotification(initialEnabled: boolean = true) {
   useEffect(() => {
     if (!enabled) return;
 
-    if (!audioRef.current) {
-      audioRef.current = new Audio("/notification.mp3");
-      audioRef.current.volume = 0.5;
-    }
+    // 尝试解锁音频（多数浏览器需用户交互后才能真正响）
+    void unlockSound();
 
     return () => {
       if (audioRef.current) {
@@ -29,7 +28,11 @@ export function useSoundNotification(initialEnabled: boolean = true) {
   }, [enabled]);
 
   const toggle = useCallback(() => {
-    setEnabled((prev) => !prev);
+    setEnabled((prev) => {
+      const next = !prev;
+      if (next) void unlockSound();
+      return next;
+    });
   }, []);
 
   return { enabled, toggle, play };

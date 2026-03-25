@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAgentHeaders } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // 文档摘要信息
 export interface Document {
@@ -50,7 +50,7 @@ export async function fetchDocuments(
   keyword?: string,
   status?: string
 ): Promise<DocumentListResult> {
-  let url = `${API_BASE_URL}/documents?page=${page}&page_size=${pageSize}`;
+  let url = `${apiUrl("/documents")}?page=${page}&page_size=${pageSize}`;
   if (knowledgeBaseId) {
     url += `&knowledge_base_id=${knowledgeBaseId}`;
   }
@@ -75,7 +75,7 @@ export async function fetchDocuments(
 
 // 获取文档详情
 export async function fetchDocument(id: number): Promise<Document> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}`, {
+  const res = await fetch(apiUrl(`/documents/${id}`), {
     cache: "no-store",
     headers: getAgentHeaders(),
   });
@@ -92,7 +92,7 @@ export async function fetchDocument(id: number): Promise<Document> {
 
 // 创建文档
 export async function createDocument(data: CreateDocumentRequest): Promise<Document> {
-  const res = await fetch(`${API_BASE_URL}/documents`, {
+  const res = await fetch(apiUrl("/documents"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -111,7 +111,7 @@ export async function updateDocument(
   id: number,
   data: UpdateDocumentRequest
 ): Promise<Document> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}`, {
+  const res = await fetch(apiUrl(`/documents/${id}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
@@ -130,7 +130,7 @@ export async function updateDocument(
 
 // 删除文档
 export async function deleteDocument(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}`, {
+  const res = await fetch(apiUrl(`/documents/${id}`), {
     method: "DELETE",
     headers: getAgentHeaders(),
   });
@@ -146,7 +146,7 @@ export async function deleteDocument(id: number): Promise<void> {
 
 // 更新文档状态
 export async function updateDocumentStatus(id: number, status: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}/status`, {
+  const res = await fetch(apiUrl(`/documents/${id}/status`), {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify({ status }),
@@ -160,7 +160,7 @@ export async function updateDocumentStatus(id: number, status: string): Promise<
 
 // 发布文档
 export async function publishDocument(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}/publish`, {
+  const res = await fetch(apiUrl(`/documents/${id}/publish`), {
     method: "POST",
     headers: getAgentHeaders(),
   });
@@ -173,7 +173,7 @@ export async function publishDocument(id: number): Promise<void> {
 
 // 取消发布文档
 export async function unpublishDocument(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/documents/${id}/unpublish`, {
+  const res = await fetch(apiUrl(`/documents/${id}/unpublish`), {
     method: "POST",
     headers: getAgentHeaders(),
   });
@@ -190,7 +190,7 @@ export async function searchDocuments(
   topK: number = 5,
   knowledgeBaseId?: number
 ): Promise<Document[]> {
-  let url = `${API_BASE_URL}/documents/search?query=${encodeURIComponent(query)}&top_k=${topK}`;
+  let url = `${apiUrl("/documents/search")}?query=${encodeURIComponent(query)}&top_k=${topK}`;
   if (knowledgeBaseId) {
     url += `&knowledge_base_id=${knowledgeBaseId}`;
   }

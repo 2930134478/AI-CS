@@ -16,6 +16,7 @@ type ConversationService struct {
 	messages      *repository.MessageRepository
 	aiConfigRepo  *repository.AIConfigRepository // 用于验证 AI 配置
 	userRepo      *repository.UserRepository     // 用于查询用户设置
+	systemLogSvc  *SystemLogService              // 可选，结构化日志
 }
 
 // NewConversationService 创建 ConversationService 实例。
@@ -24,12 +25,14 @@ func NewConversationService(
 	messages *repository.MessageRepository,
 	aiConfigRepo *repository.AIConfigRepository,
 	userRepo *repository.UserRepository,
+	systemLogSvc *SystemLogService,
 ) *ConversationService {
 	return &ConversationService{
 		conversations: conversations,
 		messages:      messages,
 		aiConfigRepo:  aiConfigRepo,
 		userRepo:      userRepo,
+		systemLogSvc:  systemLogSvc,
 	}
 }
 
@@ -88,6 +91,21 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 			if err := s.conversations.Create(conv); err != nil {
 				return nil, err
 			}
+			if s.systemLogSvc != nil {
+				_ = s.systemLogSvc.Create(CreateSystemLogInput{
+					Level:    "info",
+					Category: "business",
+					Event:    "conversation_created",
+					Source:   "backend",
+					Message:  "访客会话已创建",
+					ConversationID: &conv.ID,
+					VisitorID:      &input.VisitorID,
+					Meta: map[string]interface{}{
+						"chat_mode": conv.ChatMode,
+						"ai_config": conv.AIConfigID,
+					},
+				})
+			}
 			isNewConversation = true
 		} else {
 			return nil, err
@@ -123,6 +141,7 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 		// 这样访客可以在人工客服和 AI 客服之间切换
 		if input.ChatMode != "" && input.ChatMode != conv.ChatMode {
 			chatMode := input.ChatMode
+			oldMode := conv.ChatMode
 			updates["chat_mode"] = chatMode
 
 			// 如果是 AI 模式，验证并更新 AI 配置
@@ -145,6 +164,40 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 			} else {
 				// 切换到人工客服模式，清除 AI 配置
 				updates["ai_config_id"] = nil
+			}
+			if s.systemLogSvc != nil {
+				convID := conv.ID
+				visitorID := conv.VisitorID
+				_ = s.systemLogSvc.Create(CreateSystemLogInput{
+					Level:          "info",
+					Category:       "business",
+					Event:          "conversation_mode_switch",
+					Source:         "backend",
+					ConversationID: &convID,
+					VisitorID:      &visitorID,
+					Message:        "会话模式切换",
+					Meta: map[string]interface{}{
+						"from": oldMode,
+						"to":   chatMode,
+					},
+				})
+			}
+		}
+
+		// 已在 AI 模式时，若用户在下拉中切换了模型（对话↔绘画），也要更新 ai_config_id
+		if input.ChatMode == "ai" && conv.ChatMode == "ai" && input.AIConfigID != nil && *input.AIConfigID != 0 {
+			if conv.AIConfigID == nil || *conv.AIConfigID != *input.AIConfigID {
+				config, err := s.aiConfigRepo.GetByID(*input.AIConfigID)
+				if err != nil {
+					return nil, errors.New("模型配置不存在")
+				}
+				if !config.IsPublic {
+					return nil, errors.New("该模型未开放给访客使用")
+				}
+				if !config.IsActive {
+					return nil, errors.New("该模型配置已禁用")
+				}
+				updates["ai_config_id"] = input.AIConfigID
 			}
 		}
 

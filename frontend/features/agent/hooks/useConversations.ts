@@ -68,6 +68,13 @@ export function useConversations(options?: UseConversationsOptions) {
   const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
+      // 内部对话（知识库测试）必须带 user_id，后端否则返回 400；未登录或 agentId 未就绪时不请求
+      if (listType === "internal" && !agentId) {
+        setConversations([]);
+        setFilteredConversations([]);
+        setSelectedConversationId(null);
+        return;
+      }
       const data = await fetchConversations(agentId ?? undefined, listType === "internal" ? { type: "internal" } : undefined);
       setConversations(data);
       const filtered = listType === "internal" ? data : applyFilter(data);

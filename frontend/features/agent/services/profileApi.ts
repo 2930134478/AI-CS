@@ -1,10 +1,10 @@
 // 客服个人资料 API 服务
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 import { Profile } from "../types";
 
 // 获取个人资料
 export async function fetchProfile(userId: number): Promise<Profile | null> {
-  const res = await fetch(`${API_BASE_URL}/agent/profile/${userId}`, {
+  const res = await fetch(apiUrl(`/agent/profile/${userId}`), {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -36,7 +36,7 @@ export async function updateProfile(
   userId: number,
   payload: UpdateProfilePayload
 ): Promise<Profile> {
-  const res = await fetch(`${API_BASE_URL}/agent/profile/${userId}`, {
+  const res = await fetch(apiUrl(`/agent/profile/${userId}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -67,7 +67,7 @@ export async function uploadAvatar(
   const formData = new FormData();
   formData.append("avatar", file);
 
-  const res = await fetch(`${API_BASE_URL}/agent/avatar/${userId}`, {
+  const res = await fetch(apiUrl(`/agent/avatar/${userId}`), {
     method: "POST",
     body: formData,
   });

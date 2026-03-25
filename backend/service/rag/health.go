@@ -33,14 +33,16 @@ func (h *HealthChecker) Check(ctx context.Context) error {
 		return err
 	}
 
-	// 检查向量存储服务（简单搜索测试）
-	testVector := make([]float32, svc.GetDimension())
-	for i := range testVector {
-		testVector[i] = 0.1
-	}
-	_, err = h.vectorStoreService.SearchVectors(ctx, testVector, 1, nil)
-	if err != nil {
-		return err
+	// 检查向量存储服务（简单搜索测试）；未启用 Milvus 时跳过
+	if h.vectorStoreService != nil && h.vectorStoreService.IsAvailable() {
+		testVector := make([]float32, svc.GetDimension())
+		for i := range testVector {
+			testVector[i] = 0.1
+		}
+		_, err = h.vectorStoreService.SearchVectors(ctx, testVector, 1, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -36,10 +36,12 @@ export interface MessageItem {
   read_at?: string | null;
   // 文件相关字段（可选）
   file_url?: string | null;
-  file_type?: string | null; // "image" | "document"
+  file_type?: string | null;
   file_name?: string | null;
   file_size?: number | null;
   mime_type?: string | null;
+  /** AI 回复使用的数据源，逗号分隔，如 knowledge_base / llm / web */
+  sources_used?: string | null;
 }
 
 export interface ConversationDetail extends ConversationSummary {

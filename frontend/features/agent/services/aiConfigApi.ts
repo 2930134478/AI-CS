@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 
 // AI 配置类型定义
 export interface AIConfig {
@@ -41,7 +41,7 @@ export interface UpdateAIConfigRequest {
 
 // 获取用户的所有 AI 配置
 export async function fetchAIConfigs(userId: number): Promise<AIConfig[]> {
-  const res = await fetch(`${API_BASE_URL}/agent/ai-config/${userId}`, {
+  const res = await fetch(apiUrl(`/agent/ai-config/${userId}`), {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -55,7 +55,7 @@ export async function fetchAIConfig(
   userId: number,
   configId: number
 ): Promise<AIConfig> {
-  const res = await fetch(`${API_BASE_URL}/agent/ai-config/${userId}/${configId}`, {
+  const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     cache: "no-store",
   });
   if (!res.ok) {
@@ -69,7 +69,7 @@ export async function createAIConfig(
   userId: number,
   data: CreateAIConfigRequest
 ): Promise<AIConfig> {
-  const res = await fetch(`${API_BASE_URL}/agent/ai-config/${userId}`, {
+  const res = await fetch(apiUrl(`/agent/ai-config/${userId}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -87,7 +87,7 @@ export async function updateAIConfig(
   configId: number,
   data: UpdateAIConfigRequest
 ): Promise<AIConfig> {
-  const res = await fetch(`${API_BASE_URL}/agent/ai-config/${userId}/${configId}`, {
+  const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -104,7 +104,7 @@ export async function deleteAIConfig(
   userId: number,
   configId: number
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/agent/ai-config/${userId}/${configId}`, {
+  const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -117,7 +117,7 @@ export async function fetchPublicAIModels(
   modelType: string = "text"
 ): Promise<AIConfig[]> {
   const res = await fetch(
-    `${API_BASE_URL}/conversations/ai-models?model_type=${modelType}`,
+    `${apiUrl("/conversations/ai-models")}?model_type=${modelType}`,
     {
       cache: "no-store",
     }

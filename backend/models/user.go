@@ -62,4 +62,8 @@ type Message struct {
 	FileName *string `json:"file_name" gorm:"type:varchar(255)"` // 原始文件名
 	FileSize *int64  `json:"file_size"`                          // 文件大小（字节）
 	MimeType *string `json:"mime_type" gorm:"type:varchar(100)"` // MIME类型（如 image/jpeg）
+	// AI 回复使用的数据源，用于前端展示「已使用知识库」等，逗号分隔：knowledge_base, llm, web
+	SourcesUsed string `json:"sources_used" gorm:"type:varchar(100)"`
+	// IsAIGenerationFailed 为 true 表示本次 AI 消息为生成失败后的兜底文案（用于统计失败率）
+	IsAIGenerationFailed bool `json:"is_ai_generation_failed" gorm:"default:false"`
 }

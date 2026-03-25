@@ -12,38 +12,38 @@ import { websiteConfig } from "@/lib/website-config";
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md">
-      <div className="container mx-auto px-4">
-        <div className="flex h-14 md:h-16 items-center justify-between">
+      <div className="container mx-auto px-6">
+        <div className="flex h-16 md:h-20 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-semibold text-sm">AI</span>
             </div>
-            <span className="text-lg font-semibold text-foreground tracking-tight">AI-CS</span>
+            <span className="text-[19px] font-semibold text-foreground tracking-tight">AI-CS</span>
           </Link>
 
           <div className="flex items-center gap-6 md:gap-8">
             <nav className="hidden md:flex items-center gap-6">
               <Link
                 href="#features"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                功能特性
+                核心能力
               </Link>
               <Link
                 href="#screenshots"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 界面展示
               </Link>
               <Link
-                href="#faq"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                href="#quick-start"
+                className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                常见问题
+                快速接入
               </Link>
               <Link
                 href="/agent/login"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 客服登录
               </Link>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -25,7 +25,7 @@ export default function AgentLoginPage() {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/login`, {
+      const res = await fetch(apiUrl("/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

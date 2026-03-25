@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/features/agent/hooks/useAuth";
@@ -21,11 +21,14 @@ import { ChatHeader } from "./ChatHeader";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { MessageInput } from "./MessageInput";
 import { MessageList } from "./MessageList";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { NavigationSidebar, type NavigationPage } from "./NavigationSidebar";
 import { ProfileModal } from "./ProfileModal";
 import { VisitorDetailPanel } from "./VisitorDetailPanel";
 import { useSoundNotification } from "@/hooks/useSoundNotification";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { reportFrontendLog } from "@/features/agent/services/systemLogApi";
 
 export function DashboardShell() {
   const pathname = usePathname();
@@ -35,6 +38,38 @@ export function DashboardShell() {
 
   // 登录状态：负责从本地存储读取客服信息，并提供登出方法
   const { agent, loading: authLoading, logout } = useAuth();
+
+  // 前端全局错误上报（最小可用：window error + promise rejection）
+  useEffect(() => {
+    const onError = (ev: ErrorEvent) => {
+      void reportFrontendLog({
+        level: "error",
+        category: "frontend",
+        event: "window_error",
+        message: ev.message || "window error",
+        meta: {
+          filename: ev.filename,
+          lineno: ev.lineno,
+          colno: ev.colno,
+        },
+      });
+    };
+    const onRejection = (ev: PromiseRejectionEvent) => {
+      const reason = String(ev.reason ?? "unhandled rejection");
+      void reportFrontendLog({
+        level: "error",
+        category: "frontend",
+        event: "unhandled_rejection",
+        message: reason.slice(0, 500),
+      });
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
 
   // 个人资料状态
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -112,6 +147,8 @@ export function DashboardShell() {
     includeAIMessages,
     toggleAIMessages,
     aiThinking,
+    needWebSearch,
+    setNeedWebSearch,
   } = useMessages({
     conversationId: selectedConversationId,
     agentId: agent?.id ?? null,
@@ -227,6 +264,7 @@ export function DashboardShell() {
         onProfileClick={() => setProfileModalOpen(true)}
         onLogout={logout}
         avatarUrl={profile?.avatar_url}
+        unreadChatCount={totalUnreadCount}
       />
       <ConversationSidebar
         conversations={filteredConversations}
@@ -248,6 +286,7 @@ export function DashboardShell() {
         onProfileClick={() => setProfileModalOpen(true)}
         onLogout={logout}
         avatarUrl={profile?.avatar_url}
+        unreadChatCount={totalUnreadCount}
       />
     </div>
   );
@@ -289,6 +328,21 @@ export function DashboardShell() {
                 ) : null
               }
             />
+            {/* 知识库测试：联网选项 */}
+            {isInternalChat && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-2 border-t border-border/50 bg-muted/30 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="internal-need-web-search"
+                    checked={needWebSearch}
+                    onCheckedChange={(v) => setNeedWebSearch(Boolean(v))}
+                  />
+                  <Label htmlFor="internal-need-web-search" className="cursor-pointer font-normal">
+                    本回合联网搜索
+                  </Label>
+                </div>
+              </div>
+            )}
             <MessageInput
               value={messageInput}
               onChange={setMessageInput}

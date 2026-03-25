@@ -1,14 +1,38 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
+
+func newTraceID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// TraceID 为每个请求注入 trace_id，便于链路排障。
+func TraceID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		traceID := c.GetHeader("X-Trace-Id")
+		if traceID == "" {
+			traceID = newTraceID()
+		}
+		c.Set("trace_id", traceID)
+		c.Writer.Header().Set("X-Trace-Id", traceID)
+		c.Next()
+	}
+}
 
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -20,11 +44,59 @@ func Logger() gin.HandlerFunc {
 	}
 }
 
+// StructuredHTTPLogger 将 HTTP 请求结构化落库（分类: http）。
+func StructuredHTTPLogger(logSvc *service.SystemLogService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		if logSvc == nil {
+			return
+		}
+		latencyMs := time.Since(start).Milliseconds()
+		status := c.Writer.Status()
+		level := "info"
+		if status >= 500 {
+			level = "error"
+		} else if status >= 400 || latencyMs >= 2000 {
+			level = "warn"
+		}
+		var userID *uint
+		if v := c.GetHeader("X-User-Id"); v != "" {
+			if id, err := strconv.ParseUint(v, 10, 64); err == nil && id > 0 {
+				t := uint(id)
+				userID = &t
+			}
+		}
+		traceID := ""
+		if v, ok := c.Get("trace_id"); ok {
+			if s, ok2 := v.(string); ok2 {
+				traceID = s
+			}
+		}
+		_ = logSvc.Create(service.CreateSystemLogInput{
+			Level:   level,
+			Category: "http",
+			Event:   "http_request",
+			Source:  "backend",
+			TraceID: traceID,
+			UserID:  userID,
+			Message: c.Request.Method + " " + c.Request.URL.Path,
+			Meta: map[string]interface{}{
+				"status":     status,
+				"latency_ms": latencyMs,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+				"query":      c.Request.URL.RawQuery,
+			},
+		})
+	}
+}
+
 func CORS() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-User-Id", "X-Trace-Id"},
 		AllowCredentials: false,
 	})
 }

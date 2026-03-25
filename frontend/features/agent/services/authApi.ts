@@ -1,7 +1,7 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_BASE_URL}/logout`, {
+  await fetch(apiUrl("/logout"), {
     method: "POST",
   });
 }

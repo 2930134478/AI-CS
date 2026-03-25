@@ -29,11 +29,13 @@ func (s *EmbeddingConfigService) GetForAPI() (*EmbeddingConfigResult, error) {
 	}
 	if c == nil {
 		return &EmbeddingConfigResult{
-			EmbeddingType:    "openai",
-			APIURL:           "",
-			APIKeyMasked:     "",
-			Model:            "text-embedding-3-small",
-			CustomerCanUseKB: true,
+			EmbeddingType:           "openai",
+			APIURL:                  "",
+			APIKeyMasked:            "",
+			Model:                   "text-embedding-3-small",
+			CustomerCanUseKB:        true,
+			VisitorWebSearchEnabled: false,
+			WebSearchSource:         "custom",
 		}, nil
 	}
 	masked := ""
@@ -41,14 +43,23 @@ func (s *EmbeddingConfigService) GetForAPI() (*EmbeddingConfigResult, error) {
 		masked = "sk-***"
 	}
 	return &EmbeddingConfigResult{
-		ID:               c.ID,
-		EmbeddingType:    c.EmbeddingType,
-		APIURL:           c.APIURL,
-		APIKeyMasked:     masked,
-		Model:            c.Model,
-		CustomerCanUseKB: c.CustomerCanUseKB,
-		UpdatedAt:       c.UpdatedAt,
+		ID:                       c.ID,
+		EmbeddingType:             c.EmbeddingType,
+		APIURL:                    c.APIURL,
+		APIKeyMasked:              masked,
+		Model:                     c.Model,
+		CustomerCanUseKB:          c.CustomerCanUseKB,
+		VisitorWebSearchEnabled:   c.VisitorWebSearchEnabled,
+		WebSearchSource:           normalizeWebSearchSource(c.WebSearchSource),
+		UpdatedAt:                 c.UpdatedAt,
 	}, nil
+}
+
+func normalizeWebSearchSource(v string) string {
+	if v == "vendor" || v == "custom" {
+		return v
+	}
+	return "custom"
 }
 
 // GetRaw 供 embedding 工厂使用，返回含解密后 API Key 的配置；若 DB 无有效配置返回 nil, nil
@@ -74,6 +85,30 @@ func (s *EmbeddingConfigService) CustomerCanUseKB() (bool, error) {
 		return true, nil // 默认开放
 	}
 	return c.CustomerCanUseKB, nil
+}
+
+// GetVisitorWebSearchConfig 返回访客端联网设置（供小窗拉取，无需登录）
+func (s *EmbeddingConfigService) GetVisitorWebSearchConfig() (*VisitorWebSearchConfig, error) {
+	c, err := s.repo.Get()
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return &VisitorWebSearchConfig{WebSearchEnabled: false}, nil
+	}
+	return &VisitorWebSearchConfig{WebSearchEnabled: c.VisitorWebSearchEnabled}, nil
+}
+
+// GetWebSearchSource 返回联网方式：vendor（厂商内置）/ custom（自建 Serper）
+func (s *EmbeddingConfigService) GetWebSearchSource() (string, error) {
+	c, err := s.repo.Get()
+	if err != nil {
+		return "custom", err
+	}
+	if c == nil {
+		return "custom", nil
+	}
+	return normalizeWebSearchSource(c.WebSearchSource), nil
 }
 
 // CheckKnowledgeBaseAccess 校验当前用户是否允许使用知识库（创建/上传/导入等）
@@ -133,6 +168,12 @@ func (s *EmbeddingConfigService) Update(userID uint, input UpdateEmbeddingConfig
 	if input.CustomerCanUseKB != nil {
 		c.CustomerCanUseKB = *input.CustomerCanUseKB
 	}
+	if input.VisitorWebSearchEnabled != nil {
+		c.VisitorWebSearchEnabled = *input.VisitorWebSearchEnabled
+	}
+	if input.WebSearchSource != nil {
+		c.WebSearchSource = normalizeWebSearchSource(*input.WebSearchSource)
+	}
 
 	if err := s.repo.Save(c); err != nil {
 		return nil, err
@@ -142,20 +183,29 @@ func (s *EmbeddingConfigService) Update(userID uint, input UpdateEmbeddingConfig
 
 // EmbeddingConfigResult 返回给前端的结构（不含明文 API Key）
 type EmbeddingConfigResult struct {
-	ID               uint   `json:"id"`
-	EmbeddingType    string `json:"embedding_type"`
-	APIURL           string `json:"api_url"`
-	APIKeyMasked     string `json:"api_key_masked"`
-	Model            string `json:"model"`
-	CustomerCanUseKB bool   `json:"customer_can_use_kb"`
-	UpdatedAt       time.Time `json:"updated_at,omitempty"`
+	ID                      uint      `json:"id"`
+	EmbeddingType           string    `json:"embedding_type"`
+	APIURL                  string    `json:"api_url"`
+	APIKeyMasked            string    `json:"api_key_masked"`
+	Model                   string    `json:"model"`
+	CustomerCanUseKB        bool      `json:"customer_can_use_kb"`
+	VisitorWebSearchEnabled bool      `json:"visitor_web_search_enabled"`
+	WebSearchSource         string    `json:"web_search_source"`
+	UpdatedAt               time.Time `json:"updated_at,omitempty"`
+}
+
+// VisitorWebSearchConfig 访客端联网设置（供小窗拉取，无需登录）
+type VisitorWebSearchConfig struct {
+	WebSearchEnabled bool `json:"web_search_enabled"`
 }
 
 // UpdateEmbeddingConfigInput 更新入参
 type UpdateEmbeddingConfigInput struct {
-	EmbeddingType    *string `json:"embedding_type"`
-	APIURL           *string `json:"api_url"`
-	APIKey           *string `json:"api_key"`
-	Model            *string `json:"model"`
-	CustomerCanUseKB *bool   `json:"customer_can_use_kb"`
+	EmbeddingType           *string `json:"embedding_type"`
+	APIURL                  *string `json:"api_url"`
+	APIKey                  *string `json:"api_key"`
+	Model                   *string `json:"model"`
+	CustomerCanUseKB        *bool   `json:"customer_can_use_kb"`
+	VisitorWebSearchEnabled *bool   `json:"visitor_web_search_enabled"`
+	WebSearchSource         *string `json:"web_search_source"`
 }

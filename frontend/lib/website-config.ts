@@ -4,6 +4,9 @@
  */
 
 export const websiteConfig = {
+  /** 在线演示站点（「立即体验 / 打开 Demo」等入口） */
+  demoUrl: "https://demo.cscorp.top",
+
   // GitHub 仓库地址
   github: {
     repo: "https://github.com/2930134478/AI-CS",

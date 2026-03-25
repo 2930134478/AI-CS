@@ -35,12 +35,16 @@ type createMessageRequest struct {
 	Content        string  `json:"content"`
 	SenderIsAgent  bool    `json:"sender_is_agent"`
 	SenderID       uint    `json:"sender_id"`
-	// 文件相关字段（可选）
 	FileURL  *string `json:"file_url"`
 	FileType *string `json:"file_type"`
 	FileName *string `json:"file_name"`
 	FileSize *int64  `json:"file_size"`
 	MimeType *string `json:"mime_type"`
+	// 回复数据源开关（仅 AI 模式有效），不传则默认：知识库+大模型开，联网关
+	UseKnowledgeBase *bool `json:"use_knowledge_base"`
+	UseLLM           *bool `json:"use_llm"`
+	UseWebSearch     *bool `json:"use_web_search"`
+	NeedWebSearch    bool  `json:"need_web_search"`
 }
 
 // CreateMessage 处理发送消息的请求。
@@ -58,15 +62,19 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 	}
 
 	_, err := mc.messageService.CreateMessage(service.CreateMessageInput{
-		ConversationID: req.ConversationID,
-		Content:        req.Content,
-		SenderID:       req.SenderID,
-		SenderIsAgent:  req.SenderIsAgent,
-		FileURL:        req.FileURL,
-		FileType:       req.FileType,
-		FileName:       req.FileName,
-		FileSize:       req.FileSize,
-		MimeType:       req.MimeType,
+		ConversationID:   req.ConversationID,
+		Content:          req.Content,
+		SenderID:         req.SenderID,
+		SenderIsAgent:    req.SenderIsAgent,
+		FileURL:          req.FileURL,
+		FileType:         req.FileType,
+		FileName:         req.FileName,
+		FileSize:         req.FileSize,
+		MimeType:         req.MimeType,
+		UseKnowledgeBase: req.UseKnowledgeBase,
+		UseLLM:           req.UseLLM,
+		UseWebSearch:     req.UseWebSearch,
+		NeedWebSearch:    req.NeedWebSearch,
 	})
 	if err != nil {
 		log.Printf("❌ 创建消息失败: 对话ID=%d, 错误=%v", req.ConversationID, err)

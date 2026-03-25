@@ -22,7 +22,7 @@ import {
   type UpdateEmbeddingConfigRequest,
 } from "@/features/agent/services/embeddingConfigApi";
 import { useProfile } from "@/features/agent/hooks/useProfile";
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
@@ -55,6 +55,8 @@ export default function SettingsPage(props: any = {}) {
     api_key: "",
     model: "text-embedding-3-small",
     customer_can_use_kb: true,
+    visitor_web_search_enabled: false,
+    web_search_source: "custom" as "vendor" | "custom",
   });
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
   const [embeddingSubmitting, setEmbeddingSubmitting] = useState(false);
@@ -114,6 +116,8 @@ export default function SettingsPage(props: any = {}) {
         api_key: "",
         model: data.model || "text-embedding-3-small",
         customer_can_use_kb: data.customer_can_use_kb ?? true,
+        visitor_web_search_enabled: data.visitor_web_search_enabled ?? false,
+        web_search_source: data.web_search_source === "vendor" ? "vendor" : "custom",
       });
     } catch (e) {
       console.error("加载知识库向量配置失败:", e);
@@ -141,6 +145,8 @@ export default function SettingsPage(props: any = {}) {
         api_url: embeddingForm.api_url || undefined,
         model: embeddingForm.model || undefined,
         customer_can_use_kb: embeddingForm.customer_can_use_kb,
+        visitor_web_search_enabled: embeddingForm.visitor_web_search_enabled,
+        web_search_source: embeddingForm.web_search_source,
       };
       if (embeddingForm.api_key) {
         data.api_key = embeddingForm.api_key;
@@ -240,7 +246,7 @@ export default function SettingsPage(props: any = {}) {
   // 退出登录
   const handleLogout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/logout`, { method: "POST" });
+      await fetch(apiUrl("/logout"), { method: "POST" });
     } catch (error) {
       console.error("退出登录失败:", error);
     } finally {
@@ -410,6 +416,66 @@ export default function SettingsPage(props: any = {}) {
                   </div>
                   <Button type="submit" disabled={embeddingSubmitting}>
                     {embeddingSubmitting ? "保存中..." : "保存配置"}
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 联网搜索设置（与知识库向量模型独立；实际仍写入同一配置，仅 UI 分离） */}
+          <Card>
+            <CardHeader>
+              <CardTitle>联网搜索设置</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                控制对话中的联网搜索方式与访客端是否显示联网选项。与上方「知识库向量模型」无关，仅影响 AI 对话时的联网行为。
+              </p>
+            </CardHeader>
+            <CardContent>
+              {embeddingLoading ? (
+                <div className="text-center py-6 text-muted-foreground">加载中...</div>
+              ) : (
+                <form onSubmit={handleSaveEmbeddingConfig} className="space-y-4">
+                  {embeddingError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {embeddingError}
+                    </div>
+                  )}
+                  <div>
+                    <Label className="block text-sm font-medium mb-1">联网方式</Label>
+                    <select
+                      value={embeddingForm.web_search_source}
+                      onChange={(e) =>
+                        setEmbeddingForm({
+                          ...embeddingForm,
+                          web_search_source: e.target.value as "vendor" | "custom",
+                        })
+                      }
+                      className="w-full max-w-xs px-3 py-2 border border-input rounded-md text-sm bg-background"
+                    >
+                      <option value="custom">自建(Serper)</option>
+                      <option value="vendor">厂商内置</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      自建：由后端通过 Serper（MCP 或 HTTP）执行；厂商内置：使用当前对话所用 AI 厂商自带的 web search，不占用 Serper。
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="visitor_web_search_enabled_standalone"
+                      checked={embeddingForm.visitor_web_search_enabled}
+                      onCheckedChange={(checked) =>
+                        setEmbeddingForm({
+                          ...embeddingForm,
+                          visitor_web_search_enabled: checked === true,
+                        })
+                      }
+                    />
+                    <Label htmlFor="visitor_web_search_enabled_standalone" className="text-sm cursor-pointer">
+                      访客小窗显示「本回合联网搜索」选项
+                    </Label>
+                  </div>
+                  <Button type="submit" disabled={embeddingSubmitting}>
+                    {embeddingSubmitting ? "保存中..." : "保存联网设置"}
                   </Button>
                 </form>
               )}

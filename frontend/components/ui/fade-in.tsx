@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ReactNode } from "react";
 
 interface FadeInProps {
@@ -10,14 +10,27 @@ interface FadeInProps {
 }
 
 export function FadeIn({ children, delay = 0, className = "" }: FadeInProps) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-100px" }}
-      transition={{ duration: 0.6, delay, ease: "easeOut" }}
+      initial={
+        reduceMotion
+          ? { opacity: 1, y: 0 }
+          : { opacity: 0, y: 12, filter: "blur(2px)" }
+      }
+      whileInView={
+        reduceMotion
+          ? { opacity: 1, y: 0 }
+          : { opacity: 1, y: 0, filter: "blur(0px)" }
+      }
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{
+        duration: 0.42,
+        delay,
+        ease: [0.16, 1, 0.3, 1],
+      }}
       className={className}
-      style={{ willChange: "opacity, transform" }}
+      style={{ willChange: "opacity, transform, filter" }}
     >
       {children}
     </motion.div>
@@ -30,17 +43,19 @@ interface FadeInStaggerProps {
 }
 
 export function FadeInStagger({ children, className = "" }: FadeInStaggerProps) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, margin: "-100px" }}
+      viewport={{ once: true, amount: 0.2 }}
       variants={{
-        hidden: { opacity: 0 },
+        hidden: reduceMotion ? { opacity: 1 } : { opacity: 0 },
         visible: {
           opacity: 1,
           transition: {
-            staggerChildren: 0.1,
+            staggerChildren: reduceMotion ? 0 : 0.06,
+            delayChildren: reduceMotion ? 0 : 0.03,
           },
         },
       }}
@@ -57,15 +72,16 @@ interface FadeInItemProps {
 }
 
 export function FadeInItem({ children, className = "" }: FadeInItemProps) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
       variants={{
-        hidden: { opacity: 0, y: 20 },
-        visible: { opacity: 1, y: 0 },
+        hidden: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 10, filter: "blur(2px)" },
+        visible: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, filter: "blur(0px)" },
       }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
+      transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
       className={className}
-      style={{ willChange: "opacity, transform" }}
+      style={{ willChange: "opacity, transform, filter" }}
     >
       {children}
     </motion.div>

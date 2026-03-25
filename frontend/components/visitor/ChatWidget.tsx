@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageList } from "@/components/dashboard/MessageList";
-import { MessageInput } from "@/components/dashboard/MessageInput";
 import { OnlineAgentsList, type OnlineAgent } from "./OnlineAgentsList";
+import { VisitorMessageInput } from "./VisitorMessageInput";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { websiteConfig } from "@/lib/website-config";
@@ -19,13 +19,21 @@ import {
   UploadFileResult,
 } from "@/features/agent/services/messageApi";
 import { initVisitorConversation } from "@/features/visitor/services/conversationApi";
+import { postWidgetOpen } from "@/features/visitor/services/analyticsApi";
 import { fetchOnlineAgents } from "@/features/visitor/services/visitorApi";
-import { fetchPublicAIModels } from "@/features/agent/services/aiConfigApi";
+import {
+  fetchPublicAIModels,
+  type AIConfig,
+} from "@/features/agent/services/aiConfigApi";
+import {
+  fetchVisitorWidgetConfig,
+  type VisitorWidgetConfig,
+} from "@/features/agent/services/embeddingConfigApi";
 import { useWebSocket } from "@/features/agent/hooks/useWebSocket";
 import type { WSMessage } from "@/lib/websocket";
 import { useSoundNotification } from "@/hooks/useSoundNotification";
 import { playNotificationSound } from "@/utils/sound";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 interface ChatWidgetProps {
   visitorId: number;
@@ -68,6 +76,20 @@ function parseUserAgent(userAgent: string) {
  * 提供小窗形式的聊天界面，支持展开/收起
  */
 export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
+  const WEB_SEARCH_PREF_KEY = "visitor_widget_need_web_search";
+  // 数据分析：每次由关→开上报一次小窗打开（供后台「小窗打开次数」统计）
+  const prevIsOpenRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+      return;
+    }
+    if (!prevIsOpenRef.current && visitorId != null && visitorId > 0) {
+      void postWidgetOpen(visitorId);
+    }
+    prevIsOpenRef.current = true;
+  }, [isOpen, visitorId]);
+
   // ===== 状态管理 =====
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [conversationStatus, setConversationStatus] = useState<string>("open");
@@ -80,18 +102,62 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
   const [selectedAIConfigId, setSelectedAIConfigId] = useState<
     number | undefined
   >(undefined);
-  const [aiModels, setAiModels] = useState<
-    Array<{ id: number; provider: string; model: string }>
-  >([]);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const [aiModels, setAiModels] = useState<AIConfig[]>([]);
   const [onlineAgents, setOnlineAgents] = useState<OnlineAgent[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   /** AI 模式下发消息后等待回复时显示「正在输入」提示 */
   const [aiTyping, setAiTyping] = useState(false);
+  /** 联网搜索：本回合是否使用联网（访客可勾选） */
+  const [needWebSearch, setNeedWebSearch] = useState(false);
+  /** 访客小窗配置（由配置页控制是否显示联网设置） */
+  const [widgetConfig, setWidgetConfig] = useState<VisitorWidgetConfig | null>(null);
 
   // 声音通知开关（访客端）
   const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(true);
 
   const noopHighlight = useCallback(() => {}, []);
+  const shouldHideForVisitor = useCallback((msg: MessageItem) => {
+    if ((msg.message_type ?? "") !== "system_message") return false;
+    const content = (msg.content || "").trim().toLowerCase();
+    // 访客侧隐藏来源/落地页埋点系统消息，仅客服端查看即可
+    return (
+      content.startsWith("visitor opened the page") ||
+      content.startsWith("visitor came from")
+    );
+  }, []);
+  const isMessageInCurrentMode = useCallback(
+    (msg: MessageItem) => {
+      const mode = (msg.chat_mode || "human").toLowerCase();
+      return mode === chatMode;
+    },
+    [chatMode]
+  );
+  const selectedAIModel = useMemo(
+    () => aiModels.find((m) => m.id === selectedAIConfigId) ?? null,
+    [aiModels, selectedAIConfigId]
+  );
+  const agentAvatarMap = useMemo<Record<number, string>>(
+    () =>
+      Object.fromEntries(
+        onlineAgents
+          .filter((a) => a.id > 0 && Boolean(a.avatar_url))
+          .map((a) => [a.id, a.avatar_url])
+      ),
+    [onlineAgents]
+  );
+
+  useEffect(() => {
+    const onDocClick = (event: MouseEvent) => {
+      if (!modelMenuRef.current) return;
+      if (!modelMenuRef.current.contains(event.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   // 加载在线客服列表
   const loadOnlineAgents = useCallback(async () => {
@@ -116,17 +182,43 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
     }
   }, [isOpen, loadOnlineAgents]);
 
-  // 加载开放的 AI 模型列表
+  // 当小窗打开时，拉取访客小窗配置（联网设置是否显示及来源）
+  useEffect(() => {
+    if (isOpen) {
+      fetchVisitorWidgetConfig()
+        .then(setWidgetConfig)
+        .catch(() => setWidgetConfig(null));
+    }
+  }, [isOpen]);
+
+  // 记住「联网搜索」开关状态（仅浏览器端）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(WEB_SEARCH_PREF_KEY);
+    if (saved === "true") setNeedWebSearch(true);
+    if (saved === "false") setNeedWebSearch(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(WEB_SEARCH_PREF_KEY, String(needWebSearch));
+  }, [needWebSearch]);
+
+  // 加载开放的 AI 模型列表（文本 + 生图），统一作为 AI 客服下的渠道
   useEffect(() => {
     async function loadModels() {
       try {
-        const models = await fetchPublicAIModels("text");
-        setAiModels(models);
-        if (models.length > 0) {
-          setSelectedAIConfigId(models[0].id);
+        const [textModels, imgModels] = await Promise.all([
+          fetchPublicAIModels("text"),
+          fetchPublicAIModels("image"),
+        ]);
+        const all = [...textModels, ...imgModels];
+        setAiModels(all);
+        if (all.length > 0) {
+          setSelectedAIConfigId(all[0].id);
         }
       } catch (error) {
-        console.error("加载 AI 模型列表失败:", error);
+        console.error("加载 AI/生图模型列表失败:", error);
       }
     }
     loadModels();
@@ -180,17 +272,20 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       if (visitorId === null || initializing) {
         return;
       }
-      if (mode === "ai" && !selectedAIConfigId) {
-        alert("请先选择一个 AI 模型");
-        return;
+      if (mode === "ai") {
+        if (aiModels.length === 0) {
+          alert("暂无可用的 AI 模型，请在后台「设置」-「AI 配置」中至少将一个模型设为「开放给访客」后再试。");
+          return;
+        }
+        if (!selectedAIConfigId) {
+          alert("请先选择一个 AI 模型");
+          return;
+        }
       }
-      initializeConversation(
-        visitorId,
-        mode,
-        mode === "ai" ? selectedAIConfigId : undefined
-      );
+      const configId = mode === "ai" ? selectedAIConfigId : undefined;
+      initializeConversation(visitorId, mode, configId);
     },
-    [visitorId, initializing, selectedAIConfigId, initializeConversation]
+    [visitorId, initializing, selectedAIConfigId, aiModels.length, initializeConversation]
   );
 
   // 标记客服消息已读
@@ -237,14 +332,14 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         ...msg,
         is_read: msg.is_read ?? false,
         read_at: msg.read_at ?? null,
-      }));
+      })).filter((msg) => !shouldHideForVisitor(msg) && isMessageInCurrentMode(msg));
       setMessages(normalizedMessages);
     } catch (error) {
       console.error("拉取消息失败:", error);
     } finally {
       setLoadingMessages(false);
     }
-  }, [conversationId, chatMode]);
+  }, [conversationId, chatMode, shouldHideForVisitor, isMessageInCurrentMode]);
 
   useEffect(() => {
     if (isOpen && conversationId) {
@@ -257,6 +352,12 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
       if (!conversationId || message.conversation_id !== conversationId) {
+        return;
+      }
+      if (shouldHideForVisitor(message)) {
+        return;
+      }
+      if (!isMessageInCurrentMode(message)) {
         return;
       }
       
@@ -350,7 +451,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         return newMessages;
       });
     },
-    [conversationId]
+    [conversationId, shouldHideForVisitor, isMessageInCurrentMode]
   );
 
   // 处理 WebSocket 的已读事件
@@ -468,6 +569,8 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           fileName: fileInfo?.file_name,
           fileSize: fileInfo?.file_size,
           mimeType: fileInfo?.mime_type,
+          needWebSearch: chatMode === "ai" ? needWebSearch : undefined,
+          useWebSearch: chatMode === "ai" && needWebSearch ? true : undefined,
         });
         
         // 不在这里调用 loadMessages，完全依赖 WebSocket 来接收新消息
@@ -485,7 +588,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         setSending(false);
       }
     },
-    [conversationId, input, sending, visitorId, chatMode]
+    [conversationId, input, sending, visitorId, chatMode, needWebSearch, widgetConfig]
   );
 
   // 如果不打开，不渲染内容
@@ -494,13 +597,13 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
   }
 
   return (
-    <Card className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-2rem)] max-w-[400px] h-[500px] sm:w-[400px] sm:max-w-none sm:h-[600px] md:w-[480px] md:h-[700px] flex flex-col shadow-2xl z-40 border border-border/50 overflow-hidden rounded-2xl bg-background backdrop-blur-sm ring-1 ring-black/5">
-      {/* 头部：标题和操作按钮 - 使用渐变背景 */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 border-b border-primary/20 p-4 flex items-center justify-between rounded-t-2xl">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+    <Card className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-1.5rem)] max-w-[420px] h-[540px] sm:w-[420px] sm:h-[620px] md:h-[680px] flex flex-col shadow-[0_24px_60px_-24px_rgba(2,6,23,0.35)] z-40 border border-slate-200 overflow-hidden rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200/80">
+      {/* 头部：回归品牌蓝色系，保持轻量与一致 */}
+      <div className="bg-gradient-to-r from-[#2563eb] to-[#3b82f6] border-b border-blue-300/40 px-4 py-3.5 flex items-center justify-between rounded-t-2xl">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/30">
             <svg
-              className="w-5 h-5 text-white"
+              className="w-5 h-5 text-white/90"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -513,7 +616,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
               />
             </svg>
           </div>
-          <h2 className="text-lg font-bold text-white">客服聊天</h2>
+          <h2 className="text-base font-bold text-white truncate">客服聊天</h2>
         </div>
         <div className="flex items-center gap-2">
           {/* 声音开关按钮 */}
@@ -521,7 +624,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
             variant="ghost"
             size="sm"
             onClick={toggleSound}
-            className="text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
+            className="text-white/90 hover:text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
             aria-label={soundEnabled ? "关闭声音" : "开启声音"}
             title={soundEnabled ? "关闭声音提示" : "开启声音提示"}
           >
@@ -566,7 +669,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
             variant="ghost"
             size="sm"
             asChild
-            className="text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
+            className="text-white/90 hover:text-white hover:bg-white/20 h-8 w-8 p-0 rounded-lg transition-colors"
             aria-label="GitHub"
             title="查看 GitHub 仓库"
           >
@@ -588,9 +691,9 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       </div>
 
       {/* 模式切换和在线客服列表 */}
-      <div className="p-4 border-b bg-gradient-to-b from-muted/50 to-background">
+      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
         {/* 模式切换按钮 */}
-        <div className="flex items-center gap-2 mb-3 justify-center">
+        <div className="flex items-center gap-2 mb-3 justify-center flex-wrap">
           <Button
             variant={chatMode === "human" ? "default" : "outline"}
             size="sm"
@@ -598,8 +701,8 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
             disabled={initializing}
             className={
               chatMode === "human"
-                ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg transition-shadow"
-                : "hover:bg-muted border-border"
+                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-500 transition-colors border border-blue-600"
+                : "bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300"
             }
           >
             人工客服
@@ -608,39 +711,18 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
             variant={chatMode === "ai" ? "default" : "outline"}
             size="sm"
             onClick={() => handleModeSwitch("ai")}
-            disabled={initializing || aiModels.length === 0 || !selectedAIConfigId}
+            disabled={initializing}
+            title={aiModels.length === 0 ? "暂无可用的 AI/绘画模型，请在后台设置中开放" : undefined}
             className={
               chatMode === "ai"
-                ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg transition-shadow"
-                : "hover:bg-muted border-border"
+                ? "bg-blue-600 text-white shadow-sm hover:bg-blue-500 transition-colors border border-blue-600"
+                : "bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300"
             }
           >
             AI 客服
           </Button>
         </div>
-        {/* AI 模型选择下拉框（仅 AI 模式显示） */}
-        {aiModels.length > 0 && chatMode === "ai" && (
-          <div className="flex justify-center mb-3">
-            <select
-              value={selectedAIConfigId || ""}
-              onChange={(e) => {
-                const configId = Number(e.target.value);
-                setSelectedAIConfigId(configId);
-                if (visitorId) {
-                  initializeConversation(visitorId, "ai", configId);
-                }
-              }}
-              disabled={initializing}
-              className="px-3 py-1.5 text-xs rounded-md border border-border bg-background hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-            >
-              {aiModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.provider} - {model.model}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* 模型选择已下沉到输入区发送按钮左侧（仅 AI 模式显示） */}
         {/* 在线客服列表（仅人工模式显示） */}
         {chatMode === "human" && (
           <OnlineAgentsList
@@ -653,9 +735,9 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       </div>
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-hidden min-h-0 bg-gradient-to-b from-background to-muted/20">
+      <div className="flex-1 overflow-hidden min-h-0 bg-slate-50">
         <MessageList
-          key={`messages-${conversationId}`}
+          key={`messages-${conversationId}-${chatMode}`}
           messages={messages}
           loading={loadingMessages}
           highlightKeyword=""
@@ -664,10 +746,11 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           disableAutoScroll={false}
           conversationId={conversationId}
           onMarkMessagesRead={handleMarkAgentMessagesRead}
+          leftAvatarBySenderId={chatMode === "human" ? agentAvatarMap : undefined}
           bottomSlot={
             chatMode === "ai" && aiTyping ? (
               <div className="flex justify-start mt-2">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-white border border-slate-200 shadow-sm text-sm text-slate-500">
                   <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
                   <span>AI 正在思考...</span>
                 </div>
@@ -678,13 +761,76 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       </div>
 
       {/* 消息输入框 */}
-      <div className="border-t border-border/50 bg-background rounded-b-2xl">
-        <MessageInput
+      <div className="border-t border-slate-200 bg-slate-50 rounded-b-2xl px-3 pt-2 pb-2.5">
+        <VisitorMessageInput
           value={input}
           onChange={setInput}
           onSubmit={handleSendMessage}
           sending={sending}
           conversationId={conversationId ?? undefined}
+          toolsSlot={
+            chatMode === "ai" && (widgetConfig?.web_search_enabled ?? false) ? (
+              <button
+                type="button"
+                onClick={() => setNeedWebSearch((v) => !v)}
+                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                  needWebSearch
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+                aria-pressed={needWebSearch}
+              >
+                联网搜索
+              </button>
+            ) : null
+          }
+          submitLeftSlot={
+            chatMode === "ai" && aiModels.length > 0 ? (
+              <div className="relative" ref={modelMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setModelMenuOpen((v) => !v)}
+                  disabled={initializing || sending}
+                  className="h-8 inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 text-xs text-slate-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-colors disabled:opacity-50"
+                  title="选择模型"
+                >
+                  {selectedAIModel?.model_type === "image" ? "绘画" : "文本"}
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {modelMenuOpen && (
+                  <div className="absolute bottom-10 -right-10 z-20 w-[280px] rounded-lg border border-slate-200 bg-white shadow-lg p-1">
+                    {aiModels.map((model) => {
+                      const active = model.id === selectedAIConfigId;
+                      return (
+                        <button
+                          key={model.id}
+                          type="button"
+                          className={`w-full px-2.5 py-2 text-left rounded-md flex items-start justify-between gap-2 ${
+                            active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                          onClick={() => {
+                            setSelectedAIConfigId(model.id);
+                            setModelMenuOpen(false);
+                            if (visitorId) initializeConversation(visitorId, "ai", model.id);
+                          }}
+                        >
+                          <span className="min-w-0">
+                            <div className="text-xs font-medium leading-4">
+                              {model.model_type === "image" ? "绘画" : "文本"}
+                            </div>
+                            <div className="text-[11px] leading-4 text-slate-500 break-all">
+                              {model.provider} - {model.model}
+                            </div>
+                          </span>
+                          {active ? <Check className="w-3.5 h-3.5 ml-2 flex-shrink-0" /> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null
+          }
         />
       </div>
     </Card>

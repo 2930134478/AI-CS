@@ -3,7 +3,7 @@
  * 提供访客相关的 API 调用
  */
 
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 
 /**
  * 在线客服信息
@@ -18,7 +18,7 @@ export interface OnlineAgent {
  * 获取在线客服列表
  */
 export async function fetchOnlineAgents(): Promise<OnlineAgent[]> {
-  const response = await fetch(`${API_BASE_URL}/visitor/online-agents`, {
+  const response = await fetch(apiUrl("/visitor/online-agents"), {
     method: "GET",
     headers: {
       "Content-Type": "application/json",

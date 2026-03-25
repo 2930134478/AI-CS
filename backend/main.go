@@ -9,6 +9,8 @@ import (
 
 	"github.com/2930134478/AI-CS/backend/controller"
 	"github.com/2930134478/AI-CS/backend/infra"
+	"github.com/2930134478/AI-CS/backend/infra/mcp"
+	infra_search "github.com/2930134478/AI-CS/backend/infra/search"
 	"github.com/2930134478/AI-CS/backend/middleware"
 	"github.com/2930134478/AI-CS/backend/models"
 	"github.com/2930134478/AI-CS/backend/repository"
@@ -19,6 +21,7 @@ import (
 	"github.com/2930134478/AI-CS/backend/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	milvus "github.com/milvus-io/milvus-sdk-go/v2/client"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -68,30 +71,65 @@ func initDefaultAdmin(userRepo *repository.UserRepository) {
 	log.Println("   ⚠️ 请首次登录后立即修改密码！")
 }
 
+// logVectorStartup 将向量库（Milvus）启动相关事件写入 system_logs，供前端「日志中心」查询；失败时仅打控制台，不影响启动。
+func logVectorStartup(sys *service.SystemLogService, level, event, message string, meta map[string]interface{}) {
+	if sys == nil {
+		return
+	}
+	if meta == nil {
+		meta = map[string]interface{}{}
+	}
+	if err := sys.Create(service.CreateSystemLogInput{
+		Level:    level,
+		Category: "vector",
+		Event:    event,
+		Source:   "backend",
+		Message:  message,
+		Meta:     meta,
+	}); err != nil {
+		log.Printf("写入 system_logs 失败 (event=%s): %v", event, err)
+	}
+}
+
+// fatalVectorStartup 在启动阶段先写入一条 vector error 日志，再执行 fatal 退出。
+func fatalVectorStartup(sys *service.SystemLogService, event, message string, meta map[string]interface{}) {
+	logVectorStartup(sys, "error", event, message, meta)
+	log.Fatalf("%s", message)
+}
+
 func main() {
 
-	// 加载 .env 文件
-	// 获取当前工作目录
+	// 加载 .env 文件（统一配置真源：优先当前目录 .env，其次上级目录 .env）
 	wd, _ := os.Getwd()
-	envPath := filepath.Join(wd, ".env")
-
-	// 检查文件是否存在
-	if _, err := os.Stat(envPath); os.IsNotExist(err) {
-		log.Printf("⚠️ .env 文件不存在: %s", envPath)
-		log.Println("当前工作目录:", wd)
+	candidates := []string{
+		filepath.Join(wd, ".env"),
+		filepath.Join(wd, "..", ".env"),
+	}
+	envPath := ""
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			envPath = p
+			break
+		}
+	}
+	if envPath == "" {
+		log.Printf("⚠️ 未找到 .env 文件（已检查: %v）", candidates)
+		log.Println("将仅使用系统环境变量")
 	} else {
 		log.Printf("✅ 找到 .env 文件: %s", envPath)
 	}
 
 	// 尝试加载 .env 文件
 	// 注意：godotenv 不支持 UTF-8 BOM，如果文件有 BOM 会失败
-	if err := godotenv.Load(envPath); err != nil {
-		log.Printf("❌ 加载 .env 文件失败: %v", err)
-		log.Println("⚠️ 提示：如果看到 'unexpected character' 错误，可能是文件编码问题（UTF-8 BOM）")
-		log.Println("   解决方法：用文本编辑器（如 VS Code）打开 .env，另存为 UTF-8 编码（不要 BOM）")
-		log.Println("将使用系统环境变量")
-	} else {
-		log.Println("✅ .env 文件加载成功")
+	if envPath != "" {
+		if err := godotenv.Load(envPath); err != nil {
+			log.Printf("❌ 加载 .env 文件失败: %v", err)
+			log.Println("⚠️ 提示：如果看到 'unexpected character' 错误，可能是文件编码问题（UTF-8 BOM）")
+			log.Println("   解决方法：用文本编辑器（如 VS Code）打开 .env，另存为 UTF-8 编码（不要 BOM）")
+			log.Println("将使用系统环境变量")
+		} else {
+			log.Println("✅ .env 文件加载成功")
+		}
 	}
 
 	db, err := infra.NewDB()
@@ -100,7 +138,7 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}, &models.PromptConfig{}, &models.WidgetOpenEvent{}, &models.SystemLog{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
@@ -112,14 +150,20 @@ func main() {
 	kbRepo := repository.NewKnowledgeBaseRepository(db)
 	docRepo := repository.NewDocumentRepository(db)
 	embeddingConfigRepo := repository.NewEmbeddingConfigRepository(db)
+	promptConfigRepo := repository.NewPromptConfigRepository(db)
+	systemLogRepo := repository.NewSystemLogRepository(db)
+	systemLogService := service.NewSystemLogService(systemLogRepo)
 
 	// 初始化默认管理员账号（如果不存在）
 	initDefaultAdmin(userRepo)
 
 	//gin路由初始化
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	//使用日志中间件
+	// trace_id + 结构化 HTTP 日志 + 控制台日志
+	r.Use(middleware.TraceID())
+	r.Use(middleware.StructuredHTTPLogger(systemLogService))
 	r.Use(middleware.Logger())
 
 	//跨域配置
@@ -133,21 +177,82 @@ func main() {
 	publicPath := "/uploads"
 	storageService := infra.NewLocalStorageService(uploadDir, publicPath)
 
-	// 初始化 Milvus 客户端（向量数据库）
-	milvusClient, err := infra.NewMilvusClient()
-	if err != nil {
-		log.Fatalf("连接 Milvus 失败: %v", err)
+	// 初始化 Milvus（向量数据库）：默认连接失败时降级为「无向量库」启动；MILVUS_REQUIRED=true 时失败则退出
+	milvusDisabled := infra.IsMilvusDisabled()
+	milvusRequired := infra.IsMilvusRequired()
+	var milvusClient milvus.Client
+	defer func() {
+		if milvusClient != nil {
+			if err := milvusClient.Close(); err != nil {
+				log.Printf("关闭 Milvus 客户端: %v", err)
+			}
+		}
+	}()
+	var vectorStore *infra.VectorStore
+	milvusCfg := infra.GetMilvusConfig()
+	milvusMeta := map[string]interface{}{
+		"milvus_host":     milvusCfg.Host,
+		"milvus_port":     milvusCfg.Port,
+		"milvus_required": milvusRequired,
+		"milvus_disabled": milvusDisabled,
 	}
-	defer milvusClient.Close()
 
-	// 检查 Milvus 健康状态
-	if err := infra.HealthCheck(milvusClient); err != nil {
-		log.Fatalf("Milvus 健康检查失败: %v", err)
+	if milvusDisabled {
+		log.Println("ℹ️ 已设置 MILVUS_DISABLED / VECTOR_STORE_DISABLED，跳过 Milvus；知识库 RAG 与向量化不可用，直至启用并重启。")
+		logVectorStartup(systemLogService, "info", "milvus_disabled",
+			"已跳过 Milvus（MILVUS_DISABLED/VECTOR_STORE_DISABLED）；知识库 RAG 与向量化不可用，启用后需重启",
+			milvusMeta)
+	} else {
+		c, err := infra.NewMilvusClient()
+		if err != nil {
+			if milvusRequired {
+				m := map[string]interface{}{}
+				for k, v := range milvusMeta {
+					m[k] = v
+				}
+				m["error"] = err.Error()
+				fatalVectorStartup(systemLogService, "milvus_required_connect_failed",
+					"连接 Milvus 失败（已设置 MILVUS_REQUIRED）", m)
+			}
+			log.Printf("⚠️ 连接 Milvus 失败，将以「无向量库」模式启动: %v", err)
+			m := map[string]interface{}{}
+			for k, v := range milvusMeta {
+				m[k] = v
+			}
+			m["error"] = err.Error()
+			logVectorStartup(systemLogService, "warn", "milvus_connect_failed",
+				"连接 Milvus 失败，已降级为无向量库模式启动", m)
+		} else {
+			milvusClient = c
+			if err := infra.HealthCheck(milvusClient); err != nil {
+				_ = milvusClient.Close()
+				milvusClient = nil
+				if milvusRequired {
+					m := map[string]interface{}{}
+					for k, v := range milvusMeta {
+						m[k] = v
+					}
+					m["error"] = err.Error()
+					fatalVectorStartup(systemLogService, "milvus_required_health_check_failed",
+						"Milvus 健康检查失败（已设置 MILVUS_REQUIRED）", m)
+				}
+				log.Printf("⚠️ Milvus 健康检查失败，将以「无向量库」模式启动: %v", err)
+				m := map[string]interface{}{}
+				for k, v := range milvusMeta {
+					m[k] = v
+				}
+				m["error"] = err.Error()
+				logVectorStartup(systemLogService, "warn", "milvus_health_check_failed",
+					"Milvus 健康检查失败，已降级为无向量库模式启动", m)
+			} else {
+				log.Println("✅ Milvus 连接成功")
+			}
+		}
 	}
-	log.Println("✅ Milvus 连接成功")
 
 	// 嵌入服务按需从 DB 配置获取（保存即生效，无需重启）
 	embeddingConfigService := service.NewEmbeddingConfigService(embeddingConfigRepo, userRepo)
+	promptConfigService := service.NewPromptConfigService(promptConfigRepo, userRepo)
 	embeddingFactory := embedding.NewEmbeddingFactory()
 	embeddingProvider := service.NewConfigBackedEmbeddingProvider(embeddingConfigService, embeddingFactory)
 
@@ -172,9 +277,40 @@ func main() {
 		}
 		return svc, nil
 	}
-	vectorStore, err := infra.NewVectorStore(milvusClient, "documents", dimension, getEmbedding)
-	if err != nil {
-		log.Fatalf("创建向量存储失败: %v", err)
+	if milvusClient != nil {
+		vs, err := infra.NewVectorStore(milvusClient, "documents", dimension, getEmbedding)
+		if err != nil {
+			_ = milvusClient.Close()
+			milvusClient = nil
+			if milvusRequired {
+				m := map[string]interface{}{}
+				for k, v := range milvusMeta {
+					m[k] = v
+				}
+				m["error"] = err.Error()
+				fatalVectorStartup(systemLogService, "milvus_required_vector_store_init_failed",
+					"创建向量存储失败（已设置 MILVUS_REQUIRED）", m)
+			}
+			log.Printf("⚠️ 创建向量存储失败，将以「无向量库」模式启动: %v", err)
+			m := map[string]interface{}{}
+			for k, v := range milvusMeta {
+				m[k] = v
+			}
+			m["error"] = err.Error()
+			logVectorStartup(systemLogService, "warn", "milvus_vector_store_init_failed",
+				"创建向量存储（集合）失败，已降级为无向量库模式启动", m)
+		} else {
+			vectorStore = vs
+		}
+	}
+	if vectorStore != nil {
+		okMeta := map[string]interface{}{}
+		for k, v := range milvusMeta {
+			okMeta[k] = v
+		}
+		okMeta["collection"] = "documents"
+		logVectorStartup(systemLogService, "info", "milvus_ready",
+			"Milvus 已连接且向量集合可用", okMeta)
 	}
 	vectorStoreService := rag.NewVectorStoreService(vectorStore)
 
@@ -184,12 +320,30 @@ func main() {
 	retrievalService.EnableCache(5 * time.Minute)
 	healthChecker := rag.NewHealthChecker(embeddingProvider, vectorStoreService)
 
+	// 联网搜索（可选）：优先通过 MCP 调用 Serper（SERPER_MCP_URL），否则使用 Serper HTTP API（SERPER_API_KEY）
+	var webSearchProvider infra_search.WebSearchProvider
+	if mcpURL := os.Getenv("SERPER_MCP_URL"); mcpURL != "" {
+		mcpClient := mcp.NewClient(mcpURL)
+		if err := mcpClient.Connect(initCtx); err != nil {
+			log.Printf("⚠️ Serper MCP 连接失败（SERPER_MCP_URL=%s）: %v，联网搜索将不可用", mcpURL, err)
+		} else {
+			webSearchProvider = mcp.NewSerperWebSearchProvider(mcpClient)
+			log.Println("✅ 联网搜索已通过 MCP（Serper）接入")
+		}
+	}
+	if webSearchProvider == nil {
+		if apiKey := os.Getenv("SERPER_API_KEY"); apiKey != "" {
+			webSearchProvider = infra_search.NewSerperProvider(apiKey)
+			log.Println("✅ 联网搜索已通过 Serper HTTP API 接入")
+		}
+	}
+
 	// 初始化服务层
 	authService := service.NewAuthService(userRepo)
-	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo)
+	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo, systemLogService)
 	profileService := service.NewProfileService(userRepo, storageService)
 	aiConfigService := service.NewAIConfigService(aiConfigRepo, userRepo)
-	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService)           // 添加 RAG 检索服务
+	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService, webSearchProvider, embeddingConfigService, promptConfigService, storageService, systemLogService)
 	userService := service.NewUserService(userRepo)                                                            // 用户管理服务
 	faqService := service.NewFAQService(faqRepo, retrievalService, documentEmbeddingService)                   // FAQ 管理服务
 	documentService := service.NewDocumentService(docRepo, kbRepo, documentEmbeddingService, retrievalService) // 文档管理服务
@@ -314,27 +468,36 @@ func main() {
 	faqController := controller.NewFAQController(faqService)
 	documentController := controller.NewDocumentController(documentService, embeddingConfigService)
 	embeddingConfigController := controller.NewEmbeddingConfigController(embeddingConfigService)
+	promptConfigController := controller.NewPromptConfigController(promptConfigService)
 	knowledgeBaseController := controller.NewKnowledgeBaseController(knowledgeBaseService, embeddingConfigService)
 	importController := controller.NewImportController(importService, embeddingConfigService) // 导入控制器
-	visitorController := controller.NewVisitorController(visitorService)
+	visitorController := controller.NewVisitorController(visitorService, embeddingConfigService)
 	healthController := controller.NewHealthController(healthChecker, retrievalService) // 健康检查控制器
+
+	widgetOpenRepo := repository.NewWidgetOpenRepository(db)
+	analyticsService := service.NewAnalyticsService(db, widgetOpenRepo)
+	analyticsController := controller.NewAnalyticsController(analyticsService)
+	systemLogController := controller.NewSystemLogController(systemLogService)
 
 	appRouter.RegisterRoutes(
 		r,
 		appRouter.ControllerSet{
-			Auth:              authController,
-			Conversation:      conversationController,
-			Message:           messageController,
-			Admin:             adminController,
-			Profile:           profileController,
-			AIConfig:          aiConfigController,
-			EmbeddingConfig:   embeddingConfigController,
-			FAQ:               faqController,
-			Document:          documentController,
-			KnowledgeBase:     knowledgeBaseController,
-			Import:            importController, // 导入控制器
-			Visitor:           visitorController,
-			Health:            healthController, // 健康检查控制器
+			Auth:            authController,
+			Conversation:    conversationController,
+			Message:         messageController,
+			Admin:           adminController,
+			Profile:         profileController,
+			AIConfig:        aiConfigController,
+			EmbeddingConfig: embeddingConfigController,
+			PromptConfig:    promptConfigController,
+			FAQ:             faqController,
+			Document:        documentController,
+			KnowledgeBase:   knowledgeBaseController,
+			Import:          importController, // 导入控制器
+			Visitor:         visitorController,
+			Health:          healthController, // 健康检查控制器
+			Analytics:       analyticsController,
+			SystemLog:       systemLogController,
 		},
 		websocket.HandleWebSocket(wsHub),
 	)

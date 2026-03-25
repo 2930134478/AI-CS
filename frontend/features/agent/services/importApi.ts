@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAgentHeaders } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // 导入结果
 export interface ImportResult {
@@ -20,7 +20,7 @@ export async function importDocuments(
     formData.append("files", file);
   }
 
-  const res = await fetch(`${API_BASE_URL}/import/documents`, {
+  const res = await fetch(apiUrl("/import/documents"), {
     method: "POST",
     headers: getAgentHeaders(),
     body: formData,
@@ -56,7 +56,7 @@ export interface ImportFromUrlsRequest {
 }
 
 export async function importFromUrls(data: ImportFromUrlsRequest): Promise<ImportResult> {
-  const res = await fetch(`${API_BASE_URL}/import/urls`, {
+  const res = await fetch(apiUrl("/import/urls"), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 
 // 对话类型定义
@@ -40,7 +40,7 @@ export default function ConversationsPage() {
   // 拉取对话列表
   const fetchConversations = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/conversations`);
+      const res = await fetch(apiUrl("/conversations"));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -67,7 +67,7 @@ export default function ConversationsPage() {
   // 退出登录
   const handleLogout = async () => {
     try {
-      await fetch(`${API_BASE_URL}/logout`, {
+      await fetch(apiUrl("/logout"), {
         method: "POST",
       });
     } catch (error) {

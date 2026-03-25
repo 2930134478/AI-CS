@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 
 // FAQ 摘要信息
 export interface FAQSummary {
@@ -28,7 +28,7 @@ export interface UpdateFAQRequest {
 // query 格式：关键词之间用 % 分隔，例如 "openai%api%调用"
 export async function fetchFAQs(query?: string): Promise<FAQSummary[]> {
   // 使用相对路径构建 URL，支持查询参数
-  let url = `${API_BASE_URL}/faqs`;
+  let url = apiUrl("/faqs");
   if (query) {
     url += `?query=${encodeURIComponent(query)}`;
   }
@@ -47,7 +47,7 @@ export async function fetchFAQs(query?: string): Promise<FAQSummary[]> {
 
 // 获取 FAQ 详情
 export async function fetchFAQ(id: number): Promise<FAQSummary> {
-  const res = await fetch(`${API_BASE_URL}/faqs/${id}`, {
+  const res = await fetch(apiUrl(`/faqs/${id}`), {
     cache: "no-store",
   });
 
@@ -63,7 +63,7 @@ export async function fetchFAQ(id: number): Promise<FAQSummary> {
 
 // 创建 FAQ
 export async function createFAQ(data: CreateFAQRequest): Promise<FAQSummary> {
-  const res = await fetch(`${API_BASE_URL}/faqs`, {
+  const res = await fetch(apiUrl("/faqs"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -82,7 +82,7 @@ export async function updateFAQ(
   id: number,
   data: UpdateFAQRequest
 ): Promise<FAQSummary> {
-  const res = await fetch(`${API_BASE_URL}/faqs/${id}`, {
+  const res = await fetch(apiUrl(`/faqs/${id}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -101,7 +101,7 @@ export async function updateFAQ(
 
 // 删除 FAQ
 export async function deleteFAQ(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/faqs/${id}`, {
+  const res = await fetch(apiUrl(`/faqs/${id}`), {
     method: "DELETE",
   });
 

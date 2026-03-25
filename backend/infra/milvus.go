@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
@@ -29,6 +30,23 @@ func GetMilvusConfig() *MilvusConfig {
 		Host: host,
 		Port: port,
 	}
+}
+
+func envTruthy(key string) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+// IsMilvusDisabled 为 true 时跳过连接 Milvus（不参与 RAG / 向量化，核心 HTTP 仍可启动）。
+// 环境变量：MILVUS_DISABLED 或 VECTOR_STORE_DISABLED。
+func IsMilvusDisabled() bool {
+	return envTruthy("MILVUS_DISABLED") || envTruthy("VECTOR_STORE_DISABLED")
+}
+
+// IsMilvusRequired 为 true 时，若 Milvus 不可用则启动失败（便于生产环境强依赖向量库时 fail-fast）。
+// 环境变量：MILVUS_REQUIRED。
+func IsMilvusRequired() bool {
+	return envTruthy("MILVUS_REQUIRED")
 }
 
 // NewMilvusClient 创建 Milvus 客户端连接

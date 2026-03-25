@@ -61,14 +61,13 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		SenderIsAgent:  input.SenderIsAgent,
 		Content:        input.Content,
 		MessageType:    "user_message",
-		ChatMode:       conv.ChatMode, // 记录消息发送时的对话模式
+		ChatMode:       conv.ChatMode,
 		IsRead:         false,
-		// 文件相关字段（可选）
-		FileURL:  input.FileURL,
-		FileType: input.FileType,
-		FileName: input.FileName,
-		FileSize: input.FileSize,
-		MimeType: input.MimeType,
+		FileURL:        input.FileURL,
+		FileType:       input.FileType,
+		FileName:       input.FileName,
+		FileSize:       input.FileSize,
+		MimeType:       input.MimeType,
 	}
 
 	if err := s.messages.Create(message); err != nil {
@@ -100,12 +99,9 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		log.Printf("⚠️ WebSocket Hub 为空，无法广播消息: 消息ID=%d, 对话ID=%d", message.ID, message.ConversationID)
 	}
 
-	// 3. 触发 AI 回复的两种情况：
-	//    a) 访客对话 + AI 模式 + 访客发送的消息
-	//    b) 内部对话（知识库测试）+ 客服发送的消息
-	needAIReply := s.aiService != nil && (
-		(conv.ChatMode == "ai" && !input.SenderIsAgent) ||
-		(conv.ConversationType == "internal" && input.SenderIsAgent))
+	// 3. 触发 AI 回复（文本/识图或生图，具体由 AI 配置的 model_type 决定）
+	needAIReply := s.aiService != nil && conv.ChatMode == "ai" && (
+		(!input.SenderIsAgent) || (conv.ConversationType == "internal" && input.SenderIsAgent))
 	if needAIReply {
 		go func() {
 			// 用于查找 AI 配置的用户 ID：访客对话用 AgentID，内部对话用发送者（客服）ID
@@ -117,22 +113,70 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 				userID = input.SenderID
 			}
 
-			aiResponse, err := s.aiService.GenerateAIResponse(message.ConversationID, input.Content, userID)
+			opts := &GenerateAIResponseInput{
+				UseKnowledgeBase: input.UseKnowledgeBase,
+				UseLLM:           input.UseLLM,
+				UseWebSearch:     input.UseWebSearch,
+				NeedWebSearch:    input.NeedWebSearch,
+			}
+			if opts.UseKnowledgeBase == nil {
+				t := true
+				opts.UseKnowledgeBase = &t
+			}
+			if opts.UseLLM == nil {
+				t := true
+				opts.UseLLM = &t
+			}
+			if opts.UseWebSearch == nil {
+				f := false
+				opts.UseWebSearch = &f
+			}
+			// 多模态识图：当前条消息带图片时传给 AI
+			if input.FileURL != nil && input.FileType != nil && *input.FileType == "image" {
+				mime := ""
+				if input.MimeType != nil {
+					mime = *input.MimeType
+				}
+				opts.Attachment = &MessageAttachment{
+					FileURL:  *input.FileURL,
+					FileType: "image",
+					MimeType: mime,
+				}
+			}
+			aiResult, err := s.aiService.GenerateAIResponseWithOptions(message.ConversationID, input.Content, userID, opts)
+			aiResponse := ""
+			sourcesUsed := ""
+			var aiMessageFileURL *string
+			aiGenFailed := false
 			if err != nil {
 				log.Printf("❌ AI 生成回复失败: %v", err)
-				// 使用友好的错误消息
 				aiResponse = "AI客服好像出了点差错，请联系人工客服解决"
+				aiGenFailed = true
+			} else {
+				aiResponse = aiResult.Content
+				sourcesUsed = aiResult.SourcesUsed
+				aiMessageFileURL = aiResult.GeneratedFileURL
+				aiGenFailed = aiResult.GenerationFailed
 			}
 
-			// 创建 AI 回复消息
+			// 生图时前端依赖 file_type === "image" 才渲染图片，必须设置
+			var aiMessageFileType *string
+			if aiMessageFileURL != nil {
+				t := "image"
+				aiMessageFileType = &t
+			}
 			aiMessage := &models.Message{
-				ConversationID: message.ConversationID,
-				SenderID:       0, // AI 消息的 SenderID 为 0
-				SenderIsAgent:  true, // AI 回复视为客服消息
-				Content:        aiResponse,
-				MessageType:    "user_message",
-				ChatMode:       "ai", // AI 回复消息的模式为 "ai"
-				IsRead:         false,
+				ConversationID:       message.ConversationID,
+				SenderID:             0,
+				SenderIsAgent:        true,
+				Content:              aiResponse,
+				MessageType:          "user_message",
+				ChatMode:             conv.ChatMode,
+				IsRead:               false,
+				SourcesUsed:          sourcesUsed,
+				FileURL:              aiMessageFileURL,
+				FileType:             aiMessageFileType,
+				IsAIGenerationFailed: aiGenFailed,
 			}
 
 			if err := s.messages.Create(aiMessage); err != nil {

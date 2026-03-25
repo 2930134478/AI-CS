@@ -3,8 +3,10 @@ package infra
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -17,6 +19,9 @@ type StorageService interface {
 	// file: 文件内容
 	// filename: 原始文件名
 	SaveMessageFile(conversationID uint, file io.Reader, filename string) (string, error)
+	// ReadMessageFile 根据消息文件的 URL 或路径读取文件内容（用于多模态：识图等）
+	// fileURLOrPath 为创建消息时返回的 file_url，可为相对路径如 /uploads/messages/1/xxx.jpg 或完整 URL
+	ReadMessageFile(fileURLOrPath string) ([]byte, error)
 	// DeleteFile 删除文件
 	DeleteFile(fileURL string) error
 	// GetFileURL 获取文件的完整URL
@@ -76,6 +81,30 @@ func (s *LocalStorageService) SaveAvatar(userID uint, file io.Reader, filename s
 	// 返回相对路径（用于构建URL）
 	relativePath := filepath.Join("avatars", newFilename)
 	return s.GetFileURL(relativePath), nil
+}
+
+// ReadMessageFile 根据消息文件的 URL 或路径读取文件内容。
+func (s *LocalStorageService) ReadMessageFile(fileURLOrPath string) ([]byte, error) {
+	pathPart := fileURLOrPath
+	if strings.Contains(fileURLOrPath, "://") {
+		u, err := url.Parse(fileURLOrPath)
+		if err != nil {
+			return nil, fmt.Errorf("解析文件 URL 失败: %w", err)
+		}
+		pathPart = u.Path
+	}
+	pathPart = strings.TrimPrefix(pathPart, "/")
+	publicPathTrimmed := strings.TrimPrefix(strings.TrimSuffix(s.publicPath, "/"), "/")
+	if publicPathTrimmed != "" && strings.HasPrefix(pathPart, publicPathTrimmed+"/") {
+		pathPart = strings.TrimPrefix(pathPart, publicPathTrimmed+"/")
+	} else if publicPathTrimmed != "" && pathPart == publicPathTrimmed {
+		pathPart = ""
+	}
+	if pathPart == "" {
+		return nil, fmt.Errorf("无法从 URL 解析出相对路径: %s", fileURLOrPath)
+	}
+	fullPath := filepath.Join(s.baseDir, pathPart)
+	return os.ReadFile(fullPath)
 }
 
 // DeleteFile 删除文件

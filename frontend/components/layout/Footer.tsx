@@ -46,7 +46,7 @@ export function Footer() {
                   href="#features"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  功能特性
+                  核心能力
                 </Link>
               </li>
               <li>
@@ -59,10 +59,10 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="#faq"
+                  href="#quick-start"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  常见问题
+                  快速接入
                 </Link>
               </li>
               <li>

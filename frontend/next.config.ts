@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
-// 从环境变量读取后端端口，默认 8080（与后端 main.go 保持一致）
-// 如果设置了 NEXT_PUBLIC_BACKEND_PORT，优先使用（用于 Docker 部署等场景）
+// 开发时代理目标端口（统一从根目录 .env 读取 NEXT_PUBLIC_BACKEND_*）
 const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || "8080";
 const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost";
 
@@ -12,6 +11,12 @@ const nextConfig: NextConfig = {
     // 只在开发环境启用代理
     if (process.env.NODE_ENV === "development") {
       return [
+        // 形态2（同域 /api）在本地开发的兜底：把 /api/* 代理到后端 /api/*
+        // 避免 Next 把 /api 当成自己的 API 路由而导致 404
+        {
+          source: "/api/:path*",
+          destination: `http://${backendHost}:${backendPort}/api/:path*`,
+        },
         // 优先匹配后端 API 路径（这些需要代理到后端）
         {
           source: "/agent/profile/:path*",
@@ -26,13 +31,30 @@ const nextConfig: NextConfig = {
           destination: `http://${backendHost}:${backendPort}/agent/embedding-config`,
         },
         {
+          source: "/agent/prompts",
+          destination: `http://${backendHost}:${backendPort}/agent/prompts`,
+        },
+        {
           source: "/agent/ai-config/:path*",
           destination: `http://${backendHost}:${backendPort}/agent/ai-config/:path*`,
         },
-        // 匹配其他 API 路径（不以 /_next、/agent、/chat 开头的路径）
-        // 例如：/login, /conversations, /messages 等
         {
-          source: "/:path((?!_next|agent|chat|favicon.ico).*)",
+          // 数据报表 API（后端 gin 路由在 /agent/analytics/summary）
+          source: "/agent/analytics/summary",
+          destination: `http://${backendHost}:${backendPort}/agent/analytics/summary`,
+        },
+        {
+          source: "/agent/logs/api",
+          destination: `http://${backendHost}:${backendPort}/agent/logs/api`,
+        },
+        {
+          source: "/agent/logs/frontend",
+          destination: `http://${backendHost}:${backendPort}/agent/logs/frontend`,
+        },
+        // 匹配其他 API 路径（不以 /_next、/agent、/api、/chat 开头的路径）
+        // /api/agent/prompts 由 app/api/agent/prompts/route.ts 代理，不在此转发
+        {
+          source: "/:path((?!_next|agent|api|chat|favicon.ico).*)",
           destination: `http://${backendHost}:${backendPort}/:path*`,
         },
       ];

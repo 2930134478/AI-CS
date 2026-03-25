@@ -10,6 +10,9 @@ import {
   ClipboardList,
   Users,
   Settings,
+  FileText,
+  BarChart3,
+  ScrollText,
 } from "lucide-react";
 
 /** 嵌入在 dashboard 内的页面组件（懒加载） */
@@ -27,6 +30,18 @@ const UsersPage = dynamic(
 );
 const SettingsPage = dynamic(
   () => import("@/app/agent/settings/page").then((mod) => ({ default: mod.default })),
+  { ssr: false }
+);
+const PromptsPage = dynamic(
+  () => import("@/app/agent/prompts/page").then((mod) => ({ default: mod.default })),
+  { ssr: false }
+);
+const AnalyticsPage = dynamic(
+  () => import("@/app/agent/analytics/page").then((mod) => ({ default: mod.default })),
+  { ssr: false }
+);
+const LogsPage = dynamic(
+  () => import("@/app/agent/logs/page").then((mod) => ({ default: mod.default })),
   { ssr: false }
 );
 
@@ -80,12 +95,36 @@ export const AGENT_PAGES = [
     component: FAQsPage,
   },
   {
+    id: "analytics",
+    label: "数据报表",
+    title: "数据报表",
+    Icon: BarChart3,
+    adminOnly: false,
+    component: AnalyticsPage,
+  },
+  {
+    id: "logs",
+    label: "日志中心",
+    title: "日志中心",
+    Icon: ScrollText,
+    adminOnly: false,
+    component: LogsPage,
+  },
+  {
     id: "users",
     label: "用户管理",
     title: "用户管理",
     Icon: Users,
     adminOnly: true,
     component: UsersPage,
+  },
+  {
+    id: "prompts",
+    label: "提示词",
+    title: "提示词",
+    Icon: FileText,
+    adminOnly: true,
+    component: PromptsPage,
   },
   {
     id: "settings",

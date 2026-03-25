@@ -34,17 +34,17 @@ export function OnlineAgentsList({
     <div className="space-y-3">
       <div className="text-sm font-semibold text-foreground mb-3 text-center flex items-center justify-center gap-2">
         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span>在线客服 ({agents.length})</span>
+        <span>在线</span>
       </div>
       <div className="flex flex-wrap gap-3 justify-center">
         {agents.map((agent) => (
           <button
             key={agent.id}
             onClick={() => onAgentClick?.(agent)}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-primary/5 hover:shadow-md transition-all cursor-pointer group border border-transparent hover:border-primary/20"
+            className="flex flex-col items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-primary/5 transition-all cursor-pointer group"
             title={agent.nickname}
           >
-            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 group-hover:border-primary/60 transition-all shadow-sm group-hover:shadow-md">
+            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 group-hover:border-primary/60 transition-all">
               {getAvatarUrl(agent.avatar_url) ? (
                 <Image
                   src={getAvatarUrl(agent.avatar_url)!}
@@ -57,15 +57,16 @@ export function OnlineAgentsList({
                   {agent.nickname.charAt(0).toUpperCase()}
                 </div>
               )}
-              {/* 在线状态指示器 */}
-              <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background shadow-sm" />
             </div>
-            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[70px]">
+            <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate max-w-[72px]">
               {agent.nickname}
             </span>
           </button>
         ))}
       </div>
+      <p className="text-sm font-medium text-muted-foreground text-center pt-1">
+        有疑问吗？联系我们！
+      </p>
     </div>
   );
 }

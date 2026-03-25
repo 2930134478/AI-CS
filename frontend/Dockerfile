@@ -14,13 +14,9 @@ RUN npm ci
 # 复制源代码
 COPY . .
 
-# 构建参数（Next.js 环境变量必须在构建时传入）
-ARG NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-
-# 后端端口配置（用于图片加载等）
-ARG NEXT_PUBLIC_BACKEND_PORT=18080
-ENV NEXT_PUBLIC_BACKEND_PORT=$NEXT_PUBLIC_BACKEND_PORT
+# 说明：
+# - 当前前端请求统一走同域 `/api/*`（由反向代理转发到后端），避免在镜像构建时固化域名/端口
+# - 因此不再需要 NEXT_PUBLIC_API_BASE_URL / NEXT_PUBLIC_BACKEND_PORT 这类 build-args
 
 # 构建 Next.js 应用
 RUN npm run build

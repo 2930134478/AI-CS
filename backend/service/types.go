@@ -90,6 +90,11 @@ type CreateMessageInput struct {
 	FileName *string // 原始文件名
 	FileSize *int64  // 文件大小（字节）
 	MimeType *string // MIME类型
+	// 回复数据源开关（仅 AI 模式有效）：不传或 nil 时使用默认（知识库+大模型开，联网关）
+	UseKnowledgeBase *bool // 是否使用知识库检索，默认 true
+	UseLLM           *bool // 无知识库匹配时是否用大模型回复，默认 true
+	UseWebSearch     *bool // 是否允许联网搜索（需本回合 NeedWebSearch 或策略触发），默认 false
+	NeedWebSearch    bool  // 本回合是否请求联网搜索（如用户点击「联网搜索」），默认 false
 }
 
 // CreateAgentInput 创建客服或管理员账号需要的参数。
@@ -262,4 +267,30 @@ type UpdateKnowledgeBaseInput struct {
 	Name        *string // 知识库名称（可选）
 	Description *string // 知识库描述（可选）
 	RAGEnabled  *bool   // 是否参与 RAG（可选）
+}
+
+// MessageAttachment 当前用户消息的附件（用于多模态：识图等）
+type MessageAttachment struct {
+	FileURL  string // 文件 URL（创建消息时返回的 file_url）
+	FileType string // image / document
+	MimeType string // 如 image/jpeg
+}
+
+// GenerateAIResponseInput 生成 AI 回复时的选项（数据源开关等）。
+type GenerateAIResponseInput struct {
+	UseKnowledgeBase *bool               // 是否使用知识库，默认 true
+	UseLLM           *bool               // 无知识库时是否用大模型回复，默认 true
+	UseWebSearch     *bool               // 是否允许联网，默认 false
+	NeedWebSearch    bool                // 本回合是否请求联网（如用户点击按钮），默认 false
+	Attachment       *MessageAttachment   // 当前条消息的附件（如图片），用于多模态识图
+}
+
+// GenerateAIResponseResult 生成 AI 回复的结果（内容 + 使用的数据源标记）。
+type GenerateAIResponseResult struct {
+	Content      string // 合成的一条回复
+	SourcesUsed  string // 逗号分隔，如 "knowledge_base" / "knowledge_base,llm" / "llm,web"，供前端展示
+	// 生图时返回生成图片的 URL，写入 AI 消息的 file_url
+	GeneratedFileURL *string
+	// GenerationFailed 为 true 表示大模型调用失败，内容为兜底话术（仍返回 err==nil 时由 message 层写入 is_ai_generation_failed）
+	GenerationFailed bool
 }

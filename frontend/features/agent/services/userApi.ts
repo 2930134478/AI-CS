@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 
 // 用户摘要信息（列表）
 export interface UserSummary {
@@ -41,7 +41,7 @@ export async function fetchUsers(
   currentUserId: number
 ): Promise<UserSummary[]> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users?current_user_id=${currentUserId}`,
+    `${apiUrl("/admin/users")}?current_user_id=${currentUserId}`,
     {
       cache: "no-store",
     }
@@ -68,7 +68,7 @@ export async function fetchUser(
   currentUserId: number
 ): Promise<UserSummary> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users/${id}?current_user_id=${currentUserId}`,
+    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
     {
       cache: "no-store",
     }
@@ -92,7 +92,7 @@ export async function createUser(
   currentUserId: number
 ): Promise<UserSummary> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users?current_user_id=${currentUserId}`,
+    `${apiUrl("/admin/users")}?current_user_id=${currentUserId}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,7 +117,7 @@ export async function updateUser(
   currentUserId: number
 ): Promise<UserSummary> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users/${id}?current_user_id=${currentUserId}`,
+    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -144,7 +144,7 @@ export async function deleteUser(
   currentUserId: number
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users/${id}?current_user_id=${currentUserId}`,
+    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
     {
       method: "DELETE",
     }
@@ -168,7 +168,7 @@ export async function updateUserPassword(
   currentUserId: number
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE_URL}/admin/users/${id}/password?current_user_id=${currentUserId}`,
+    `${apiUrl(`/admin/users/${id}/password`)}?current_user_id=${currentUserId}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

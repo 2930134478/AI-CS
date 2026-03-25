@@ -17,6 +17,8 @@ export function getAvatarUrl(avatarUrl: string | null | undefined): string | nul
   // 如果是相对路径，拼接 API_BASE_URL
   // 确保路径以 / 开头
   const path = avatarUrl.startsWith("/") ? avatarUrl : `/${avatarUrl}`;
+  // 形态2（同域 /api）下，后端返回的头像通常是 /uploads/... 这类相对路径
+  // 保持拼接行为不变：API_BASE_URL 为空则走同域
   return `${API_BASE_URL}${path}`;
 }
 

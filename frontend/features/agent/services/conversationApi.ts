@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
 import {
   ConversationDetail,
   ConversationSummary,
@@ -13,7 +13,7 @@ export async function fetchConversations(
   const params = new URLSearchParams();
   if (userId) params.set("user_id", String(userId));
   if (opts?.type) params.set("type", opts.type);
-  const url = `${API_BASE_URL}/conversations?${params.toString()}`;
+  const url = `${apiUrl("/conversations")}?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error("获取对话列表失败");
@@ -31,7 +31,7 @@ export async function fetchConversations(
 
 /** 创建一条内部对话（知识库测试），返回新对话 ID */
 export async function initInternalConversation(userId: number): Promise<{ conversation_id: number }> {
-  const res = await fetch(`${API_BASE_URL}/conversations/internal?user_id=${userId}`, {
+  const res = await fetch(`${apiUrl("/conversations/internal")}?user_id=${userId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -48,8 +48,8 @@ export async function searchConversations(
   userId?: number
 ): Promise<ConversationSummary[]> {
   const url = userId
-    ? `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}&user_id=${userId}`
-    : `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}`;
+    ? `${apiUrl("/conversations/search")}?q=${encodeURIComponent(query)}&user_id=${userId}`
+    : `${apiUrl("/conversations/search")}?q=${encodeURIComponent(query)}`;
   const res = await fetch(url, {
     cache: "no-store",
   });
@@ -72,8 +72,8 @@ export async function fetchConversationDetail(
   userId?: number
 ): Promise<ConversationDetail | null> {
   const url = userId
-    ? `${API_BASE_URL}/conversations/${conversationId}?user_id=${userId}`
-    : `${API_BASE_URL}/conversations/${conversationId}`;
+    ? `${apiUrl(`/conversations/${conversationId}`)}?user_id=${userId}`
+    : apiUrl(`/conversations/${conversationId}`);
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     return null;
@@ -102,7 +102,7 @@ export async function updateConversationContact(
   payload: UpdateConversationContactPayload
 ): Promise<UpdateConversationContactResult> {
   const res = await fetch(
-    `${API_BASE_URL}/conversations/${conversationId}/contact`,
+    apiUrl(`/conversations/${conversationId}/contact`),
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

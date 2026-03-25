@@ -1,4 +1,5 @@
-import { API_BASE_URL } from "@/lib/config";
+import { apiUrl } from "@/lib/config";
+import { reportFrontendLog } from "@/features/agent/services/systemLogApi";
 
 export interface InitVisitorConversationPayload {
   visitorId: number;
@@ -20,7 +21,7 @@ export interface InitVisitorConversationResult {
 export async function initVisitorConversation(
   payload: InitVisitorConversationPayload
 ): Promise<InitVisitorConversationResult> {
-  const res = await fetch(`${API_BASE_URL}/conversation/init`, {
+  const res = await fetch(apiUrl("/conversation/init"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -37,6 +38,14 @@ export async function initVisitorConversation(
   });
 
   if (!res.ok) {
+    void reportFrontendLog({
+      level: "warn",
+      category: "frontend",
+      event: "visitor_init_conversation_failed",
+      message: "访客初始化对话失败",
+      visitorId: payload.visitorId,
+      meta: { status: res.status, chatMode: payload.chatMode, aiConfigId: payload.aiConfigId },
+    });
     throw new Error("初始化对话失败");
   }
 

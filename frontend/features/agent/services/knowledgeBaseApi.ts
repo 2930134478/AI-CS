@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAgentHeaders } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // 知识库摘要信息
 export interface KnowledgeBase {
@@ -26,7 +26,7 @@ export interface UpdateKnowledgeBaseRequest {
 
 // 获取知识库列表
 export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases`, {
+  const res = await fetch(apiUrl("/knowledge-bases"), {
     cache: "no-store",
     headers: getAgentHeaders(),
   });
@@ -41,7 +41,7 @@ export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
 
 // 获取知识库详情
 export async function fetchKnowledgeBase(id: number): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases/${id}`, {
+  const res = await fetch(apiUrl(`/knowledge-bases/${id}`), {
     cache: "no-store",
     headers: getAgentHeaders(),
   });
@@ -58,7 +58,7 @@ export async function fetchKnowledgeBase(id: number): Promise<KnowledgeBase> {
 
 // 创建知识库
 export async function createKnowledgeBase(data: CreateKnowledgeBaseRequest): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases`, {
+  const res = await fetch(apiUrl("/knowledge-bases"), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
@@ -77,7 +77,7 @@ export async function updateKnowledgeBaseRAGEnabled(
   id: number,
   ragEnabled: boolean
 ): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases/${id}/rag-enabled`, {
+  const res = await fetch(apiUrl(`/knowledge-bases/${id}/rag-enabled`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify({ rag_enabled: ragEnabled }),
@@ -94,7 +94,7 @@ export async function updateKnowledgeBase(
   id: number,
   data: UpdateKnowledgeBaseRequest
 ): Promise<KnowledgeBase> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases/${id}`, {
+  const res = await fetch(apiUrl(`/knowledge-bases/${id}`), {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
@@ -113,7 +113,7 @@ export async function updateKnowledgeBase(
 
 // 删除知识库
 export async function deleteKnowledgeBase(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/knowledge-bases/${id}`, {
+  const res = await fetch(apiUrl(`/knowledge-bases/${id}`), {
     method: "DELETE",
   });
 
@@ -134,7 +134,7 @@ export async function fetchDocumentsByKnowledgeBase(
   keyword?: string,
   status?: string
 ): Promise<any> {
-  let url = `${API_BASE_URL}/documents?knowledge_base_id=${knowledgeBaseId}&page=${page}&page_size=${pageSize}`;
+  let url = `${apiUrl("/documents")}?knowledge_base_id=${knowledgeBaseId}&page=${page}&page_size=${pageSize}`;
   if (keyword) {
     url += `&keyword=${encodeURIComponent(keyword)}`;
   }

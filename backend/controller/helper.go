@@ -50,3 +50,13 @@ func formatTimePointer(t *time.Time) string {
 	}
 	return t.Format(timeFormat)
 }
+
+// getTraceID 从请求上下文读取 trace_id（由中间件注入）。
+func getTraceID(c *gin.Context) string {
+	if v, ok := c.Get("trace_id"); ok {
+		if s, ok2 := v.(string); ok2 {
+			return s
+		}
+	}
+	return ""
+}

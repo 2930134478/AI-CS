@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Paperclip, Download, X } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
+import { getAvatarUrl } from "@/utils/avatar";
 
 interface MessageListProps {
   messages: MessageItem[];
@@ -23,6 +24,8 @@ interface MessageListProps {
   bottomSlot?: React.ReactNode;
   /** 知识库测试（内部对话）模式：AI 回复（sender_id=0）显示在左侧，客服消息显示在右侧 */
   internalChatMode?: boolean;
+  /** 访客侧左侧消息头像（key 为 sender_id） */
+  leftAvatarBySenderId?: Record<number, string | null | undefined>;
 }
 
 export function MessageList({
@@ -36,6 +39,7 @@ export function MessageList({
   onMarkMessagesRead,
   bottomSlot,
   internalChatMode = false,
+  leftAvatarBySenderId,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -349,8 +353,9 @@ export function MessageList({
 
   if (messages.length === 0) {
     return (
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-4 bg-muted/30 scrollbar-auto">
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-3 bg-muted/20 scrollbar-auto">
         <div className="text-center text-muted-foreground mt-8 text-sm">暂无消息</div>
+        {bottomSlot ? <div className="mt-4">{bottomSlot}</div> : null}
       </div>
     );
   }
@@ -382,10 +387,10 @@ export function MessageList({
 
       <div
         ref={containerRef}
-        className="h-full w-full overflow-y-auto p-4 bg-muted/30 scrollbar-auto"
+        className="h-full w-full overflow-y-auto p-3 bg-muted/20 scrollbar-auto"
         style={{ height: '100%' }}
       >
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {messages.map((message) => {
           const keyword = highlightKeyword.trim();
           const isMatching =
@@ -403,9 +408,9 @@ export function MessageList({
                 ref={(element) => {
                   messageRefs.current[message.id] = element;
                 }}
-                className={`text-center text-xs text-muted-foreground`}
+                className="text-center text-xs text-muted-foreground/90"
               >
-                <Badge variant="secondary" className="inline-block">
+                <Badge variant="secondary" className="inline-block border border-border/40 bg-background/70 text-muted-foreground">
                   {message.content}
                 </Badge>
               </div>
@@ -421,9 +426,12 @@ export function MessageList({
               : !isSenderAgent;
           const alignment = isCurrentUser ? "justify-end" : "justify-start";
           const bubbleColor = isCurrentUser
-            ? "bg-primary text-primary-foreground shadow-md"
-            : "bg-card text-card-foreground border border-border/50 shadow-sm";
-          const cornerClass = isCurrentUser ? "rounded-br-none" : "rounded-bl-none";
+            ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20"
+            : "bg-background/95 text-card-foreground border border-border/45 shadow-[0_1px_4px_rgba(15,23,42,0.06)]";
+          // 拉开双方气泡圆角差异：自己消息更利落、对方消息更柔和，便于快速分辨
+          const cornerClass = isCurrentUser
+            ? "rounded-[18px] rounded-br-md"
+            : "rounded-[18px] rounded-bl-md";
           // 计算已读回执的样式类名
           // 统一使用相同的样式：蓝色半透明（text-primary/70）
           // 因为访客端和客服端的当前用户消息都是蓝色背景（bg-primary），所以使用相同的样式
@@ -466,19 +474,31 @@ export function MessageList({
             document.body.removeChild(link);
           };
 
+          const leftAvatarUrl = !isCurrentUser ? getAvatarUrl(leftAvatarBySenderId?.[message.sender_id]) : null;
+          const showLeftAvatar = !isCurrentUser && Boolean(leftAvatarBySenderId);
+
           return (
             <div
               key={message.id}
               ref={(element) => {
                 messageRefs.current[message.id] = element;
               }}
-              className={`flex ${alignment}`}
+              className={`flex ${alignment} items-end gap-2`}
             >
-              <div className="max-w-[70%]">
+              {showLeftAvatar ? (
+                <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-200 border border-slate-300 flex-shrink-0">
+                  {leftAvatarUrl ? (
+                    <img src={leftAvatarUrl} alt="客服头像" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-600">客</div>
+                  )}
+                </div>
+              ) : null}
+              <div className="max-w-[72%]">
                 <div
-                  className={`px-4 py-2.5 rounded-2xl ${
+                  className={`px-3.5 py-2.5 rounded-2xl ${
                     cornerClass
-                  } ${bubbleColor} transition-shadow hover:shadow-md`}
+                  } ${bubbleColor} transition-shadow hover:shadow-sm`}
                 >
                   {/* 文本内容 */}
                   {message.content && (
@@ -535,7 +555,7 @@ export function MessageList({
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1 mt-1.5 px-0.5 text-[10px] text-muted-foreground/80">
                   {isCurrentUser && (
                     <span className={receiptClass}>
                       {message.is_read ? "✓✓" : "✓"}
@@ -543,6 +563,18 @@ export function MessageList({
                   )}
                   <span>{formatMessageTime(message.created_at)}</span>
                 </div>
+                {/* AI 回复的数据源标记（仅对方消息且存在 sources_used 时显示） */}
+                {!isCurrentUser && message.sources_used && (
+                  <div className="mt-1 text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0">
+                    {message.sources_used.split(",").map((s) => s.trim()).filter(Boolean).map((src) => (
+                      <span key={src}>
+                        {src === "knowledge_base" && "已使用知识库"}
+                        {src === "llm" && "已使用大模型"}
+                        {src === "web" && "已使用联网搜索"}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );

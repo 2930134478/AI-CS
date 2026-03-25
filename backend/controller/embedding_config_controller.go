@@ -38,23 +38,27 @@ func (e *EmbeddingConfigController) Get(c *gin.Context) {
 // Body: { "user_id": 1, "embedding_type": "openai", "api_url": "...", "api_key": "...", "model": "...", "customer_can_use_kb": true }
 func (e *EmbeddingConfigController) Update(c *gin.Context) {
 	var req struct {
-		UserID            uint    `json:"user_id" binding:"required"`
-		EmbeddingType     *string `json:"embedding_type"`
-		APIURL            *string `json:"api_url"`
-		APIKey            *string `json:"api_key"`
-		Model             *string `json:"model"`
-		CustomerCanUseKB  *bool   `json:"customer_can_use_kb"`
+		UserID                  uint   `json:"user_id" binding:"required"`
+		EmbeddingType           *string `json:"embedding_type"`
+		APIURL                  *string `json:"api_url"`
+		APIKey                  *string `json:"api_key"`
+		Model                   *string `json:"model"`
+		CustomerCanUseKB        *bool   `json:"customer_can_use_kb"`
+		VisitorWebSearchEnabled *bool   `json:"visitor_web_search_enabled"`
+		WebSearchSource         *string `json:"web_search_source"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
 	}
 	result, err := e.service.Update(req.UserID, service.UpdateEmbeddingConfigInput{
-		EmbeddingType:    req.EmbeddingType,
-		APIURL:           req.APIURL,
-		APIKey:           req.APIKey,
-		Model:            req.Model,
-		CustomerCanUseKB: req.CustomerCanUseKB,
+		EmbeddingType:           req.EmbeddingType,
+		APIURL:                  req.APIURL,
+		APIKey:                  req.APIKey,
+		Model:                   req.Model,
+		CustomerCanUseKB:        req.CustomerCanUseKB,
+		VisitorWebSearchEnabled: req.VisitorWebSearchEnabled,
+		WebSearchSource:         req.WebSearchSource,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -5,6 +5,7 @@ import { useAuth } from "@/features/agent/hooks/useAuth";
 import { getAvatarUrl, getAvatarColor, getAvatarInitial } from "@/utils/avatar";
 import { Button } from "@/components/ui/button";
 import { websiteConfig } from "@/lib/website-config";
+import { Badge } from "@/components/ui/badge";
 import {
   AGENT_PAGES,
   type NavigationPage,
@@ -18,6 +19,8 @@ interface NavigationSidebarProps {
   onProfileClick?: () => void;
   onLogout?: () => void;
   avatarUrl?: string | null;
+  /** 顶部/左侧“对话”图标角标展示用：总未读消息数 */
+  unreadChatCount?: number;
 }
 
 export function NavigationSidebar({
@@ -26,6 +29,7 @@ export function NavigationSidebar({
   onProfileClick,
   onLogout,
   avatarUrl,
+  unreadChatCount = 0,
 }: NavigationSidebarProps) {
   const { agent } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -66,6 +70,7 @@ export function NavigationSidebar({
       {visiblePages.map((page) => {
         const isActive = currentPage === page.id;
         const Icon = page.Icon;
+        const showUnread = page.id === "dashboard" && unreadChatCount > 0;
         return (
           <button
             key={page.id}
@@ -77,11 +82,21 @@ export function NavigationSidebar({
             title={page.title}
             onClick={() => handleNavigate(page.id as NavigationPage)}
           >
-            <Icon
-              className={`w-6 h-6 ${
-                isActive ? "text-white" : "text-gray-600"
-              }`}
-            />
+            <div className="relative w-full h-full flex items-center justify-center">
+              <Icon
+                className={`w-6 h-6 ${
+                  isActive ? "text-white" : "text-gray-600"
+                }`}
+              />
+              {showUnread && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -top-1 -right-1 px-1 py-0 h-4 min-w-4 rounded-full text-[10px] leading-none flex items-center justify-center"
+                >
+                  {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                </Badge>
+              )}
+            </div>
           </button>
         );
       })}
