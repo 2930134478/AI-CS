@@ -50,6 +50,9 @@ export function OnlineAgentsList({
                   src={getAvatarUrl(agent.avatar_url)!}
                   alt={agent.nickname}
                   fill
+                  // 头像通常来自后端动态上传路径（/uploads/...），使用 next/image 优化在不同部署形态下容易踩坑
+                  // 这里直接输出 <img> 行为，交给浏览器请求同域 /uploads（由 Nginx 反代到后端）
+                  unoptimized
                   className="object-cover"
                 />
               ) : (
