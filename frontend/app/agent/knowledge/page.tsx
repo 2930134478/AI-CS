@@ -125,35 +125,45 @@ export default function KnowledgePage(props: any = {}) {
     }
   }, []);
 
-  // 加载文档列表
-  const loadDocuments = useCallback(async () => {
-    if (!selectedKnowledgeBase) {
-      setDocuments([]);
-      setDocumentResult(null);
-      return;
-    }
+  // 加载文档列表（silent：后台轮询向量化状态时不全屏“加载中”、不弹 Toast，避免刷屏）
+  const loadDocuments = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!selectedKnowledgeBase) {
+        setDocuments([]);
+        setDocumentResult(null);
+        return;
+      }
 
-    setLoadingDocs(true);
-    try {
-      const status = statusFilter === "all" ? undefined : statusFilter;
-      const result = await fetchDocuments(
-        selectedKnowledgeBase.id,
-        currentPage,
-        pageSize,
-        searchKeyword || undefined,
-        status
-      );
-      setDocumentResult(result);
-      setDocuments(result.documents ?? []);
-    } catch (error) {
-      console.error("加载文档列表失败:", error);
-      toast.error((error as Error).message || "加载文档列表失败");
-      setDocuments([]);
-      setDocumentResult(null);
-    } finally {
-      setLoadingDocs(false);
-    }
-  }, [selectedKnowledgeBase, currentPage, searchKeyword, statusFilter]);
+      const silent = opts?.silent === true;
+      if (!silent) {
+        setLoadingDocs(true);
+      }
+      try {
+        const status = statusFilter === "all" ? undefined : statusFilter;
+        const result = await fetchDocuments(
+          selectedKnowledgeBase.id,
+          currentPage,
+          pageSize,
+          searchKeyword || undefined,
+          status
+        );
+        setDocumentResult(result);
+        setDocuments(result.documents ?? []);
+      } catch (error) {
+        console.error("加载文档列表失败:", error);
+        if (!silent) {
+          toast.error((error as Error).message || "加载文档列表失败");
+          setDocuments([]);
+          setDocumentResult(null);
+        }
+      } finally {
+        if (!silent) {
+          setLoadingDocs(false);
+        }
+      }
+    },
+    [selectedKnowledgeBase, currentPage, searchKeyword, statusFilter]
+  );
 
   // 初始加载
   useEffect(() => {
@@ -163,8 +173,24 @@ export default function KnowledgePage(props: any = {}) {
   // 当选择知识库或搜索条件变化时，重新加载文档
   useEffect(() => {
     setCurrentPage(1); // 切换知识库或搜索时重置页码
-    loadDocuments();
+    void loadDocuments();
   }, [loadDocuments]);
+
+  // 向量化进行中时自动刷新列表（pending → processing → completed/failed），无需手动整页刷新
+  useEffect(() => {
+    if (!selectedKnowledgeBase) return;
+    const hasEmbeddingInFlight = documents.some(
+      (d) => d.embedding_status === "pending" || d.embedding_status === "processing"
+    );
+    if (!hasEmbeddingInFlight) return;
+
+    const intervalMs = 2500;
+    const id = window.setInterval(() => {
+      void loadDocuments({ silent: true });
+    }, intervalMs);
+
+    return () => window.clearInterval(id);
+  }, [selectedKnowledgeBase, documents, loadDocuments]);
 
   // 选择知识库
   const handleSelectKnowledgeBase = (kb: KnowledgeBase) => {

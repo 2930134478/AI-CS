@@ -48,7 +48,8 @@ export function ScreenshotDisplay({
         onLoad={() => setImageLoaded(true)}
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
         priority={false}
-        unoptimized={false}
+        // 营销截图常替换；走 /_next/image 会强缓存优化结果，本地改 public 后仍像旧图
+        unoptimized
       />
       {!imageLoaded && !imageError && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">

@@ -15,10 +15,12 @@ import {
   LayoutDashboard,
   FileText,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
   Github,
   Mail,
 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScreenshotDisplay } from "@/components/ScreenshotDisplay";
 import { ChatWidget } from "@/components/visitor/ChatWidget";
 import { FloatingButton } from "@/components/visitor/FloatingButton";
@@ -82,9 +84,93 @@ const steps = [
   },
 ];
 
+const screenshotCards = [
+  {
+    key: "dashboard",
+    title: "工作台",
+    imageName: "dashboard.png",
+    placeholderIcon: LayoutDashboard,
+    placeholderText: "工作台界面",
+    alt: "AI-CS 工作台界面",
+  },
+  {
+    key: "visitor",
+    title: "访客端",
+    imageName: "visitor.png",
+    placeholderIcon: Globe,
+    placeholderText: "访客端界面",
+    alt: "AI-CS 访客端界面",
+  },
+  {
+    key: "ai-config",
+    title: "AI配置",
+    imageName: "ai-config.png",
+    placeholderIcon: Bot,
+    placeholderText: "AI配置界面",
+    alt: "AI-CS AI配置界面",
+  },
+  {
+    key: "users",
+    title: "用户管理",
+    imageName: "users.png",
+    placeholderIcon: Users,
+    placeholderText: "用户管理界面",
+    alt: "AI-CS 用户管理界面",
+  },
+  {
+    key: "faq",
+    title: "FAQ管理",
+    imageName: "faq.png",
+    placeholderIcon: FileText,
+    placeholderText: "FAQ管理界面",
+    alt: "AI-CS FAQ管理界面",
+  },
+  {
+    key: "knowledge",
+    title: "知识库管理",
+    imageName: "knowledge.png",
+    placeholderIcon: BookOpen,
+    placeholderText: "知识库管理界面",
+    alt: "AI-CS 知识库管理界面",
+  },
+  {
+    key: "conversations",
+    title: "知识库测试",
+    imageName: "conversations.png",
+    placeholderIcon: MessageSquare,
+    placeholderText: "知识库测试界面",
+    alt: "AI-CS 知识库测试界面",
+  },
+  {
+    key: "prompts",
+    title: "提示词工程",
+    imageName: "prompts.png",
+    placeholderIcon: Wand2,
+    placeholderText: "提示词工程界面",
+    alt: "AI-CS 提示词工程界面",
+  },
+  {
+    key: "logs",
+    title: "日志中心",
+    imageName: "logs.png",
+    placeholderIcon: ScrollText,
+    placeholderText: "日志中心界面",
+    alt: "AI-CS 日志中心界面",
+  },
+  {
+    key: "analytics",
+    title: "可视化报表",
+    imageName: "analytics.png",
+    placeholderIcon: LineChart,
+    placeholderText: "可视化报表界面",
+    alt: "AI-CS 可视化报表界面",
+  },
+];
+
 export function HomePageClient() {
   const [visitorId, setVisitorId] = useState<number | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeScreenshot, setActiveScreenshot] = useState(0);
 
   useEffect(() => {
     let stored = window.localStorage.getItem("visitor_id");
@@ -105,6 +191,26 @@ export function HomePageClient() {
       setIsChatOpen(true);
     }
   };
+
+  const totalScreenshots = screenshotCards.length;
+  const prevScreenshotIndex =
+    (activeScreenshot - 1 + totalScreenshots) % totalScreenshots;
+  const nextScreenshotIndex = (activeScreenshot + 1) % totalScreenshots;
+
+  const goPrevScreenshot = () => {
+    setActiveScreenshot((prev) => (prev - 1 + totalScreenshots) % totalScreenshots);
+  };
+
+  const goNextScreenshot = () => {
+    setActiveScreenshot((prev) => (prev + 1) % totalScreenshots);
+  };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveScreenshot((prev) => (prev + 1) % totalScreenshots);
+    }, 4800);
+    return () => window.clearInterval(timer);
+  }, [totalScreenshots]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -232,90 +338,78 @@ export function HomePageClient() {
               </p>
             </div>
             <div className="mx-auto max-w-6xl">
-              <Tabs defaultValue="dashboard" className="w-full">
-                <TabsList className="mb-8 grid w-full grid-cols-3 md:grid-cols-5 rounded-xl bg-muted/50 p-1.5">
-                  <TabsTrigger
-                    value="dashboard"
-                    className="text-[15px] rounded-md px-3.5 py-2 transition-colors hover:bg-background/60"
+              <div className="mb-8 flex flex-wrap justify-center gap-2">
+                {screenshotCards.map((item, idx) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setActiveScreenshot(idx)}
+                    className={`rounded-full px-4 py-1.5 text-sm transition-all ${
+                      idx === activeScreenshot
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-background text-muted-foreground border border-border/70 hover:text-foreground hover:border-blue-200"
+                    }`}
                   >
-                    工作台
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="visitor"
-                    className="text-[15px] rounded-md px-3.5 py-2 transition-colors hover:bg-background/60"
+                    {item.title}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative mx-auto max-w-6xl px-4 md:px-8">
+                <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_50%_40%,rgba(37,99,235,0.14),transparent_70%)]" />
+
+                <div className="relative h-[290px] md:h-[420px] lg:h-[510px]">
+                  <button
+                    type="button"
+                    onClick={goPrevScreenshot}
+                    className="absolute left-0 top-1/2 z-40 -translate-y-1/2 rounded-full border border-border/70 bg-background/90 p-2.5 shadow-sm backdrop-blur transition hover:border-blue-200 hover:bg-background"
+                    aria-label="查看上一张"
                   >
-                    访客端
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="ai-config"
-                    className="text-[15px] rounded-md px-3.5 py-2 transition-colors hover:bg-background/60"
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={goNextScreenshot}
+                    className="absolute right-0 top-1/2 z-40 -translate-y-1/2 rounded-full border border-border/70 bg-background/90 p-2.5 shadow-sm backdrop-blur transition hover:border-blue-200 hover:bg-background"
+                    aria-label="查看下一张"
                   >
-                    AI配置
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="users"
-                    className="text-[15px] rounded-md px-3.5 py-2 transition-colors hover:bg-background/60"
-                  >
-                    用户管理
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="faq"
-                    className="text-[15px] rounded-md px-3.5 py-2 transition-colors hover:bg-background/60"
-                  >
-                    FAQ管理
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="dashboard" className="mt-0">
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+
+                  {/* 左侧半露卡片 */}
+                  <div className="absolute left-6 right-[42%] top-7 z-10 hidden overflow-hidden rounded-2xl border border-border/60 bg-background/85 shadow-md md:block">
+                    <div className="pointer-events-none absolute inset-0 z-10 bg-background/18" />
                     <ScreenshotDisplay
-                      imageName="dashboard.png"
-                      placeholderIcon={LayoutDashboard}
-                      placeholderText="工作台界面"
-                      alt="AI-CS 工作台界面"
+                      imageName={screenshotCards[prevScreenshotIndex].imageName}
+                      placeholderIcon={screenshotCards[prevScreenshotIndex].placeholderIcon}
+                      placeholderText={screenshotCards[prevScreenshotIndex].placeholderText}
+                      alt={screenshotCards[prevScreenshotIndex].alt}
                     />
                   </div>
-                </TabsContent>
-                <TabsContent value="visitor" className="mt-0">
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
+
+                  {/* 右侧半露卡片 */}
+                  <div className="absolute left-[42%] right-6 top-7 z-10 hidden overflow-hidden rounded-2xl border border-border/60 bg-background/85 shadow-md md:block">
+                    <div className="pointer-events-none absolute inset-0 z-10 bg-background/18" />
                     <ScreenshotDisplay
-                      imageName="visitor.png"
-                      placeholderIcon={Globe}
-                      placeholderText="访客端界面"
-                      alt="AI-CS 访客端界面"
+                      imageName={screenshotCards[nextScreenshotIndex].imageName}
+                      placeholderIcon={screenshotCards[nextScreenshotIndex].placeholderIcon}
+                      placeholderText={screenshotCards[nextScreenshotIndex].placeholderText}
+                      alt={screenshotCards[nextScreenshotIndex].alt}
                     />
                   </div>
-                </TabsContent>
-                <TabsContent value="ai-config" className="mt-0">
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
+
+                  {/* 中间主卡片 */}
+                  <div className="absolute inset-x-8 top-0 z-30 overflow-hidden rounded-2xl border border-border/70 bg-background shadow-xl ring-1 ring-blue-100/60 md:inset-x-16 lg:inset-x-24">
                     <ScreenshotDisplay
-                      imageName="ai-config.png"
-                      placeholderIcon={Bot}
-                      placeholderText="AI配置界面"
-                      alt="AI-CS AI配置界面"
+                      imageName={screenshotCards[activeScreenshot].imageName}
+                      placeholderIcon={screenshotCards[activeScreenshot].placeholderIcon}
+                      placeholderText={screenshotCards[activeScreenshot].placeholderText}
+                      alt={screenshotCards[activeScreenshot].alt}
                     />
                   </div>
-                </TabsContent>
-                <TabsContent value="users" className="mt-0">
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
-                    <ScreenshotDisplay
-                      imageName="users.png"
-                      placeholderIcon={Users}
-                      placeholderText="用户管理界面"
-                      alt="AI-CS 用户管理界面"
-                    />
-                  </div>
-                </TabsContent>
-                <TabsContent value="faq" className="mt-0">
-                  <div className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
-                    <ScreenshotDisplay
-                      imageName="faq.png"
-                      placeholderIcon={FileText}
-                      placeholderText="FAQ管理界面"
-                      alt="AI-CS FAQ管理界面"
-                    />
-                  </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </div>
           </div>
         </section>

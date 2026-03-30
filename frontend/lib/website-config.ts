@@ -24,9 +24,7 @@ export const websiteConfig = {
   // 友情链接（用于互相引流）
   // 格式：{ name: "链接名称", url: "链接地址" }
   friendLinks: [
-    // 示例：添加您的友情链接
-    // { name: "合作伙伴1", url: "https://example.com" },
-    // { name: "合作伙伴2", url: "https://example2.com" },
+    { name: "Poixe免费API赞助", url: "https://poixe.com/products/free" },
   ] as Array<{ name: string; url: string }>,
   
   // 其他配置
