@@ -37,6 +37,7 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 		routes.POST("/conversations/internal", controllers.Conversation.InitInternalConversation) // 创建内部对话（知识库测试）
 		routes.GET("/conversations", controllers.Conversation.ListConversations)
 		routes.GET("/conversations/:id", controllers.Conversation.GetConversationDetail)
+		routes.POST("/conversations/:id/close", controllers.Conversation.CloseConversation)
 		routes.PUT("/conversations/:id/contact", controllers.Conversation.UpdateContactInfo)
 		routes.GET("/conversations/search", controllers.Conversation.SearchConversations)
 		routes.GET("/conversations/ai-models", controllers.Conversation.GetPublicAIModels) // 获取开放的模型列表（供访客选择）

@@ -7,6 +7,7 @@ import { useAuth } from "@/features/agent/hooks/useAuth";
 import { useConversations } from "@/features/agent/hooks/useConversations";
 import { useMessages } from "@/features/agent/hooks/useMessages";
 import { initInternalConversation } from "@/features/agent/services/conversationApi";
+import { closeConversation } from "@/features/agent/services/conversationApi";
 import { toast } from "@/hooks/useToast";
 import { useProfile } from "@/features/agent/hooks/useProfile";
 import { Profile } from "@/features/agent/types";
@@ -86,6 +87,7 @@ export function DashboardShell() {
 
   // 会话过滤状态
   const [conversationFilter, setConversationFilter] = useState<"all" | "mine" | "others">("all");
+  const [conversationStatus, setConversationStatus] = useState<"open" | "closed">("open");
 
   // 声音通知开关（客服端）
   const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(false);
@@ -110,6 +112,7 @@ export function DashboardShell() {
     agentId: agent?.id ?? null,
     filter: conversationFilter,
     listType: isInternalChat ? "internal" : "visitor",
+    status: conversationStatus,
   });
 
   // 计算总未读消息数
@@ -189,6 +192,19 @@ export function DashboardShell() {
       markMessagesAsRead(selectedConversationId, true);
     }
   }, [markMessagesAsRead, selectedConversationId]);
+
+  const handleCloseConversation = useCallback(async () => {
+    if (!selectedConversationId) return;
+    try {
+      await closeConversation(selectedConversationId);
+      toast.success("已关闭会话");
+      // 清空选中并刷新列表/详情
+      selectConversation(null);
+      refreshConversations();
+    } catch (e) {
+      toast.error((e as Error).message || "关闭会话失败");
+    }
+  }, [refreshConversations, selectConversation, selectedConversationId]);
 
   // 手动刷新消息与访客详情
   const handleRefreshChat = useCallback(() => {
@@ -274,6 +290,12 @@ export function DashboardShell() {
         onSelectConversation={handleConversationSelect}
         filter={conversationFilter}
         onFilterChange={setConversationFilter}
+        status={conversationStatus}
+        onStatusChange={(s) => {
+          setConversationStatus(s);
+          // 切换状态时清空搜索，更直观
+          setSearchQuery("");
+        }}
         mode={isInternalChat ? "internal" : "visitor"}
         onNewClick={isInternalChat ? handleNewInternalConversation : undefined}
       />
@@ -301,6 +323,7 @@ export function DashboardShell() {
               lastSeenAt={conversationDetail?.last_seen_at}
               unreadCount={selectedUnreadCount}
               onMarkAllRead={handleMarkAllRead}
+              onCloseConversation={handleCloseConversation}
               onRefresh={handleRefreshChat}
               includeAIMessages={includeAIMessages}
               onToggleAIMessages={toggleAIMessages}

@@ -253,7 +253,12 @@ export function HomePageClient() {
                   className="rounded-xl border-border/80 px-8 py-6 text-[15px] bg-background/60 backdrop-blur-sm"
                   asChild
                 >
-                  <Link href="/agent/login" className="inline-flex items-center justify-center gap-2">
+                  <Link
+                    href="/agent/login"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2"
+                  >
                     客服登录
                   </Link>
                 </Button>

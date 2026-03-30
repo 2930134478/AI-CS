@@ -19,6 +19,30 @@ type ConversationService struct {
 	systemLogSvc  *SystemLogService              // 可选，结构化日志
 }
 
+// CloseConversation 客服主动关闭会话（visitor/internal 通用）。
+func (s *ConversationService) CloseConversation(conversationID uint, userID uint) error {
+	if conversationID == 0 {
+		return errors.New("conversation_id is required")
+	}
+	conv, err := s.conversations.GetByID(conversationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrConversationNotFound
+		}
+		return err
+	}
+	// internal 会话仅允许本人关闭；visitor 会话允许任意客服关闭（你们目前没有租户/组织概念）
+	if conv.ConversationType == "internal" && userID > 0 && conv.AgentID != userID {
+		return errors.New("权限不足：只能关闭自己的内部对话")
+	}
+	if conv.Status == "closed" {
+		return nil
+	}
+	return s.conversations.UpdateFields(conversationID, map[string]interface{}{
+		"status": "closed",
+	})
+}
+
 // NewConversationService 创建 ConversationService 实例。
 func NewConversationService(
 	conversations *repository.ConversationRepository,
@@ -349,8 +373,12 @@ func (s *ConversationService) buildSummary(conv models.Conversation, userID uint
 // 1. 默认不显示 ChatMode == "ai" 的对话
 // 2. 如果 userID > 0 且该用户的 ReceiveAIConversations == false，则不显示 AI 对话
 // 3. 只显示 ChatMode == "human" 且存在访客消息的对话（访客切换到人工并发送消息后）
-func (s *ConversationService) ListConversations(userID uint) ([]ConversationSummary, error) {
-	conversations, err := s.conversations.ListActive()
+func (s *ConversationService) ListConversations(userID uint, status string) ([]ConversationSummary, error) {
+	// 默认展示进行中（open）；历史使用 status=closed
+	if status == "" {
+		status = "open"
+	}
+	conversations, err := s.conversations.ListByTypeAndStatus("visitor", status)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +453,7 @@ func (s *ConversationService) GetConversationDetail(id uint, userID uint) (*Conv
 
 // SearchConversations 根据关键字检索会话摘要。
 // userID: 当前登录的客服ID（可选，用于检查参与状态）
-func (s *ConversationService) SearchConversations(query string, userID uint) ([]ConversationSummary, error) {
+func (s *ConversationService) SearchConversations(query string, userID uint, status string) ([]ConversationSummary, error) {
 	pattern := "%" + query + "%"
 
 	idSet := map[uint]struct{}{}
@@ -462,6 +490,9 @@ func (s *ConversationService) SearchConversations(query string, userID uint) ([]
 
 	result := make([]ConversationSummary, 0, len(conversations))
 	for _, conv := range conversations {
+		if status != "" && status != "all" && conv.Status != status {
+			continue
+		}
 		summary, err := s.buildSummary(conv, userID)
 		if err != nil {
 			return nil, err
@@ -525,11 +556,14 @@ func (s *ConversationService) InitInternalConversation(agentID uint) (*InitConve
 }
 
 // ListInternalConversations 返回当前客服的全部内部对话（知识库测试用）。
-func (s *ConversationService) ListInternalConversations(agentID uint) ([]ConversationSummary, error) {
+func (s *ConversationService) ListInternalConversations(agentID uint, status string) ([]ConversationSummary, error) {
 	if agentID == 0 {
 		return []ConversationSummary{}, nil
 	}
-	conversations, err := s.conversations.ListActiveInternalByAgentID(agentID)
+	if status == "" {
+		status = "open"
+	}
+	conversations, err := s.conversations.ListInternalByAgentIDAndStatus(agentID, status)
 	if err != nil {
 		return nil, err
 	}

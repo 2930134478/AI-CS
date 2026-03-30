@@ -74,6 +74,46 @@ func (r *ConversationRepository) ListActive() ([]models.Conversation, error) {
 	return conversations, nil
 }
 
+// ListByTypeAndStatus 返回指定类型的会话列表（支持 open/closed/all）。
+func (r *ConversationRepository) ListByTypeAndStatus(conversationType string, status string) ([]models.Conversation, error) {
+	var conversations []models.Conversation
+	q := r.db.Where("conversation_type = ?", conversationType)
+	switch status {
+	case "open":
+		q = q.Where("status = ?", "open")
+	case "closed":
+		q = q.Where("status = ?", "closed")
+	case "", "all":
+		// no-op
+	default:
+		return nil, errors.New("invalid status")
+	}
+	if err := q.Order("updated_at desc").Find(&conversations).Error; err != nil {
+		return nil, err
+	}
+	return conversations, nil
+}
+
+// ListInternalByAgentIDAndStatus 返回某客服的内部对话（支持 open/closed/all）。
+func (r *ConversationRepository) ListInternalByAgentIDAndStatus(agentID uint, status string) ([]models.Conversation, error) {
+	var conversations []models.Conversation
+	q := r.db.Where("conversation_type = ? AND agent_id = ?", "internal", agentID)
+	switch status {
+	case "open":
+		q = q.Where("status = ?", "open")
+	case "closed":
+		q = q.Where("status = ?", "closed")
+	case "", "all":
+		// no-op
+	default:
+		return nil, errors.New("invalid status")
+	}
+	if err := q.Order("updated_at desc").Find(&conversations).Error; err != nil {
+		return nil, err
+	}
+	return conversations, nil
+}
+
 // ListByIDs 根据多个 ID 批量查询会话。
 func (r *ConversationRepository) ListByIDs(ids []uint) ([]models.Conversation, error) {
 	if len(ids) == 0 {

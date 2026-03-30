@@ -9,6 +9,7 @@ interface ChatHeaderProps {
   lastSeenAt?: string | null;
   unreadCount: number;
   onMarkAllRead: () => void;
+  onCloseConversation?: () => void;
   onRefresh: () => void;
   includeAIMessages?: boolean;
   onToggleAIMessages?: () => void;
@@ -22,6 +23,7 @@ export function ChatHeader({
   lastSeenAt,
   unreadCount,
   onMarkAllRead,
+  onCloseConversation,
   onRefresh,
   includeAIMessages = false,
   onToggleAIMessages,
@@ -100,9 +102,9 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          title="标记全部已读"
-          onClick={onMarkAllRead}
-          disabled={unreadCount === 0}
+          title="关闭会话"
+          onClick={onCloseConversation}
+          disabled={!onCloseConversation}
         >
           <svg
             className="w-5 h-5"
@@ -114,7 +116,7 @@ export function ChatHeader({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M5 13l4 4L19 7"
+              d="M6 6l12 12M18 6L6 18"
             />
           </svg>
         </Button>

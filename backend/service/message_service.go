@@ -47,8 +47,17 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		return nil, err
 	}
 
+	// B 方案：会话关闭后，如访客再次发消息则自动 reopen
 	if conv.Status == "closed" {
-		return nil, ErrConversationClosed
+		if input.SenderIsAgent {
+			return nil, ErrConversationClosed
+		}
+		if err := s.conversations.UpdateFields(conv.ID, map[string]interface{}{
+			"status": "open",
+		}); err != nil {
+			return nil, err
+		}
+		conv.Status = "open"
 	}
 
 	if input.SenderIsAgent && input.SenderID == 0 {

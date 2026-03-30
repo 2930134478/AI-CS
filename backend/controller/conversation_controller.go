@@ -167,6 +167,29 @@ func (cc *ConversationController) UpdateContactInfo(c *gin.Context) {
 	})
 }
 
+// CloseConversation 客服关闭会话（进入历史/归档）。
+// POST /conversations/:id/close
+func (cc *ConversationController) CloseConversation(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermChat)) {
+		return
+	}
+	id, err := parseUintParam(c, "id")
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "会话ID不合法"})
+		return
+	}
+	userID := getUserIDFromHeader(c)
+	if err := cc.conversationService.CloseConversation(uint(id), userID); err != nil {
+		if err == service.ErrConversationNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 // ListConversations 返回当前活跃会话的列表。type=internal 时返回该客服的内部对话（知识库测试）。
 func (cc *ConversationController) ListConversations(c *gin.Context) {
 	var userID uint
@@ -177,6 +200,7 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 	}
 
 	conversationType := c.DefaultQuery("type", "visitor")
+	status := c.DefaultQuery("status", "open")
 	var conversations []service.ConversationSummary
 	var err error
 	if conversationType == "internal" {
@@ -187,9 +211,9 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "内部对话列表需要 user_id"})
 			return
 		}
-		conversations, err = cc.conversationService.ListInternalConversations(userID)
+		conversations, err = cc.conversationService.ListInternalConversations(userID, status)
 	} else {
-		conversations, err = cc.conversationService.ListConversations(userID)
+		conversations, err = cc.conversationService.ListConversations(userID, status)
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询对话列表失败"})
@@ -304,6 +328,7 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "搜索关键词不能为空"})
 		return
 	}
+	status := c.DefaultQuery("status", "open")
 
 	// 从查询参数获取 user_id（可选，用于检查参与状态）
 	var userID uint
@@ -314,7 +339,7 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 		}
 	}
 
-	conversations, err := cc.conversationService.SearchConversations(query, userID)
+	conversations, err := cc.conversationService.SearchConversations(query, userID, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "搜索失败"})
 		return

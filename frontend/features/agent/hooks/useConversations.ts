@@ -7,6 +7,7 @@ import {
   searchConversations,
 } from "../../agent/services/conversationApi";
 import type { ConversationListType } from "../../agent/services/conversationApi";
+import type { ConversationStatus } from "../../agent/services/conversationApi";
 import { ConversationSummary, VisitorStatusUpdatePayload } from "../../agent/types";
 import { useWebSocket } from "./useWebSocket";
 import { WSMessage } from "@/lib/websocket";
@@ -25,10 +26,12 @@ interface UseConversationsOptions {
   filter?: ConversationFilter;
   /** 内部对话（知识库测试）时传 "internal"，默认访客对话 "visitor" */
   listType?: ConversationListType;
+  /** 会话状态：open（进行中）/ closed（历史） */
+  status?: ConversationStatus;
 }
 
 export function useConversations(options?: UseConversationsOptions) {
-  const { agentId, filter = "all", listType = "visitor" } = options || {};
+  const { agentId, filter = "all", listType = "visitor", status = "open" } = options || {};
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<
     ConversationSummary[]
@@ -75,7 +78,10 @@ export function useConversations(options?: UseConversationsOptions) {
         setSelectedConversationId(null);
         return;
       }
-      const data = await fetchConversations(agentId ?? undefined, listType === "internal" ? { type: "internal" } : undefined);
+      const data = await fetchConversations(
+        agentId ?? undefined,
+        listType === "internal" ? { type: "internal", status } : { status }
+      );
       setConversations(data);
       const filtered = listType === "internal" ? data : applyFilter(data);
       if (!searchRef.current.trim()) {
@@ -93,7 +99,7 @@ export function useConversations(options?: UseConversationsOptions) {
       setLoading(false);
       setIsInitialLoad(false);
     }
-  }, [applyFilter, agentId, filter, listType]);
+  }, [applyFilter, agentId, filter, listType, status]);
 
   useEffect(() => {
     loadConversations();
@@ -127,7 +133,7 @@ export function useConversations(options?: UseConversationsOptions) {
       }
       try {
         setLoading(true);
-        const data = await searchConversations(query, agentId ?? undefined);
+        const data = await searchConversations(query, agentId ?? undefined, { status });
         const filtered = applyFilter(data);
         setFilteredConversations(sortByUpdatedAtDesc(filtered));
       } catch (error) {
@@ -139,7 +145,7 @@ export function useConversations(options?: UseConversationsOptions) {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId, listType]);
+  }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId, listType, status]);
 
   const selectConversation = useCallback((conversationId: number | null) => {
     setSelectedConversationId((prev) =>

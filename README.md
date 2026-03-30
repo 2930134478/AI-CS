@@ -5,9 +5,9 @@
 
 ## 在线演示
 
-- **官网首页（产品介绍 + SEO）**：`https://demo.cscorp.top`
-- **访客聊天页**：`https://demo.cscorp.top/chat`（也可从首页右下角按钮进入）
-- **客服登录**：`https://demo.cscorp.top/agent/login`
+- **官网首页（产品介绍 + SEO）**：[demo.cscorp.top](https://demo.cscorp.top)
+- **访客聊天页**：[demo.cscorp.top/chat](https://demo.cscorp.top/chat)（也可从首页右下角按钮进入）
+- **客服登录**：[demo.cscorp.top/agent/login](https://demo.cscorp.top/agent/login)
 
 ## 你能用它做什么（功能回顾）
 
@@ -67,9 +67,9 @@ docker-compose -f docker-compose.prod.yml up -d
 
 #### 3）访问
 
-- **官网首页**：`http://localhost:3000`
-- **访客聊天**：`http://localhost:3000/chat`
-- **客服登录**：`http://localhost:3000/agent/login`
+- **官网首页**：[localhost:3000](http://localhost:3000)
+- **访客聊天**：[localhost:3000/chat](http://localhost:3000/chat)
+- **客服登录**：[localhost:3000/agent/login](http://localhost:3000/agent/login)
   - 用户名：`admin`（或 `.env` 中 `ADMIN_USERNAME`）
   - 密码：`.env` 中 `ADMIN_PASSWORD`
 

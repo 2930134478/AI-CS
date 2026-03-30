@@ -43,6 +43,8 @@ export function Header() {
               </Link>
               <Link
                 href="/agent/login"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-[15px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 客服登录

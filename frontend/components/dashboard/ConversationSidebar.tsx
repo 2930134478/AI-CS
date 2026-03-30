@@ -7,6 +7,8 @@ import { ConversationList } from "./ConversationList";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
+type ConversationStatus = "open" | "closed";
+
 interface ConversationSidebarProps {
   conversations: ConversationSummary[];
   selectedConversationId: number | null;
@@ -15,6 +17,8 @@ interface ConversationSidebarProps {
   onSelectConversation: (id: number) => void;
   filter: ConversationFilter;
   onFilterChange: (filter: ConversationFilter) => void;
+  status?: ConversationStatus;
+  onStatusChange?: (status: ConversationStatus) => void;
   /** 内部对话（知识库测试）模式：显示「新建内部对话」按钮，隐藏筛选 */
   mode?: "visitor" | "internal";
   onNewClick?: () => void;
@@ -28,6 +32,8 @@ export function ConversationSidebar({
   onSelectConversation,
   filter,
   onFilterChange,
+  status = "open",
+  onStatusChange,
   mode = "visitor",
   onNewClick,
 }: ConversationSidebarProps) {
@@ -44,7 +50,33 @@ export function ConversationSidebar({
           )}
         </div>
       ) : (
-        <ConversationHeader filter={filter} onFilterChange={onFilterChange} />
+        <div className="flex flex-col">
+          <ConversationHeader filter={filter} onFilterChange={onFilterChange} />
+          <div className="px-3 pb-2 flex items-center gap-2">
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md text-xs border transition ${
+                status === "open"
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-background text-muted-foreground border-border hover:text-foreground"
+              }`}
+              onClick={() => onStatusChange?.("open")}
+            >
+              进行中
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-md text-xs border transition ${
+                status === "closed"
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-background text-muted-foreground border-border hover:text-foreground"
+              }`}
+              onClick={() => onStatusChange?.("closed")}
+            >
+              历史
+            </button>
+          </div>
+        </div>
       )}
       <div className="flex-shrink-0 px-2 min-w-0">
         <ConversationSearch value={searchQuery} onChange={onSearchChange} />
