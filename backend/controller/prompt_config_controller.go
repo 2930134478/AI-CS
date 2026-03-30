@@ -10,16 +10,20 @@ import (
 // PromptConfigController 提示词配置控制器（供「提示词」页）
 type PromptConfigController struct {
 	service *service.PromptConfigService
+	users   *service.UserService
 }
 
 // NewPromptConfigController 创建控制器实例
-func NewPromptConfigController(s *service.PromptConfigService) *PromptConfigController {
-	return &PromptConfigController{service: s}
+func NewPromptConfigController(s *service.PromptConfigService, users *service.UserService) *PromptConfigController {
+	return &PromptConfigController{service: s, users: users}
 }
 
 // Get 获取所有提示词项（含默认内容）
 // GET /agent/prompts?user_id=1
 func (p *PromptConfigController) Get(c *gin.Context) {
+	if !requirePermission(c, p.users, string(service.PermPrompts)) {
+		return
+	}
 	_, err := parseUintQuery(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
@@ -37,6 +41,9 @@ func (p *PromptConfigController) Get(c *gin.Context) {
 // PUT /agent/prompts
 // Body: { "user_id": 1, "key": "rag_prompt", "content": "..." }
 func (p *PromptConfigController) Update(c *gin.Context) {
+	if !requirePermission(c, p.users, string(service.PermPrompts)) {
+		return
+	}
 	var req struct {
 		UserID  uint   `json:"user_id" binding:"required"`
 		Key     string `json:"key" binding:"required"`

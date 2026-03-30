@@ -11,17 +11,16 @@ import (
 
 type SystemLogController struct {
 	logs *service.SystemLogService
+	users *service.UserService
 }
 
-func NewSystemLogController(logs *service.SystemLogService) *SystemLogController {
-	return &SystemLogController{logs: logs}
+func NewSystemLogController(logs *service.SystemLogService, users *service.UserService) *SystemLogController {
+	return &SystemLogController{logs: logs, users: users}
 }
 
 // GetLogs 查询日志（客服端）。
 func (lc *SystemLogController) GetLogs(c *gin.Context) {
-	userID := getUserIDFromHeader(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权，请提供 X-User-Id"})
+	if !requirePermission(c, lc.users, string(service.PermLogs)) {
 		return
 	}
 	var convID *uint

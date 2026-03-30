@@ -17,13 +17,15 @@ import (
 type ImportController struct {
 	importService          *service.ImportService
 	embeddingConfigService *service.EmbeddingConfigService
+	users                 *service.UserService
 }
 
 // NewImportController 创建导入控制器实例
-func NewImportController(importService *service.ImportService, embeddingConfigService *service.EmbeddingConfigService) *ImportController {
+func NewImportController(importService *service.ImportService, embeddingConfigService *service.EmbeddingConfigService, users *service.UserService) *ImportController {
 	return &ImportController{
 		importService:          importService,
 		embeddingConfigService: embeddingConfigService,
+		users:                 users,
 	}
 }
 
@@ -43,6 +45,9 @@ func (c *ImportController) checkKBAccess(ctx *gin.Context) bool {
 
 // ImportDocuments 批量导入文档（文件上传）
 func (c *ImportController) ImportDocuments(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -138,6 +143,9 @@ func (c *ImportController) ImportDocuments(ctx *gin.Context) {
 
 // ImportFromURLs 批量导入文档（URL 爬取）
 func (c *ImportController) ImportFromURLs(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}

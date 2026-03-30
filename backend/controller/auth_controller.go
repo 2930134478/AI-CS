@@ -46,6 +46,17 @@ func (a *AuthController) Login(c *gin.Context) {
 		"user_id":  user.ID,
 		"username": user.Username,
 		"role":     user.Role,
+		// permissions 用于前端侧边栏显示（后端强校验以 X-User-Id 为准）
+		"permissions": func() []string {
+			if user.Role == "admin" {
+				return service.AllPermissionKeys()
+			}
+			keys := service.DecodePermissions(user.Permissions)
+			if len(keys) == 0 {
+				return service.DefaultAgentPermissions()
+			}
+			return keys
+		}(),
 	})
 }
 

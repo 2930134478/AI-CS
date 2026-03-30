@@ -125,6 +125,7 @@ type ProfileResult struct {
 	ID                     uint   `json:"id"`
 	Username               string `json:"username"`
 	Role                   string `json:"role"`
+	Permissions            []string `json:"permissions"`
 	AvatarURL              string `json:"avatar_url"`
 	Nickname               string `json:"nickname"`
 	Email                  string `json:"email"`
@@ -136,6 +137,7 @@ type UserSummary struct {
 	ID                     uint      `json:"id"`
 	Username               string    `json:"username"`
 	Role                   string    `json:"role"`
+	Permissions            []string  `json:"permissions"`
 	Nickname               string    `json:"nickname"`
 	Email                  string    `json:"email"`
 	AvatarURL              string    `json:"avatar_url"`
@@ -149,6 +151,7 @@ type CreateUserInput struct {
 	Username string  // 用户名（必需）
 	Password string  // 密码（必需）
 	Role     string  // 角色："admin" 或 "agent"（必需）
+	Permissions []string // 功能权限（可选；role=admin 时忽略）
 	Nickname *string // 昵称（可选）
 	Email    *string // 邮箱（可选）
 }
@@ -157,6 +160,7 @@ type CreateUserInput struct {
 type UpdateUserInput struct {
 	UserID                 uint    // 用户ID（必需）
 	Role                   *string // 角色（可选）
+	Permissions            *[]string // 功能权限（可选；role=admin 时忽略）
 	Nickname               *string // 昵称（可选）
 	Email                  *string // 邮箱（可选）
 	ReceiveAIConversations *bool   // 是否接收 AI 对话（可选）

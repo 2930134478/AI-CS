@@ -62,6 +62,7 @@ export interface AgentUser {
   id: number;
   username: string;
   role: string;
+  permissions?: string[];
 }
 
 // 个人资料信息

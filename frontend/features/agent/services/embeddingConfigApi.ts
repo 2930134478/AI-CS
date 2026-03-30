@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // 知识库向量配置（API 返回，不含明文 API Key）
 export interface EmbeddingConfig {
@@ -35,6 +35,7 @@ export interface UpdateEmbeddingConfigRequest {
 export async function fetchEmbeddingConfig(userId: number): Promise<EmbeddingConfig> {
   const res = await fetch(`${apiUrl("/agent/embedding-config")}?user_id=${userId}`, {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("获取知识库向量配置失败");
@@ -49,7 +50,7 @@ export async function updateEmbeddingConfig(
 ): Promise<EmbeddingConfig> {
   const res = await fetch(apiUrl("/agent/embedding-config"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify({ user_id: userId, ...data }),
   });
   if (!res.ok) {

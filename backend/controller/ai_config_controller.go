@@ -10,11 +10,12 @@ import (
 // AIConfigController 负责处理 AI 配置相关的 HTTP 请求。
 type AIConfigController struct {
 	aiConfigService *service.AIConfigService
+	userService     *service.UserService
 }
 
 // NewAIConfigController 创建 AI 配置控制器实例。
-func NewAIConfigController(aiConfigService *service.AIConfigService) *AIConfigController {
-	return &AIConfigController{aiConfigService: aiConfigService}
+func NewAIConfigController(aiConfigService *service.AIConfigService, userService *service.UserService) *AIConfigController {
+	return &AIConfigController{aiConfigService: aiConfigService, userService: userService}
 }
 
 type createAIConfigRequest struct {
@@ -41,6 +42,9 @@ type updateAIConfigRequest struct {
 
 // CreateAIConfig 创建 AI 配置。
 func (a *AIConfigController) CreateAIConfig(c *gin.Context) {
+	if !requirePermission(c, a.userService, string(service.PermSettings)) {
+		return
+	}
 	userID, err := parseUintParam(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
@@ -74,6 +78,9 @@ func (a *AIConfigController) CreateAIConfig(c *gin.Context) {
 
 // GetAIConfig 获取 AI 配置。
 func (a *AIConfigController) GetAIConfig(c *gin.Context) {
+	if !requirePermission(c, a.userService, string(service.PermSettings)) {
+		return
+	}
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 不合法"})
@@ -91,6 +98,9 @@ func (a *AIConfigController) GetAIConfig(c *gin.Context) {
 
 // ListAIConfigs 获取指定用户的所有 AI 配置。
 func (a *AIConfigController) ListAIConfigs(c *gin.Context) {
+	if !requirePermission(c, a.userService, string(service.PermSettings)) {
+		return
+	}
 	userID, err := parseUintParam(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
@@ -108,6 +118,9 @@ func (a *AIConfigController) ListAIConfigs(c *gin.Context) {
 
 // UpdateAIConfig 更新 AI 配置。
 func (a *AIConfigController) UpdateAIConfig(c *gin.Context) {
+	if !requirePermission(c, a.userService, string(service.PermSettings)) {
+		return
+	}
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 不合法"})
@@ -141,6 +154,9 @@ func (a *AIConfigController) UpdateAIConfig(c *gin.Context) {
 
 // DeleteAIConfig 删除 AI 配置。
 func (a *AIConfigController) DeleteAIConfig(c *gin.Context) {
+	if !requirePermission(c, a.userService, string(service.PermSettings)) {
+		return
+	}
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 不合法"})

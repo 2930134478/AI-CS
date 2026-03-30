@@ -13,6 +13,7 @@ export function getAgentUser(): AgentUser | null {
   const id = window.localStorage.getItem(AGENT_ID_KEY);
   const username = window.localStorage.getItem(AGENT_USERNAME_KEY);
   const role = window.localStorage.getItem(AGENT_ROLE_KEY);
+  const permissionsRaw = window.localStorage.getItem("agent_permissions");
 
   if (!id || !username) {
     return null;
@@ -27,6 +28,15 @@ export function getAgentUser(): AgentUser | null {
     id: parsedId,
     username,
     role: role ?? "",
+    permissions: (() => {
+      if (!permissionsRaw) return undefined;
+      try {
+        const parsed = JSON.parse(permissionsRaw);
+        return Array.isArray(parsed) ? (parsed as string[]) : undefined;
+      } catch {
+        return undefined;
+      }
+    })(),
   };
 }
 
@@ -37,6 +47,11 @@ export function setAgentUser(agent: AgentUser): void {
   window.localStorage.setItem(AGENT_ID_KEY, String(agent.id));
   window.localStorage.setItem(AGENT_USERNAME_KEY, agent.username);
   window.localStorage.setItem(AGENT_ROLE_KEY, agent.role ?? "");
+  if (agent.permissions) {
+    window.localStorage.setItem("agent_permissions", JSON.stringify(agent.permissions));
+  } else {
+    window.localStorage.removeItem("agent_permissions");
+  }
 }
 
 export function clearAgentUser(): void {

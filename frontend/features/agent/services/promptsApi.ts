@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 export interface PromptItem {
   key: string;
@@ -15,6 +15,7 @@ export interface PromptsResponse {
 export async function fetchPrompts(userId: number): Promise<PromptItem[]> {
   const res = await fetch(`${apiUrl("/agent/prompts")}?user_id=${userId}`, {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("获取提示词配置失败");
@@ -37,7 +38,7 @@ export async function updatePrompt(
 ): Promise<void> {
   const res = await fetch(apiUrl("/agent/prompts"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify({ user_id: userId, key, content }),
   });
   if (!res.ok) {

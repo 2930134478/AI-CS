@@ -37,6 +37,16 @@ func (s *ProfileService) GetProfile(userID uint) (*ProfileResult, error) {
 		ID:                     user.ID,
 		Username:               user.Username,
 		Role:                   user.Role,
+		Permissions: func() []string {
+			if user.Role == "admin" {
+				return AllPermissionKeys()
+			}
+			keys := DecodePermissions(user.Permissions)
+			if len(keys) == 0 {
+				return DefaultAgentPermissions()
+			}
+			return keys
+		}(),
 		AvatarURL:              user.AvatarURL,
 		Nickname:               user.Nickname,
 		Email:                  user.Email,

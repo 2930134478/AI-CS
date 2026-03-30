@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 import {
   ConversationDetail,
   ConversationSummary,
@@ -14,7 +14,7 @@ export async function fetchConversations(
   if (userId) params.set("user_id", String(userId));
   if (opts?.type) params.set("type", opts.type);
   const url = `${apiUrl("/conversations")}?${params.toString()}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", headers: getAgentHeaders() });
   if (!res.ok) {
     throw new Error("获取对话列表失败");
   }
@@ -33,7 +33,7 @@ export async function fetchConversations(
 export async function initInternalConversation(userId: number): Promise<{ conversation_id: number }> {
   const res = await fetch(`${apiUrl("/conversations/internal")}?user_id=${userId}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -52,6 +52,7 @@ export async function searchConversations(
     : `${apiUrl("/conversations/search")}?q=${encodeURIComponent(query)}`;
   const res = await fetch(url, {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("搜索对话失败");
@@ -74,7 +75,7 @@ export async function fetchConversationDetail(
   const url = userId
     ? `${apiUrl(`/conversations/${conversationId}`)}?user_id=${userId}`
     : apiUrl(`/conversations/${conversationId}`);
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", headers: getAgentHeaders() });
   if (!res.ok) {
     return null;
   }
@@ -105,7 +106,7 @@ export async function updateConversationContact(
     apiUrl(`/conversations/${conversationId}/contact`),
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAgentHeaders() },
       body: JSON.stringify(payload),
     }
   );

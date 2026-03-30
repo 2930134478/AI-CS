@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // AI 配置类型定义
 export interface AIConfig {
@@ -43,6 +43,7 @@ export interface UpdateAIConfigRequest {
 export async function fetchAIConfigs(userId: number): Promise<AIConfig[]> {
   const res = await fetch(apiUrl(`/agent/ai-config/${userId}`), {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("获取 AI 配置失败");
@@ -57,6 +58,7 @@ export async function fetchAIConfig(
 ): Promise<AIConfig> {
   const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("获取 AI 配置失败");
@@ -71,7 +73,7 @@ export async function createAIConfig(
 ): Promise<AIConfig> {
   const res = await fetch(apiUrl(`/agent/ai-config/${userId}`), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -89,7 +91,7 @@ export async function updateAIConfig(
 ): Promise<AIConfig> {
   const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -106,6 +108,7 @@ export async function deleteAIConfig(
 ): Promise<void> {
   const res = await fetch(apiUrl(`/agent/ai-config/${userId}/${configId}`), {
     method: "DELETE",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     throw new Error("删除 AI 配置失败");

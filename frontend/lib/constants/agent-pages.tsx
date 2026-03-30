@@ -50,7 +50,8 @@ export interface AgentPageItem {
   label: string;
   title: string;
   Icon: LucideIcon;
-  adminOnly?: boolean;
+  /** 需要的功能权限键（单级开关）。admin 视为全权限 */
+  requiredPermission?: string;
   /** 对话类页面：展示会话列表 + 聊天区，无独立主内容 */
   isChatPage?: boolean;
   /** 非对话类页面的嵌入组件；对话类不填 */
@@ -64,26 +65,26 @@ export interface AgentPageItem {
 export const AGENT_PAGES = [
   {
     id: "dashboard",
-    label: "对话",
+    label: "会话对话",
     title: "对话",
     Icon: MessageCircle,
-    adminOnly: false,
+    requiredPermission: "chat",
     isChatPage: true,
   },
   {
     id: "internal-chat",
-    label: "知识库测试",
+    label: "知识测试",
     title: "知识库测试",
     Icon: Lightbulb,
-    adminOnly: false,
+    requiredPermission: "kb_test",
     isChatPage: true,
   },
   {
     id: "knowledge",
-    label: "知识库",
+    label: "知识管理",
     title: "知识库",
     Icon: BookOpen,
-    adminOnly: false,
+    requiredPermission: "knowledge",
     component: KnowledgePage,
   },
   {
@@ -91,7 +92,7 @@ export const AGENT_PAGES = [
     label: "事件管理",
     title: "事件管理",
     Icon: ClipboardList,
-    adminOnly: false,
+    requiredPermission: "faqs",
     component: FAQsPage,
   },
   {
@@ -99,7 +100,7 @@ export const AGENT_PAGES = [
     label: "数据报表",
     title: "数据报表",
     Icon: BarChart3,
-    adminOnly: false,
+    requiredPermission: "analytics",
     component: AnalyticsPage,
   },
   {
@@ -107,7 +108,7 @@ export const AGENT_PAGES = [
     label: "日志中心",
     title: "日志中心",
     Icon: ScrollText,
-    adminOnly: false,
+    requiredPermission: "logs",
     component: LogsPage,
   },
   {
@@ -115,23 +116,23 @@ export const AGENT_PAGES = [
     label: "用户管理",
     title: "用户管理",
     Icon: Users,
-    adminOnly: true,
+    requiredPermission: "users",
     component: UsersPage,
   },
   {
     id: "prompts",
-    label: "提示词",
+    label: "提示配置",
     title: "提示词",
     Icon: FileText,
-    adminOnly: true,
+    requiredPermission: "prompts",
     component: PromptsPage,
   },
   {
     id: "settings",
-    label: "AI 配置",
+    label: "AI配置",
     title: "AI 配置",
     Icon: Settings,
-    adminOnly: false,
+    requiredPermission: "settings",
     component: SettingsPage,
   },
 ] as const;

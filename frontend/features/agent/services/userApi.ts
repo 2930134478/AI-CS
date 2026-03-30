@@ -5,6 +5,7 @@ export interface UserSummary {
   id: number;
   username: string;
   role: "admin" | "agent";
+  permissions?: string[];
   nickname: string;
   email: string;
   avatar_url: string;
@@ -18,6 +19,7 @@ export interface CreateUserRequest {
   username: string;
   password: string;
   role: "admin" | "agent";
+  permissions?: string[];
   nickname?: string;
   email?: string;
 }
@@ -25,6 +27,7 @@ export interface CreateUserRequest {
 // 更新用户请求
 export interface UpdateUserRequest {
   role?: "admin" | "agent";
+  permissions?: string[];
   nickname?: string;
   email?: string;
   receive_ai_conversations?: boolean;

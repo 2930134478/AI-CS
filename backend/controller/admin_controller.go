@@ -61,6 +61,7 @@ type createAgentRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
+	Permissions []string `json:"permissions"`
 }
 
 // CreateAgent 处理创建客服或管理员账号的请求。
@@ -157,6 +158,7 @@ func (a *AdminController) CreateUser(c *gin.Context) {
 		Username string  `json:"username"`
 		Password string  `json:"password"`
 		Role     string  `json:"role"`
+		Permissions []string `json:"permissions"`
 		Nickname *string `json:"nickname"`
 		Email    *string `json:"email"`
 	}
@@ -170,6 +172,7 @@ func (a *AdminController) CreateUser(c *gin.Context) {
 		Username: req.Username,
 		Password: req.Password,
 		Role:     req.Role,
+		Permissions: req.Permissions,
 		Nickname: req.Nickname,
 		Email:    req.Email,
 	})
@@ -209,6 +212,7 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
 
 	var req struct {
 		Role                   *string `json:"role"`
+		Permissions            *[]string `json:"permissions"`
 		Nickname               *string `json:"nickname"`
 		Email                  *string `json:"email"`
 		ReceiveAIConversations *bool   `json:"receive_ai_conversations"`
@@ -222,6 +226,7 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
 	user, err := a.userService.UpdateUser(service.UpdateUserInput{
 		UserID:                 uint(id),
 		Role:                   req.Role,
+		Permissions:            req.Permissions,
 		Nickname:               req.Nickname,
 		Email:                  req.Email,
 		ReceiveAIConversations: req.ReceiveAIConversations,

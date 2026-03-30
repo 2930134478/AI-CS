@@ -13,13 +13,15 @@ import (
 type DocumentController struct {
 	documentService       *service.DocumentService
 	embeddingConfigService *service.EmbeddingConfigService
+	users                 *service.UserService
 }
 
 // NewDocumentController 创建文档控制器实例
-func NewDocumentController(documentService *service.DocumentService, embeddingConfigService *service.EmbeddingConfigService) *DocumentController {
+func NewDocumentController(documentService *service.DocumentService, embeddingConfigService *service.EmbeddingConfigService, users *service.UserService) *DocumentController {
 	return &DocumentController{
 		documentService:       documentService,
 		embeddingConfigService: embeddingConfigService,
+		users:                 users,
 	}
 }
 
@@ -37,6 +39,9 @@ func (c *DocumentController) checkKBAccess(ctx *gin.Context) bool {
 
 // ListDocuments 获取文档列表
 func (c *DocumentController) ListDocuments(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -70,6 +75,9 @@ func (c *DocumentController) ListDocuments(ctx *gin.Context) {
 
 // GetDocument 获取文档详情
 func (c *DocumentController) GetDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -92,6 +100,9 @@ func (c *DocumentController) GetDocument(ctx *gin.Context) {
 
 // CreateDocument 创建文档
 func (c *DocumentController) CreateDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -128,6 +139,9 @@ func (c *DocumentController) CreateDocument(ctx *gin.Context) {
 
 // UpdateDocument 更新文档
 func (c *DocumentController) UpdateDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -169,6 +183,9 @@ func (c *DocumentController) UpdateDocument(ctx *gin.Context) {
 
 // DeleteDocument 删除文档
 func (c *DocumentController) DeleteDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -190,6 +207,9 @@ func (c *DocumentController) DeleteDocument(ctx *gin.Context) {
 
 // SearchDocuments 向量检索搜索文档
 func (c *DocumentController) SearchDocuments(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -236,6 +256,9 @@ func (c *DocumentController) HybridSearchDocuments(ctx *gin.Context) {
 
 // UpdateDocumentStatus 更新文档状态
 func (c *DocumentController) UpdateDocumentStatus(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -266,6 +289,9 @@ func (c *DocumentController) UpdateDocumentStatus(ctx *gin.Context) {
 
 // PublishDocument 发布文档
 func (c *DocumentController) PublishDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -287,6 +313,9 @@ func (c *DocumentController) PublishDocument(ctx *gin.Context) {
 
 // UnpublishDocument 取消发布文档
 func (c *DocumentController) UnpublishDocument(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}

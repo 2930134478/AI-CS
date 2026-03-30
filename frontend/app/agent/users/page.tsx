@@ -28,6 +28,11 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
 import {
+  PERMISSION_OPTIONS,
+  defaultAgentPermissions,
+  type PermissionKey,
+} from "@/lib/constants/agent-permissions";
+import {
   Plus,
   Edit,
   Trash2,
@@ -57,6 +62,7 @@ export default function UsersPage(props: any = {}) {
     username: "",
     password: "",
     role: "agent",
+    permissions: defaultAgentPermissions(),
     nickname: "",
     email: "",
   });
@@ -64,6 +70,7 @@ export default function UsersPage(props: any = {}) {
   // 编辑用户表单
   const [editForm, setEditForm] = useState<UpdateUserRequest>({
     role: "agent",
+    permissions: defaultAgentPermissions(),
     nickname: "",
     email: "",
     receive_ai_conversations: true,
@@ -123,6 +130,7 @@ export default function UsersPage(props: any = {}) {
       username: "",
       password: "",
       role: "agent",
+      permissions: defaultAgentPermissions(),
       nickname: "",
       email: "",
     });
@@ -156,6 +164,11 @@ export default function UsersPage(props: any = {}) {
     setSelectedUser(user);
     setEditForm({
       role: user.role as "admin" | "agent",
+      permissions:
+        user.role === "admin"
+          ? PERMISSION_OPTIONS.map((p) => p.key)
+          : ((user.permissions as PermissionKey[] | undefined) ??
+            defaultAgentPermissions()),
       nickname: user.nickname || "",
       email: user.email || "",
       receive_ai_conversations: user.receive_ai_conversations,
@@ -428,6 +441,10 @@ export default function UsersPage(props: any = {}) {
                   setCreateForm({
                     ...createForm,
                     role: e.target.value as "admin" | "agent",
+                    permissions:
+                      e.target.value === "admin"
+                        ? PERMISSION_OPTIONS.map((p) => p.key)
+                        : defaultAgentPermissions(),
                   })
                 }
                 className="w-full px-3 py-2 border border-border rounded-md bg-background"
@@ -436,6 +453,39 @@ export default function UsersPage(props: any = {}) {
                 <option value="admin">管理员</option>
               </select>
             </div>
+
+            {/* 功能权限（开/关一级；role=admin 默认全开） */}
+            {createForm.role !== "admin" && (
+              <div>
+                <Label>功能权限</Label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {PERMISSION_OPTIONS.map((p) => {
+                    const checked = (createForm.permissions ?? []).includes(p.key);
+                    return (
+                      <label
+                        key={p.key}
+                        className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = new Set(createForm.permissions ?? []);
+                            if (e.target.checked) next.add(p.key);
+                            else next.delete(p.key);
+                            setCreateForm({ ...createForm, permissions: Array.from(next) });
+                          }}
+                        />
+                        <span>{p.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  默认仅开启“对话”。关闭后对应菜单不可见且后端接口会返回 403。
+                </p>
+              </div>
+            )}
             <div>
               <Label htmlFor="create-nickname">昵称</Label>
               <Input
@@ -499,6 +549,10 @@ export default function UsersPage(props: any = {}) {
                     setEditForm({
                       ...editForm,
                       role: e.target.value as "admin" | "agent",
+                      permissions:
+                        e.target.value === "admin"
+                          ? PERMISSION_OPTIONS.map((p) => p.key)
+                          : defaultAgentPermissions(),
                     })
                   }
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
@@ -507,6 +561,35 @@ export default function UsersPage(props: any = {}) {
                   <option value="admin">管理员</option>
                 </select>
               </div>
+
+              {editForm.role !== "admin" && (
+                <div>
+                  <Label>功能权限</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {PERMISSION_OPTIONS.map((p) => {
+                      const checked = (editForm.permissions ?? []).includes(p.key);
+                      return (
+                        <label
+                          key={p.key}
+                          className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = new Set(editForm.permissions ?? []);
+                              if (e.target.checked) next.add(p.key);
+                              else next.delete(p.key);
+                              setEditForm({ ...editForm, permissions: Array.from(next) });
+                            }}
+                          />
+                          <span>{p.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div>
                 <Label htmlFor="edit-nickname">昵称</Label>
                 <Input

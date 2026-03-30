@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/2930134478/AI-CS/backend/models"
@@ -20,6 +21,43 @@ func NewUserService(users *repository.UserRepository) *UserService {
 	return &UserService{users: users}
 }
 
+// EffectivePermissions 计算用户“有效权限”。
+// - admin：全权限
+// - agent：取 user.Permissions（JSON）；若为空则兼容默认仅 chat
+func (s *UserService) EffectivePermissions(user *models.User) []string {
+	if user == nil {
+		return nil
+	}
+	if user.Role == "admin" {
+		return AllPermissionKeys()
+	}
+	keys := DecodePermissions(user.Permissions)
+	if len(keys) == 0 {
+		return DefaultAgentPermissions()
+	}
+	return keys
+}
+
+// CheckPermission 校验用户是否拥有指定权限（用于控制器强校验）。
+func (s *UserService) CheckPermission(userID uint, perm string) error {
+	if userID == 0 {
+		return errors.New("未授权访问，请提供 X-User-Id 请求头")
+	}
+	u, err := s.users.GetByID(userID)
+	if err != nil || u == nil {
+		return errors.New("用户不存在")
+	}
+	if u.Role == "admin" {
+		return nil
+	}
+	for _, p := range s.EffectivePermissions(u) {
+		if p == perm {
+			return nil
+		}
+	}
+	return fmt.Errorf("权限不足：缺少功能权限 %s", perm)
+}
+
 // ListUsers 获取所有用户列表。
 func (s *UserService) ListUsers() ([]UserSummary, error) {
 	users, err := s.users.ListUsers()
@@ -33,6 +71,7 @@ func (s *UserService) ListUsers() ([]UserSummary, error) {
 			ID:                     user.ID,
 			Username:               user.Username,
 			Role:                   user.Role,
+			Permissions:            s.EffectivePermissions(&user),
 			Nickname:               user.Nickname,
 			Email:                  user.Email,
 			AvatarURL:              user.AvatarURL,
@@ -59,6 +98,7 @@ func (s *UserService) GetUser(id uint) (*UserSummary, error) {
 		ID:                     user.ID,
 		Username:               user.Username,
 		Role:                   user.Role,
+		Permissions:            s.EffectivePermissions(user),
 		Nickname:               user.Nickname,
 		Email:                  user.Email,
 		AvatarURL:              user.AvatarURL,
@@ -101,6 +141,19 @@ func (s *UserService) CreateUser(input CreateUserInput) (*UserSummary, error) {
 		ReceiveAIConversations: true, // 默认接收 AI 对话
 	}
 
+	// 权限：admin 默认全开（不存）；agent 默认仅 chat
+	if input.Role != "admin" {
+		keys := input.Permissions
+		if len(keys) == 0 {
+			keys = DefaultAgentPermissions()
+		}
+		encoded, err := EncodePermissions(keys)
+		if err != nil {
+			return nil, err
+		}
+		user.Permissions = encoded
+	}
+
 	// 设置可选字段
 	if input.Nickname != nil {
 		user.Nickname = strings.TrimSpace(*input.Nickname)
@@ -117,6 +170,7 @@ func (s *UserService) CreateUser(input CreateUserInput) (*UserSummary, error) {
 		ID:                     user.ID,
 		Username:               user.Username,
 		Role:                   user.Role,
+		Permissions:            s.EffectivePermissions(user),
 		Nickname:               user.Nickname,
 		Email:                  user.Email,
 		AvatarURL:              user.AvatarURL,
@@ -129,17 +183,22 @@ func (s *UserService) CreateUser(input CreateUserInput) (*UserSummary, error) {
 // UpdateUser 更新用户信息。
 func (s *UserService) UpdateUser(input UpdateUserInput) (*UserSummary, error) {
 	// 检查用户是否存在
-	_, err := s.users.GetByID(input.UserID)
+	currentUser, err := s.users.GetByID(input.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("用户不存在")
 		}
 		return nil, err
 	}
+	if currentUser == nil {
+		return nil, errors.New("用户不存在")
+	}
 
 	// 构建更新字段
 	updates := make(map[string]interface{})
 
+	// 记录本次更新后的角色（用于决定 permissions 写入规则）
+	nextRole := currentUser.Role
 	// 更新角色
 	if input.Role != nil {
 		role := strings.TrimSpace(*input.Role)
@@ -147,6 +206,24 @@ func (s *UserService) UpdateUser(input UpdateUserInput) (*UserSummary, error) {
 			return nil, errors.New("角色只能是 admin 或 agent")
 		}
 		updates["role"] = role
+		nextRole = role
+	}
+
+	// 更新 permissions（仅对 agent 有意义；admin 视为全开，不存权限）
+	if input.Permissions != nil {
+		if nextRole == "admin" {
+			updates["permissions"] = ""
+		} else {
+			keys := *input.Permissions
+			if len(keys) == 0 {
+				keys = DefaultAgentPermissions()
+			}
+			encoded, err := EncodePermissions(keys)
+			if err != nil {
+				return nil, err
+			}
+			updates["permissions"] = encoded
+		}
 	}
 
 	// 更新昵称

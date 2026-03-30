@@ -11,17 +11,16 @@ import (
 // AnalyticsController 数据分析报表（客服端查询 + 访客端埋点）
 type AnalyticsController struct {
 	analytics *service.AnalyticsService
+	users     *service.UserService
 }
 
-func NewAnalyticsController(analytics *service.AnalyticsService) *AnalyticsController {
-	return &AnalyticsController{analytics: analytics}
+func NewAnalyticsController(analytics *service.AnalyticsService, users *service.UserService) *AnalyticsController {
+	return &AnalyticsController{analytics: analytics, users: users}
 }
 
 // GetSummary GET /agent/analytics/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
 func (ac *AnalyticsController) GetSummary(c *gin.Context) {
-	userID := getUserIDFromHeader(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权，请提供 X-User-Id"})
+	if !requirePermission(c, ac.users, string(service.PermAnalytics)) {
 		return
 	}
 	from := c.Query("from")

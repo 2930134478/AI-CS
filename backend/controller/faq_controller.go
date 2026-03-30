@@ -12,16 +12,20 @@ import (
 // FAQController 负责处理 FAQ（常见问题）相关的 HTTP 请求。
 type FAQController struct {
 	faqService *service.FAQService
+	users      *service.UserService
 }
 
 // NewFAQController 创建 FAQController 实例。
-func NewFAQController(faqService *service.FAQService) *FAQController {
-	return &FAQController{faqService: faqService}
+func NewFAQController(faqService *service.FAQService, users *service.UserService) *FAQController {
+	return &FAQController{faqService: faqService, users: users}
 }
 
 // ListFAQs 获取 FAQ 列表，支持关键词搜索。
 // GET /faqs?query=openai%api%调用
 func (f *FAQController) ListFAQs(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermFAQs)) {
+		return
+	}
 	// 获取查询参数
 	query := c.Query("query")
 
@@ -41,6 +45,9 @@ func (f *FAQController) ListFAQs(c *gin.Context) {
 // GetFAQ 获取 FAQ 详情。
 // GET /faqs/:id
 func (f *FAQController) GetFAQ(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermFAQs)) {
+		return
+	}
 	// 获取 ID
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -63,6 +70,9 @@ func (f *FAQController) GetFAQ(c *gin.Context) {
 // CreateFAQ 创建新的 FAQ 记录。
 // POST /faqs
 func (f *FAQController) CreateFAQ(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermFAQs)) {
+		return
+	}
 	var req struct {
 		Question string `json:"question" binding:"required"`
 		Answer   string `json:"answer" binding:"required"`
@@ -92,6 +102,9 @@ func (f *FAQController) CreateFAQ(c *gin.Context) {
 // UpdateFAQ 更新 FAQ 记录。
 // PUT /faqs/:id
 func (f *FAQController) UpdateFAQ(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermFAQs)) {
+		return
+	}
 	// 获取 ID
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -129,6 +142,9 @@ func (f *FAQController) UpdateFAQ(c *gin.Context) {
 // DeleteFAQ 删除 FAQ 记录。
 // DELETE /faqs/:id
 func (f *FAQController) DeleteFAQ(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermFAQs)) {
+		return
+	}
 	// 获取 ID
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)

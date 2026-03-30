@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -59,4 +60,20 @@ func getTraceID(c *gin.Context) string {
 		}
 	}
 	return ""
+}
+
+// requirePermission 统一的权限校验（基于 X-User-Id）。
+// 返回 true 表示允许继续；false 表示已输出错误响应。
+func requirePermission(c *gin.Context, userSvc *service.UserService, perm string) bool {
+	if userSvc == nil {
+		c.JSON(500, gin.H{"error": "权限服务未初始化"})
+		return false
+	}
+	userID := getUserIDFromHeader(c)
+	if err := userSvc.CheckPermission(userID, perm); err != nil {
+		// 未授权/无权限统一 403（避免泄露过多信息）
+		c.JSON(403, gin.H{"error": err.Error()})
+		return false
+	}
+	return true
 }

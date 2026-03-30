@@ -9,6 +9,9 @@ type User struct {
 	Username  string `json:"username" gorm:"unique"`
 	Password  string `json:"password"`
 	Role      string `json:"role"`
+	// Permissions 功能权限（JSON 数组字符串）。admin 默认视为全权限。
+	// 例：["chat","knowledge"]。为空时：agent 兼容默认仅 chat。
+	Permissions string `json:"permissions" gorm:"type:text"`
 	AvatarURL string `json:"avatar_url" gorm:"type:varchar(500)"` // 头像URL
 	Nickname  string `json:"nickname" gorm:"type:varchar(100)"`   // 昵称
 	Email     string `json:"email" gorm:"type:varchar(255)"`      // 邮箱

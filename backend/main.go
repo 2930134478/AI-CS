@@ -460,24 +460,24 @@ func main() {
 
 	// 初始化控制器
 	authController := controller.NewAuthController(authService)
-	conversationController := controller.NewConversationController(conversationService, aiConfigService)
+	conversationController := controller.NewConversationController(conversationService, aiConfigService, userService)
 	messageController := controller.NewMessageController(messageService, conversationService, storageService)
 	adminController := controller.NewAdminController(authService, userService)
 	profileController := controller.NewProfileController(profileService)
-	aiConfigController := controller.NewAIConfigController(aiConfigService)
-	faqController := controller.NewFAQController(faqService)
-	documentController := controller.NewDocumentController(documentService, embeddingConfigService)
-	embeddingConfigController := controller.NewEmbeddingConfigController(embeddingConfigService)
-	promptConfigController := controller.NewPromptConfigController(promptConfigService)
-	knowledgeBaseController := controller.NewKnowledgeBaseController(knowledgeBaseService, embeddingConfigService)
-	importController := controller.NewImportController(importService, embeddingConfigService) // 导入控制器
+	aiConfigController := controller.NewAIConfigController(aiConfigService, userService)
+	faqController := controller.NewFAQController(faqService, userService)
+	documentController := controller.NewDocumentController(documentService, embeddingConfigService, userService)
+	embeddingConfigController := controller.NewEmbeddingConfigController(embeddingConfigService, userService)
+	promptConfigController := controller.NewPromptConfigController(promptConfigService, userService)
+	knowledgeBaseController := controller.NewKnowledgeBaseController(knowledgeBaseService, embeddingConfigService, userService)
+	importController := controller.NewImportController(importService, embeddingConfigService, userService) // 导入控制器
 	visitorController := controller.NewVisitorController(visitorService, embeddingConfigService)
 	healthController := controller.NewHealthController(healthChecker, retrievalService) // 健康检查控制器
 
 	widgetOpenRepo := repository.NewWidgetOpenRepository(db)
 	analyticsService := service.NewAnalyticsService(db, widgetOpenRepo)
-	analyticsController := controller.NewAnalyticsController(analyticsService)
-	systemLogController := controller.NewSystemLogController(systemLogService)
+	analyticsController := controller.NewAnalyticsController(analyticsService, userService)
+	systemLogController := controller.NewSystemLogController(systemLogService, userService)
 
 	appRouter.RegisterRoutes(
 		r,

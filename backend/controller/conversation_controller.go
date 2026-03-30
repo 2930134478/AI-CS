@@ -13,16 +13,19 @@ import (
 type ConversationController struct {
 	conversationService *service.ConversationService
 	aiConfigService     *service.AIConfigService // 用于获取开放的模型列表
+	users               *service.UserService
 }
 
 // NewConversationController 创建 ConversationController 实例。
 func NewConversationController(
 	conversationService *service.ConversationService,
 	aiConfigService *service.AIConfigService,
+	users *service.UserService,
 ) *ConversationController {
 	return &ConversationController{
 		conversationService: conversationService,
 		aiConfigService:     aiConfigService,
+		users:               users,
 	}
 }
 
@@ -88,6 +91,9 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 
 // InitInternalConversation 为当前客服创建一条新的内部对话（知识库测试）。需要 query user_id。
 func (cc *ConversationController) InitInternalConversation(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermKBTest)) {
+		return
+	}
 	userIDStr := c.Query("user_id")
 	if userIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "需要 user_id"})
@@ -174,6 +180,9 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 	var conversations []service.ConversationSummary
 	var err error
 	if conversationType == "internal" {
+		if !requirePermission(c, cc.users, string(service.PermKBTest)) {
+			return
+		}
 		if userID == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "内部对话列表需要 user_id"})
 			return

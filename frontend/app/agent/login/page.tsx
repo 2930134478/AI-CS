@@ -38,6 +38,10 @@ export default function AgentLoginPage() {
         localStorage.setItem("agent_user_id", String(data.user_id));
         localStorage.setItem("agent_username", data.username);
         localStorage.setItem("agent_role", data.role);
+        localStorage.setItem(
+          "agent_permissions",
+          JSON.stringify(Array.isArray(data.permissions) ? data.permissions : [])
+        );
 
         // 跳转到客服工作台（三栏布局）
         router.push("/agent/dashboard");

@@ -10,16 +10,20 @@ import (
 // EmbeddingConfigController 知识库向量配置控制器
 type EmbeddingConfigController struct {
 	service *service.EmbeddingConfigService
+	users   *service.UserService
 }
 
 // NewEmbeddingConfigController 创建控制器实例
-func NewEmbeddingConfigController(s *service.EmbeddingConfigService) *EmbeddingConfigController {
-	return &EmbeddingConfigController{service: s}
+func NewEmbeddingConfigController(s *service.EmbeddingConfigService, users *service.UserService) *EmbeddingConfigController {
+	return &EmbeddingConfigController{service: s, users: users}
 }
 
 // Get 获取当前配置（API Key 脱敏）
 // GET /agent/embedding-config?user_id=1
 func (e *EmbeddingConfigController) Get(c *gin.Context) {
+	if !requirePermission(c, e.users, string(service.PermSettings)) {
+		return
+	}
 	_, err := parseUintQuery(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
@@ -37,6 +41,9 @@ func (e *EmbeddingConfigController) Get(c *gin.Context) {
 // PUT /agent/embedding-config
 // Body: { "user_id": 1, "embedding_type": "openai", "api_url": "...", "api_key": "...", "model": "...", "customer_can_use_kb": true }
 func (e *EmbeddingConfigController) Update(c *gin.Context) {
+	if !requirePermission(c, e.users, string(service.PermSettings)) {
+		return
+	}
 	var req struct {
 		UserID                  uint   `json:"user_id" binding:"required"`
 		EmbeddingType           *string `json:"embedding_type"`

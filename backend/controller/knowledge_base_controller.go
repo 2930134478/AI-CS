@@ -13,13 +13,15 @@ import (
 type KnowledgeBaseController struct {
 	knowledgeBaseService   *service.KnowledgeBaseService
 	embeddingConfigService *service.EmbeddingConfigService
+	users                  *service.UserService
 }
 
 // NewKnowledgeBaseController 创建知识库控制器实例
-func NewKnowledgeBaseController(knowledgeBaseService *service.KnowledgeBaseService, embeddingConfigService *service.EmbeddingConfigService) *KnowledgeBaseController {
+func NewKnowledgeBaseController(knowledgeBaseService *service.KnowledgeBaseService, embeddingConfigService *service.EmbeddingConfigService, users *service.UserService) *KnowledgeBaseController {
 	return &KnowledgeBaseController{
 		knowledgeBaseService:   knowledgeBaseService,
 		embeddingConfigService: embeddingConfigService,
+		users:                  users,
 	}
 }
 
@@ -38,6 +40,9 @@ func (c *KnowledgeBaseController) checkKBAccess(ctx *gin.Context) bool {
 
 // ListKnowledgeBases 获取知识库列表
 func (c *KnowledgeBaseController) ListKnowledgeBases(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -55,6 +60,9 @@ func (c *KnowledgeBaseController) ListKnowledgeBases(ctx *gin.Context) {
 
 // GetKnowledgeBase 获取知识库详情
 func (c *KnowledgeBaseController) GetKnowledgeBase(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -77,6 +85,9 @@ func (c *KnowledgeBaseController) GetKnowledgeBase(ctx *gin.Context) {
 
 // CreateKnowledgeBase 创建知识库
 func (c *KnowledgeBaseController) CreateKnowledgeBase(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -105,6 +116,9 @@ func (c *KnowledgeBaseController) CreateKnowledgeBase(ctx *gin.Context) {
 
 // UpdateKnowledgeBase 更新知识库
 func (c *KnowledgeBaseController) UpdateKnowledgeBase(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -142,6 +156,9 @@ func (c *KnowledgeBaseController) UpdateKnowledgeBase(ctx *gin.Context) {
 
 // DeleteKnowledgeBase 删除知识库
 func (c *KnowledgeBaseController) DeleteKnowledgeBase(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
@@ -163,6 +180,9 @@ func (c *KnowledgeBaseController) DeleteKnowledgeBase(ctx *gin.Context) {
 
 // UpdateKnowledgeBaseRAGEnabled 仅更新知识库「参与 RAG」开关。
 func (c *KnowledgeBaseController) UpdateKnowledgeBaseRAGEnabled(ctx *gin.Context) {
+	if !requirePermission(ctx, c.users, string(service.PermKnowledge)) {
+		return
+	}
 	if !c.checkKBAccess(ctx) {
 		return
 	}
