@@ -96,12 +96,13 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 	}
 
 	if s.hub != nil {
-		// 1. 先广播到该对话的所有客户端（访客和已连接该对话的客服）
+		// 1. 先广播到该对话房间内的客户端（访客 + 已按该 conversation_id 建连的客服）
 		s.hub.BroadcastMessage(message.ConversationID, "new_message", message)
-		// 2. 如果是访客发送的消息，且对话模式是人工客服，才广播到所有客服
-		//    这样即使客服没有连接到这个对话，也能收到新消息的通知
-		//    注意：AI 模式下的访客消息不广播给客服（避免干扰）
-		if !input.SenderIsAgent && conv.ChatMode == "human" {
+		// 2. 人工会话（非内部测试）：再向所有在线客服连接广播一次。
+		//    - 原逻辑仅对「访客消息」广播，客服自己发的消息只进房间；若 WS 异常/多实例 Hub 不一致，客服台会迟迟看不到自己发的内容。
+		//    - AI 模式不向全员推访客消息（保持原意）；内部知识库会话不向其他客服推（避免无关会话刷屏）。
+		//    handleNewMessage 侧会按 conversation_id 去重，双播不会产生重复气泡。
+		if conv.ChatMode == "human" && conv.ConversationType != "internal" {
 			s.hub.BroadcastToAllAgents("new_message", message)
 		}
 	} else {

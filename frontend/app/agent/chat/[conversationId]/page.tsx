@@ -150,26 +150,6 @@ export default function AgentChatPage() {
     loadMessages();
   }, [conversationId, agent, loadConversationDetail, loadMessages]);
 
-  const handleSendMessage = useCallback(async () => {
-    if (!conversationId || !agent?.id || !messageInput.trim() || sending) {
-      return;
-    }
-    setSending(true);
-    try {
-      await sendMessageApi({
-        conversationId,
-        content: messageInput,
-        senderId: agent.id,
-      });
-      setMessageInput("");
-    } catch (error) {
-      console.error(error);
-      toast.error((error as Error).message);
-    } finally {
-      setSending(false);
-    }
-  }, [agent?.id, conversationId, messageInput, sending]);
-
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
       setMessages((prev) => {
@@ -242,6 +222,31 @@ export default function AgentChatPage() {
     },
     [conversationId, loadConversationDetail]
   );
+
+  const handleSendMessage = useCallback(async () => {
+    if (!conversationId || !agent?.id || !messageInput.trim() || sending) {
+      return;
+    }
+    setSending(true);
+    try {
+      const created = await sendMessageApi({
+        conversationId,
+        content: messageInput,
+        senderId: agent.id,
+      });
+      setMessageInput("");
+      if (created) {
+        handleNewMessage(created);
+      } else {
+        await loadMessages();
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error((error as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }, [agent?.id, conversationId, messageInput, sending, handleNewMessage, loadMessages]);
 
   const handleMessagesReadEvent = useCallback(
     (payload: MessagesReadPayload) => {

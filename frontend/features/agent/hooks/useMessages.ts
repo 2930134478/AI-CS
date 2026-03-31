@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   fetchConversationDetail,
@@ -195,44 +195,7 @@ export function useMessages({
     refreshConversationDetail(conversationId);
   }, [conversationId, agentId, effectiveIncludeAIMessages, loadMessages, refreshConversationDetail]);
 
-  const handleSendMessage = useCallback(
-    async (content: string, fileInfo?: { file_url: string; file_type: string; file_name: string; file_size: number; mime_type: string }) => {
-      if (!conversationId || !agentId || sending) {
-        return;
-      }
-      // 验证：必须有内容或文件
-      if (!content.trim() && !fileInfo) {
-        return;
-      }
-      setSending(true);
-      if (forceIncludeAIMessages) {
-        setAiThinking(true);
-      }
-      try {
-        await sendMessage({
-          conversationId,
-          content: content.trim(),
-          senderId: agentId,
-          fileUrl: fileInfo?.file_url,
-          fileType: fileInfo?.file_type as "image" | "document" | undefined,
-          fileName: fileInfo?.file_name,
-          fileSize: fileInfo?.file_size,
-          mimeType: fileInfo?.mime_type,
-          needWebSearch: forceIncludeAIMessages ? needWebSearch : undefined,
-          useWebSearch: forceIncludeAIMessages && needWebSearch ? true : undefined,
-        });
-      } catch (error) {
-        console.error(error);
-        if (forceIncludeAIMessages) {
-          setAiThinking(false);
-        }
-        throw error;
-      } finally {
-        setSending(false);
-      }
-    },
-    [agentId, conversationId, sending, forceIncludeAIMessages, needWebSearch]
-  );
+  const handleNewMessageRef = useRef<(message: MessageItem) => void>(() => {});
 
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
@@ -337,6 +300,63 @@ export function useMessages({
       // 不再调用 refreshConversationDetail，避免不必要的重新加载和状态丢失
     },
     [conversationId, updateConversation, refreshConversations, hasConversation, effectiveIncludeAIMessages, soundEnabled, forceIncludeAIMessages]
+  );
+
+  useEffect(() => {
+    handleNewMessageRef.current = handleNewMessage;
+  }, [handleNewMessage]);
+
+  const handleSendMessage = useCallback(
+    async (content: string, fileInfo?: { file_url: string; file_type: string; file_name: string; file_size: number; mime_type: string }) => {
+      if (!conversationId || !agentId || sending) {
+        return;
+      }
+      // 验证：必须有内容或文件
+      if (!content.trim() && !fileInfo) {
+        return;
+      }
+      setSending(true);
+      if (forceIncludeAIMessages) {
+        setAiThinking(true);
+      }
+      try {
+        const created = await sendMessage({
+          conversationId,
+          content: content.trim(),
+          senderId: agentId,
+          fileUrl: fileInfo?.file_url,
+          fileType: fileInfo?.file_type as "image" | "document" | undefined,
+          fileName: fileInfo?.file_name,
+          fileSize: fileInfo?.file_size,
+          mimeType: fileInfo?.mime_type,
+          needWebSearch: forceIncludeAIMessages ? needWebSearch : undefined,
+          useWebSearch: forceIncludeAIMessages && needWebSearch ? true : undefined,
+        });
+        // 发送成功即以接口返回为准合并到列表，避免生产环境 WS 丢事件时「发出去了但看不见」
+        if (created) {
+          handleNewMessageRef.current(created);
+        } else {
+          await loadMessages(conversationId, effectiveIncludeAIMessages);
+        }
+      } catch (error) {
+        console.error(error);
+        if (forceIncludeAIMessages) {
+          setAiThinking(false);
+        }
+        throw error;
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      agentId,
+      conversationId,
+      sending,
+      forceIncludeAIMessages,
+      needWebSearch,
+      loadMessages,
+      effectiveIncludeAIMessages,
+    ]
   );
 
   const handleMessagesReadBroadcast = useCallback(

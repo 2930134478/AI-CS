@@ -2,6 +2,50 @@ import { apiUrl } from "@/lib/config";
 import { MessageItem } from "../types";
 import { reportFrontendLog } from "./systemLogApi";
 
+/** 解析 POST /messages 返回的消息体（与 models.Message JSON 一致） */
+function messageItemFromResponse(data: unknown): MessageItem | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const raw = data as Record<string, unknown>;
+  if (typeof raw.id !== "number" || typeof raw.conversation_id !== "number") {
+    return null;
+  }
+  return {
+    id: raw.id,
+    conversation_id: raw.conversation_id,
+    sender_id: typeof raw.sender_id === "number" ? raw.sender_id : 0,
+    sender_is_agent: Boolean(raw.sender_is_agent),
+    content: typeof raw.content === "string" ? raw.content : "",
+    created_at:
+      typeof raw.created_at === "string"
+        ? raw.created_at
+        : new Date().toISOString(),
+    message_type:
+      typeof raw.message_type === "string" ? raw.message_type : undefined,
+    chat_mode: typeof raw.chat_mode === "string" ? raw.chat_mode : undefined,
+    is_read: Boolean(raw.is_read),
+    read_at:
+      raw.read_at === null || raw.read_at === undefined
+        ? null
+        : String(raw.read_at),
+    file_url:
+      raw.file_url === null || raw.file_url === undefined
+        ? null
+        : String(raw.file_url),
+    file_type:
+      typeof raw.file_type === "string" ? raw.file_type : undefined,
+    file_name:
+      typeof raw.file_name === "string" ? raw.file_name : undefined,
+    file_size:
+      typeof raw.file_size === "number" ? raw.file_size : undefined,
+    mime_type:
+      typeof raw.mime_type === "string" ? raw.mime_type : undefined,
+    sources_used:
+      typeof raw.sources_used === "string" ? raw.sources_used : undefined,
+  };
+}
+
 interface SendMessagePayload {
   conversationId: number;
   content: string;
@@ -106,7 +150,7 @@ export async function sendMessage({
   useLLM,
   useWebSearch,
   needWebSearch,
-}: SendMessagePayload): Promise<void> {
+}: SendMessagePayload): Promise<MessageItem | null> {
   const payload: Record<string, unknown> = {
     conversation_id: conversationId,
     content,
@@ -145,6 +189,13 @@ export async function sendMessage({
       meta: { status: res.status, error },
     });
     throw new Error(error.error || "发送消息失败");
+  }
+
+  try {
+    const data: unknown = await res.json();
+    return messageItemFromResponse(data);
+  } catch {
+    return null;
   }
 }
 

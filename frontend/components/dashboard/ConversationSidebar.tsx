@@ -50,33 +50,12 @@ export function ConversationSidebar({
           )}
         </div>
       ) : (
-        <div className="flex flex-col">
-          <ConversationHeader filter={filter} onFilterChange={onFilterChange} />
-          <div className="px-3 pb-2 flex items-center gap-2">
-            <button
-              type="button"
-              className={`px-3 py-1.5 rounded-md text-xs border transition ${
-                status === "open"
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-background text-muted-foreground border-border hover:text-foreground"
-              }`}
-              onClick={() => onStatusChange?.("open")}
-            >
-              进行中
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1.5 rounded-md text-xs border transition ${
-                status === "closed"
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-background text-muted-foreground border-border hover:text-foreground"
-              }`}
-              onClick={() => onStatusChange?.("closed")}
-            >
-              历史
-            </button>
-          </div>
-        </div>
+        <ConversationHeader
+          filter={filter}
+          onFilterChange={onFilterChange}
+          listStatus={status}
+          onListStatusChange={onStatusChange}
+        />
       )}
       <div className="flex-shrink-0 px-2 min-w-0">
         <ConversationSearch value={searchQuery} onChange={onSearchChange} />

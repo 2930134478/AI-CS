@@ -61,7 +61,7 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 		return
 	}
 
-	_, err := mc.messageService.CreateMessage(service.CreateMessageInput{
+	msg, err := mc.messageService.CreateMessage(service.CreateMessageInput{
 		ConversationID:   req.ConversationID,
 		Content:          req.Content,
 		SenderID:         req.SenderID,
@@ -89,7 +89,8 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "创建消息成功"})
+	// 返回持久化后的完整消息：客服端/访客端可在发送成功后立即更新 UI，避免仅依赖 WebSocket 时出现「空了要等刷新」
+	c.JSON(http.StatusOK, msg)
 }
 
 // ListMessages 返回指定会话的消息列表。
