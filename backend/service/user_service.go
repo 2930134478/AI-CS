@@ -271,15 +271,9 @@ func (s *UserService) DeleteUser(id uint, currentUserID uint) error {
 		return err
 	}
 
-	// 防止删除最后一个管理员
+	// 演示站安全策略：管理员账号只能通过数据库维护，接口层禁止删除任何管理员。
 	if user.Role == "admin" {
-		count, err := s.users.CountByRole("admin")
-		if err != nil {
-			return err
-		}
-		if count <= 1 {
-			return errors.New("不能删除最后一个管理员")
-		}
+		return errors.New("管理员账号不允许通过前端删除，请使用数据库维护")
 	}
 
 	// 执行删除
@@ -299,6 +293,10 @@ func (s *UserService) UpdateUserPassword(input UpdatePasswordInput) error {
 			return errors.New("用户不存在")
 		}
 		return err
+	}
+	// 演示站安全策略：管理员密码固定由环境/数据库维护，前端接口不允许改动。
+	if user.Role == "admin" {
+		return errors.New("管理员密码不允许通过前端修改，请使用数据库维护")
 	}
 
 	// 验证新密码

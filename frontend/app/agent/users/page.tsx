@@ -197,6 +197,10 @@ export default function UsersPage(props: any = {}) {
 
   // 打开修改密码对话框
   const handleOpenPassword = (user: UserSummary) => {
+    if (user.role === "admin") {
+      toast.error("管理员密码仅支持数据库修改，前端已禁用");
+      return;
+    }
     setSelectedUser(user);
     setPasswordForm({
       old_password: "",
@@ -241,6 +245,10 @@ export default function UsersPage(props: any = {}) {
 
   // 打开删除对话框
   const handleOpenDelete = (user: UserSummary) => {
+    if (user.role === "admin") {
+      toast.error("管理员账号仅支持数据库删除，前端已禁用");
+      return;
+    }
     setSelectedUser(user);
     setDeleteDialogOpen(true);
   };
@@ -371,6 +379,8 @@ export default function UsersPage(props: any = {}) {
                     size="sm"
                     onClick={() => handleOpenPassword(user)}
                     className="flex-1"
+                    disabled={user.role === "admin"}
+                    title={user.role === "admin" ? "管理员密码仅支持数据库修改" : ""}
                   >
                     <Lock className="w-4 h-4 mr-1" />
                     密码
@@ -379,8 +389,14 @@ export default function UsersPage(props: any = {}) {
                     variant="destructive"
                     size="sm"
                     onClick={() => handleOpenDelete(user)}
-                    disabled={user.id === agent.id}
-                    title={user.id === agent.id ? "不能删除当前登录用户" : ""}
+                    disabled={user.id === agent.id || user.role === "admin"}
+                    title={
+                      user.role === "admin"
+                        ? "管理员账号仅支持数据库删除"
+                        : user.id === agent.id
+                          ? "不能删除当前登录用户"
+                          : ""
+                    }
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
