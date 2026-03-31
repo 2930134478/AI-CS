@@ -35,7 +35,7 @@ type Conversation struct {
 	Browser   string `json:"browser" gorm:"type:varchar(100)"`   // 浏览器信息
 	OS        string `json:"os" gorm:"type:varchar(100)"`        // 操作系统
 	Language  string `json:"language" gorm:"type:varchar(50)"`   // 语言
-	IPAddress string `json:"ip_address" gorm:"type:varchar(50)"` // IP地址
+	IPAddress string `json:"ip_address" gorm:"type:varchar(255)"` // IP地址（含 IPv6；经代理时仅存 X-Forwarded-For 首段）
 	Location  string `json:"location" gorm:"type:varchar(200)"`  // 位置
 	// 联系信息字段（客服手动添加）
 	Email string `json:"email" gorm:"type:varchar(255)"` // 邮箱

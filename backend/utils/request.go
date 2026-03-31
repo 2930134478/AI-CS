@@ -9,16 +9,38 @@ import (
 // GetClientIP 获取客户端 IP 地址（考虑代理情况）
 func GetClientIP(c *gin.Context) string {
 	// 优先从 X-Forwarded-For 获取（适用于代理/负载均衡）
-	ip := strings.TrimSpace(c.GetHeader("X-Forwarded-For"))
-	if ip != "" {
-		return ip
+	// 标准格式为「客户端, 代理1, 代理2」；数据库存 varchar 时整串会超长，只取第一项。
+	xff := strings.TrimSpace(c.GetHeader("X-Forwarded-For"))
+	if xff != "" {
+		if first := firstXForwardedForClient(xff); first != "" {
+			return sanitizeIPForDB(first)
+		}
 	}
-	// 从 X-Real-IP 获取
-	ip = strings.TrimSpace(c.GetHeader("X-Real-IP"))
+	ip := strings.TrimSpace(c.GetHeader("X-Real-IP"))
 	if ip != "" {
-		return ip
+		return sanitizeIPForDB(ip)
 	}
-	return c.ClientIP()
+	return sanitizeIPForDB(c.ClientIP())
+}
+
+func firstXForwardedForClient(xff string) string {
+	for _, part := range strings.Split(xff, ",") {
+		s := strings.TrimSpace(part)
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// sanitizeIPForDB 限制长度，避免异常头或未来字段变更再次撑爆列。
+func sanitizeIPForDB(ip string) string {
+	ip = strings.TrimSpace(ip)
+	const maxLen = 255
+	if len(ip) > maxLen {
+		return ip[:maxLen]
+	}
+	return ip
 }
 
 // ParseUserAgent 从 User-Agent 字符串中解析浏览器和操作系统
