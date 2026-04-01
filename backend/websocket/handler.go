@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/2930134478/AI-CS/backend/repository"
+	"github.com/2930134478/AI-CS/backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -19,7 +21,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // HandleWebSocket 处理 WebSocket 连接
-func HandleWebSocket(hub *Hub) gin.HandlerFunc {
+func HandleWebSocket(hub *Hub, userRepo *repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 从查询参数获取对话ID
 		conversationIDStr := c.Query("conversation_id")
@@ -42,9 +44,30 @@ func HandleWebSocket(hub *Hub) gin.HandlerFunc {
 		var agentID uint
 		if !isVisitor {
 			agentIDStr := c.Query("agent_id")
-			if agentIDStr != "" {
-				if parsed, err := strconv.ParseUint(agentIDStr, 10, 32); err == nil {
-					agentID = uint(parsed)
+			if agentIDStr == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "agent_id 不能为空"})
+				return
+			}
+			parsed, parseErr := strconv.ParseUint(agentIDStr, 10, 32)
+			if parseErr != nil || parsed == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "无效的 agent_id"})
+				return
+			}
+			agentID = uint(parsed)
+			wsToken := c.Query("ws_token")
+			if !utils.ValidateWSToken(wsToken, agentID) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "ws_token 无效或已过期"})
+				return
+			}
+			if userRepo != nil {
+				user, userErr := userRepo.GetByID(agentID)
+				if userErr != nil || user == nil {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "客服身份无效"})
+					return
+				}
+				if user.Role != "admin" && user.Role != "agent" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "仅客服账号允许建立该连接"})
+					return
 				}
 			}
 		}

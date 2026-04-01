@@ -42,25 +42,44 @@ type Hub struct {
 	// 回调函数
 	onConnect    OnClientConnectCallback
 	onDisconnect OnClientDisconnectCallback
+	// 分布式事件总线（可选，启用后支持多实例广播一致性）
+	bus DistributedBus
 }
 
 // Message 是要广播的消息
 type Message struct {
 	ConversationID uint        `json:"conversation_id"`
-	Data           interface{} `json:"data"` // 消息内容（可以是 Message 对象）
-	Type           string      `json:"type"` // 消息类型：new_message, conversation_update 等
+	Data           interface{} `json:"data"`            // 消息内容（可以是 Message 对象）
+	Type           string      `json:"type"`            // 消息类型：new_message, conversation_update 等
+	Scope          string      `json:"scope,omitempty"` // conversation | all_agents
+	FromRemote     bool        `json:"-"`
 }
 
 // NewHub 创建一个新的 Hub
-func NewHub(onConnect OnClientConnectCallback, onDisconnect OnClientDisconnectCallback) *Hub {
-	return &Hub{
+func NewHub(onConnect OnClientConnectCallback, onDisconnect OnClientDisconnectCallback, bus DistributedBus) *Hub {
+	h := &Hub{
 		conversations: make(map[uint]map[*Client]bool),
 		register:      make(chan *Client),
 		unregister:    make(chan *Client),
 		broadcast:     make(chan *Message, 256),
 		onConnect:     onConnect,
 		onDisconnect:  onDisconnect,
+		bus:           bus,
 	}
+	if bus != nil {
+		bus.Subscribe(func(msg *Message) {
+			if msg == nil {
+				return
+			}
+			msg.FromRemote = true
+			select {
+			case h.broadcast <- msg:
+			default:
+				log.Printf("⚠️ 分布式消息队列拥塞，丢弃事件: 对话ID=%d, 类型=%s", msg.ConversationID, msg.Type)
+			}
+		})
+	}
+	return h
 }
 
 // Run 启动 Hub，处理所有事件
@@ -139,32 +158,24 @@ func (h *Hub) Run() {
 
 		// 广播消息
 		case message := <-h.broadcast:
-			h.mu.RLock()
-			// 找到这个对话的所有客户端
-			clients, ok := h.conversations[message.ConversationID]
-			if !ok {
-				h.mu.RUnlock()
-				log.Printf("⚠️ 广播消息失败: 对话ID=%d 没有客户端连接", message.ConversationID)
+			if message == nil {
 				continue
 			}
-			// 创建一个客户端列表的副本（避免在遍历时修改）
-			clientList := make([]*Client, 0, len(clients))
-			for client := range clients {
-				clientList = append(clientList, client)
+			if message.Scope == "all_agents" {
+				clients := h.snapshotAllAgents()
+				h.sendToClients(clients, message)
+			} else {
+				clients := h.snapshotConversationClients(message.ConversationID)
+				if len(clients) == 0 {
+					log.Printf("⚠️ 广播消息失败: 对话ID=%d 没有客户端连接", message.ConversationID)
+				} else {
+					h.sendToClients(clients, message)
+				}
 			}
-			h.mu.RUnlock()
-
-			// 给所有客户端发送消息
-			for _, client := range clientList {
-				select {
-				case client.send <- message:
-				default:
-					// 如果发送失败（客户端可能已经断开），关闭连接
-					log.Printf("⚠️ 发送消息失败: 对话ID=%d, 客户端断开", client.conversationID)
-					close(client.send)
-					h.mu.Lock()
-					delete(h.conversations[client.conversationID], client)
-					h.mu.Unlock()
+			// 仅本地源事件向分布式总线发布，远端同步过来的事件不再二次发布（避免回环）。
+			if h.bus != nil && !message.FromRemote {
+				if err := h.bus.Publish(message); err != nil {
+					log.Printf("⚠️ 分布式广播失败: 对话ID=%d, 类型=%s, 错误=%v", message.ConversationID, message.Type, err)
 				}
 			}
 		}
@@ -177,62 +188,18 @@ func (h *Hub) BroadcastMessage(conversationID uint, messageType string, data int
 		ConversationID: conversationID,
 		Type:           messageType,
 		Data:           data,
+		Scope:          "conversation",
 	}
 }
 
 // BroadcastToAllAgents 广播消息到所有客服客户端（不管连接到哪个对话）
 // 用于 visitor_status_update 等需要所有客服都收到的事件
 func (h *Hub) BroadcastToAllAgents(messageType string, data interface{}) {
-	h.mu.RLock()
-	// 收集所有客服客户端（isVisitor == false）
-	allAgents := make([]*Client, 0)
-	for _, clients := range h.conversations {
-		for client := range clients {
-			if !client.isVisitor {
-				allAgents = append(allAgents, client)
-			}
-		}
-	}
-	h.mu.RUnlock()
-
-	// 为每个客服客户端创建消息并发送
-	for _, client := range allAgents {
-		// 如果 data 是 Message 对象，使用消息的 conversation_id
-		// 否则使用客户端连接的对话ID
-		var conversationID uint
-		if msg, ok := data.(*models.Message); ok {
-			conversationID = msg.ConversationID
-		} else if convID, ok := data.(map[string]interface{})["conversation_id"]; ok {
-			if id, ok := convID.(uint); ok {
-				conversationID = id
-			} else if id, ok := convID.(float64); ok {
-				conversationID = uint(id)
-			} else {
-				conversationID = client.conversationID
-			}
-		} else {
-			conversationID = client.conversationID
-		}
-		message := &Message{
-			ConversationID: conversationID,
-			Type:           messageType,
-			Data:           data,
-		}
-		select {
-		case client.send <- message:
-		default:
-			// 如果发送失败（客户端可能已经断开），关闭连接
-			log.Printf("⚠️ 发送消息到客服失败: 对话ID=%d, 客户端断开", client.conversationID)
-			close(client.send)
-			h.mu.Lock()
-			if clients, ok := h.conversations[client.conversationID]; ok {
-				delete(clients, client)
-				if len(clients) == 0 {
-					delete(h.conversations, client.conversationID)
-				}
-			}
-			h.mu.Unlock()
-		}
+	h.broadcast <- &Message{
+		ConversationID: conversationIDFromData(data, 0),
+		Type:           messageType,
+		Data:           data,
+		Scope:          "all_agents",
 	}
 }
 
@@ -251,4 +218,72 @@ func (h *Hub) GetOnlineAgentIDs() map[uint]bool {
 		}
 	}
 	return agentIDs
+}
+
+func (h *Hub) snapshotConversationClients(conversationID uint) []*Client {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	clients := h.conversations[conversationID]
+	out := make([]*Client, 0, len(clients))
+	for c := range clients {
+		out = append(out, c)
+	}
+	return out
+}
+
+func (h *Hub) snapshotAllAgents() []*Client {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make([]*Client, 0)
+	for _, clients := range h.conversations {
+		for c := range clients {
+			if !c.isVisitor {
+				out = append(out, c)
+			}
+		}
+	}
+	return out
+}
+
+func (h *Hub) sendToClients(clients []*Client, message *Message) {
+	for _, client := range clients {
+		select {
+		case client.send <- message:
+		default:
+			log.Printf("⚠️ 发送消息失败: 对话ID=%d, 客户端断开", client.conversationID)
+			h.mu.Lock()
+			if cc, ok := h.conversations[client.conversationID]; ok {
+				delete(cc, client)
+				if len(cc) == 0 {
+					delete(h.conversations, client.conversationID)
+				}
+			}
+			h.mu.Unlock()
+			safeClose(client.send)
+		}
+	}
+}
+
+func safeClose(ch chan *Message) {
+	defer func() {
+		_ = recover()
+	}()
+	close(ch)
+}
+
+func conversationIDFromData(data interface{}, fallback uint) uint {
+	if msg, ok := data.(*models.Message); ok {
+		return msg.ConversationID
+	}
+	if m, ok := data.(map[string]interface{}); ok {
+		if convID, ok2 := m["conversation_id"]; ok2 {
+			switch v := convID.(type) {
+			case uint:
+				return v
+			case float64:
+				return uint(v)
+			}
+		}
+	}
+	return fallback
 }

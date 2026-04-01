@@ -260,11 +260,17 @@ export default function UsersPage(props: any = {}) {
     }
     setSubmitting(true);
     try {
-      await deleteUser(selectedUser.id, agent.id);
+      const result = await deleteUser(selectedUser.id, agent.id);
       setDeleteDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
-      toast.success("删除成功");
+      if (result.transferredAIConfigs > 0) {
+        toast.success(
+          `删除成功，已自动转移 ${result.transferredAIConfigs} 条 AI 配置到当前管理员`
+        );
+      } else {
+        toast.success("删除成功");
+      }
     } catch (error) {
       toast.error((error as Error).message || "删除用户失败");
     } finally {
@@ -736,7 +742,7 @@ export default function UsersPage(props: any = {}) {
                 确定要删除用户 <strong>{selectedUser.username}</strong> 吗？
               </p>
               <p className="text-sm text-muted-foreground">
-                此操作不可恢复，请谨慎操作。
+                此操作不可恢复。若该用户有 AI 配置，系统会自动转移给当前管理员，避免配置丢失。
               </p>
               <div className="flex justify-end gap-2">
                 <Button

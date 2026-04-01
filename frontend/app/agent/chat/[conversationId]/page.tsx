@@ -24,6 +24,7 @@ import {
 } from "@/features/agent/types";
 import type { WSMessage } from "@/lib/websocket";
 import { toast } from "@/hooks/useToast";
+import { getAgentWSToken } from "@/utils/storage";
 
 export default function AgentChatPage() {
   const params = useParams();
@@ -49,6 +50,7 @@ export default function AgentChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [sending, setSending] = useState(false);
   const [highlightKeyword, setHighlightKeyword] = useState("");
+  const wsToken = getAgentWSToken() ?? undefined;
 
   const handleMarkMessagesRead = useCallback(
     async (
@@ -336,6 +338,9 @@ export default function AgentChatPage() {
   useWebSocket<ChatWebSocketPayload>({
     conversationId,
     enabled: Boolean(conversationId),
+    isVisitor: false,
+    agentId: agent?.id ?? undefined,
+    wsToken,
     onMessage: handleWebSocketMessage,
     onError: (error) => {
       // 静默处理错误，避免影响用户体验

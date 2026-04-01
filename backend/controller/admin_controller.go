@@ -58,9 +58,9 @@ func (a *AdminController) checkAdminPermission(c *gin.Context) (uint, bool) {
 }
 
 type createAgentRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Username    string   `json:"username"`
+	Password    string   `json:"password"`
+	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
 }
 
@@ -155,12 +155,12 @@ func (a *AdminController) CreateUser(c *gin.Context) {
 	_ = currentUserID
 
 	var req struct {
-		Username string  `json:"username"`
-		Password string  `json:"password"`
-		Role     string  `json:"role"`
+		Username    string   `json:"username"`
+		Password    string   `json:"password"`
+		Role        string   `json:"role"`
 		Permissions []string `json:"permissions"`
-		Nickname *string `json:"nickname"`
-		Email    *string `json:"email"`
+		Nickname    *string  `json:"nickname"`
+		Email       *string  `json:"email"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -169,12 +169,12 @@ func (a *AdminController) CreateUser(c *gin.Context) {
 	}
 
 	user, err := a.userService.CreateUser(service.CreateUserInput{
-		Username: req.Username,
-		Password: req.Password,
-		Role:     req.Role,
+		Username:    req.Username,
+		Password:    req.Password,
+		Role:        req.Role,
 		Permissions: req.Permissions,
-		Nickname: req.Nickname,
-		Email:    req.Email,
+		Nickname:    req.Nickname,
+		Email:       req.Email,
 	})
 	if err != nil {
 		switch err {
@@ -211,11 +211,11 @@ func (a *AdminController) UpdateUser(c *gin.Context) {
 	}
 
 	var req struct {
-		Role                   *string `json:"role"`
+		Role                   *string   `json:"role"`
 		Permissions            *[]string `json:"permissions"`
-		Nickname               *string `json:"nickname"`
-		Email                  *string `json:"email"`
-		ReceiveAIConversations *bool   `json:"receive_ai_conversations"`
+		Nickname               *string   `json:"nickname"`
+		Email                  *string   `json:"email"`
+		ReceiveAIConversations *bool     `json:"receive_ai_conversations"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -263,7 +263,8 @@ func (a *AdminController) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := a.userService.DeleteUser(uint(id), currentUserID); err != nil {
+	transferred, err := a.userService.DeleteUser(uint(id), currentUserID)
+	if err != nil {
 		if err.Error() == "用户不存在" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		} else {
@@ -273,7 +274,10 @@ func (a *AdminController) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	c.JSON(http.StatusOK, gin.H{
+		"message":                "删除成功",
+		"transferred_ai_configs": transferred,
+	})
 }
 
 // UpdateUserPassword 处理更新用户密码的请求。

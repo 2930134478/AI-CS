@@ -145,7 +145,7 @@ export async function updateUser(
 export async function deleteUser(
   id: number,
   currentUserId: number
-): Promise<void> {
+): Promise<{ transferredAIConfigs: number }> {
   const res = await fetch(
     `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
     {
@@ -162,6 +162,13 @@ export async function deleteUser(
     }
     throw new Error(error.error || "删除用户失败");
   }
+  const data = await res.json().catch(() => ({}));
+  return {
+    transferredAIConfigs:
+      typeof data.transferred_ai_configs === "number"
+        ? data.transferred_ai_configs
+        : 0,
+  };
 }
 
 // 更新用户密码

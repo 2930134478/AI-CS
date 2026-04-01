@@ -19,6 +19,7 @@ var (
 
 // MessageService 负责消息领域的业务处理。
 type MessageService struct {
+	db            *gorm.DB
 	conversations *repository.ConversationRepository
 	messages      *repository.MessageRepository
 	hub           BroadcastHub
@@ -27,12 +28,14 @@ type MessageService struct {
 
 // NewMessageService 创建 MessageService 实例。
 func NewMessageService(
+	db *gorm.DB,
 	conversations *repository.ConversationRepository,
 	messages *repository.MessageRepository,
 	hub BroadcastHub,
 	aiService *AIService,
 ) *MessageService {
 	return &MessageService{
+		db:            db,
 		conversations: conversations,
 		messages:      messages,
 		hub:           hub,
@@ -42,56 +45,76 @@ func NewMessageService(
 
 // CreateMessage 创建消息并通过 WebSocket 广播。
 func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Message, error) {
-	conv, err := s.conversations.GetByID(input.ConversationID)
+	if s.db == nil {
+		return nil, errors.New("db is not initialized")
+	}
+	var (
+		conv    models.Conversation
+		message *models.Message
+	)
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", input.ConversationID).First(&conv).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrConversationNotFound
+			}
+			return err
+		}
+
+		// B 方案：会话关闭后，如访客再次发消息则自动 reopen
+		if conv.Status == "closed" {
+			if input.SenderIsAgent {
+				return ErrConversationClosed
+			}
+			if err := tx.Model(&models.Conversation{}).Where("id = ?", conv.ID).Updates(map[string]interface{}{
+				"status": "open",
+			}).Error; err != nil {
+				return err
+			}
+			conv.Status = "open"
+		}
+
+		if input.SenderIsAgent && input.SenderID == 0 {
+			return errors.New("sender_id is required for agent messages")
+		}
+
+		message = &models.Message{
+			ConversationID: input.ConversationID,
+			SenderID:       input.SenderID,
+			SenderIsAgent:  input.SenderIsAgent,
+			Content:        input.Content,
+			MessageType:    "user_message",
+			ChatMode:       conv.ChatMode,
+			IsRead:         false,
+			FileURL:        input.FileURL,
+			FileType:       input.FileType,
+			FileName:       input.FileName,
+			FileSize:       input.FileSize,
+			MimeType:       input.MimeType,
+		}
+		if err := tx.Create(message).Error; err != nil {
+			return err
+		}
+
+		// 如果客服发送消息，且会话的 agent_id 为 0，则更新为当前客服的 ID
+		updateFields := map[string]interface{}{
+			"updated_at": message.CreatedAt,
+		}
+		// 访客发送消息可视为在线心跳：同步刷新 last_seen_at，支撑客服端在线状态判定。
+		if !input.SenderIsAgent {
+			updateFields["last_seen_at"] = message.CreatedAt
+		}
+		if input.SenderIsAgent && input.SenderID > 0 && conv.AgentID == 0 {
+			updateFields["agent_id"] = input.SenderID
+		}
+		if err := tx.Model(&models.Conversation{}).Where("id = ?", conv.ID).Updates(updateFields).Error; err != nil {
+			return err
+		}
+		if agentID, ok := updateFields["agent_id"].(uint); ok {
+			conv.AgentID = agentID
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	// B 方案：会话关闭后，如访客再次发消息则自动 reopen
-	if conv.Status == "closed" {
-		if input.SenderIsAgent {
-			return nil, ErrConversationClosed
-		}
-		if err := s.conversations.UpdateFields(conv.ID, map[string]interface{}{
-			"status": "open",
-		}); err != nil {
-			return nil, err
-		}
-		conv.Status = "open"
-	}
-
-	if input.SenderIsAgent && input.SenderID == 0 {
-		return nil, errors.New("sender_id is required for agent messages")
-	}
-
-	message := &models.Message{
-		ConversationID: input.ConversationID,
-		SenderID:       input.SenderID,
-		SenderIsAgent:  input.SenderIsAgent,
-		Content:        input.Content,
-		MessageType:    "user_message",
-		ChatMode:       conv.ChatMode,
-		IsRead:         false,
-		FileURL:        input.FileURL,
-		FileType:       input.FileType,
-		FileName:       input.FileName,
-		FileSize:       input.FileSize,
-		MimeType:       input.MimeType,
-	}
-
-	if err := s.messages.Create(message); err != nil {
-		return nil, err
-	}
-
-	// 如果客服发送消息，且会话的 agent_id 为 0，则更新为当前客服的 ID
-	updateFields := map[string]interface{}{
-		"updated_at": message.CreatedAt,
-	}
-	if input.SenderIsAgent && input.SenderID > 0 && conv.AgentID == 0 {
-		updateFields["agent_id"] = input.SenderID
-	}
-
-	if err := s.conversations.UpdateFields(conv.ID, updateFields); err != nil {
 		return nil, err
 	}
 

@@ -68,7 +68,7 @@ export function OnlineAgentsList({
         ))}
       </div>
       <p className="text-sm font-medium text-muted-foreground text-center pt-1">
-        有疑问吗？联系我们！
+        有疑问吗？联系我们，请不要关闭窗口！
       </p>
     </div>
   );

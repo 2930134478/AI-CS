@@ -61,7 +61,8 @@ export function buildMessagePreview(content: string, maxLength = 50): string {
 }
 
 // 判断访客是否在线（根据 last_seen_at 字段）
-// 如果 last_seen_at 在最近 10 秒内，则认为在线
+// 说明：10 秒阈值在公网环境（代理、弱网、移动端切后台）容易抖动，体验上会“刚说完就离线”。
+// 这里放宽到 90 秒，减少误判闪断。
 export function isVisitorOnline(lastSeenAt: string | null | undefined): boolean {
   if (!lastSeenAt) {
     return false;
@@ -72,7 +73,7 @@ export function isVisitorOnline(lastSeenAt: string | null | undefined): boolean 
   }
   const now = new Date();
   const diff = now.getTime() - lastSeen.getTime();
-  // 10 秒内认为在线
-  return diff < 10 * 1000;
+  // 90 秒内认为在线
+  return diff < 90 * 1000;
 }
 

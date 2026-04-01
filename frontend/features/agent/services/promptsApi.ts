@@ -18,7 +18,8 @@ export async function fetchPrompts(userId: number): Promise<PromptItem[]> {
     headers: getAgentHeaders(),
   });
   if (!res.ok) {
-    throw new Error("获取提示词配置失败");
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || "获取提示词配置失败");
   }
   const contentType = res.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {

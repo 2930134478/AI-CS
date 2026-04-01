@@ -13,12 +13,16 @@ import (
 
 // UserService 负责用户管理领域的业务编排。
 type UserService struct {
-	users *repository.UserRepository
+	users     *repository.UserRepository
+	aiConfigs *repository.AIConfigRepository
 }
 
 // NewUserService 创建 UserService 实例。
-func NewUserService(users *repository.UserRepository) *UserService {
-	return &UserService{users: users}
+func NewUserService(users *repository.UserRepository, aiConfigs *repository.AIConfigRepository) *UserService {
+	return &UserService{
+		users:     users,
+		aiConfigs: aiConfigs,
+	}
 }
 
 // EffectivePermissions 计算用户“有效权限”。
@@ -256,32 +260,49 @@ func (s *UserService) UpdateUser(input UpdateUserInput) (*UserSummary, error) {
 }
 
 // DeleteUser 删除用户。
-func (s *UserService) DeleteUser(id uint, currentUserID uint) error {
+// 说明：为避免“孤儿配置”，删除前会将该用户名下 AI 配置自动转移给当前管理员。
+func (s *UserService) DeleteUser(id uint, currentUserID uint) (int64, error) {
 	// 防止删除当前登录用户
 	if id == currentUserID {
-		return errors.New("不能删除当前登录用户")
+		return 0, errors.New("不能删除当前登录用户")
 	}
 
 	// 检查用户是否存在并获取用户信息
 	user, err := s.users.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("用户不存在")
+			return 0, errors.New("用户不存在")
 		}
-		return err
+		return 0, err
 	}
 
 	// 演示站安全策略：管理员账号只能通过数据库维护，接口层禁止删除任何管理员。
 	if user.Role == "admin" {
-		return errors.New("管理员账号不允许通过前端删除，请使用数据库维护")
+		return 0, errors.New("管理员账号不允许通过前端删除，请使用数据库维护")
+	}
+
+	// 将被删除用户名下 AI 配置转移到当前管理员，避免配置成为“无人维护”的孤儿数据。
+	transferred := int64(0)
+	if s.aiConfigs != nil {
+		configCount, countErr := s.aiConfigs.CountByUserID(id)
+		if countErr != nil {
+			return 0, fmt.Errorf("统计用户关联 AI 配置失败: %w", countErr)
+		}
+		if configCount > 0 {
+			moved, moveErr := s.aiConfigs.ReassignUser(id, currentUserID)
+			if moveErr != nil {
+				return 0, fmt.Errorf("转移用户关联 AI 配置失败: %w", moveErr)
+			}
+			transferred = moved
+		}
 	}
 
 	// 执行删除
 	if err := s.users.Delete(id); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return transferred, nil
 }
 
 // UpdateUserPassword 更新用户密码。
@@ -329,4 +350,3 @@ func (s *UserService) UpdateUserPassword(input UpdatePasswordInput) error {
 
 	return nil
 }
-

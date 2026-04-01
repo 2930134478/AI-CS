@@ -3,6 +3,22 @@
 > 开源的 AI 客服系统：**AI + 人工一体**、可私有化部署、可配置、可观测。  
 > 适合把“官网右下角客服小窗”与“客服工作台”一起落地的团队。
 
+## 界面预览
+
+> 以下为当前版本关键界面截图（本地预览路径）。
+
+**官网首页（核心能力模块）**
+
+![官网首页（核心能力模块）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-c4852687-51e5-47ec-b85c-35413a8b19b6.png)
+
+**客服小窗（人工客服模式）**
+
+![客服小窗（人工客服模式）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-81a593c2-6820-40da-907d-118032ed5e54.png)
+
+**客服小窗（AI 客服模式）**
+
+![客服小窗（AI 客服模式）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-65d7a08f-e812-4d40-95ed-24f10df81516.png)
+
 ## 在线演示
 
 - **官网首页（产品介绍 + SEO）**：[demo.cscorp.top](https://demo.cscorp.top)
@@ -79,6 +95,7 @@ docker-compose -f docker-compose.prod.yml up -d
 - 出于演示环境安全，前端默认**不允许**：
   - 修改 `admin` 账号密码
   - 删除任意 `admin` 账号
+- 删除 `agent` 用户时，系统会自动把其名下 AI 配置转移给当前管理员，避免配置丢失或无人维护。
 - 若需维护管理员账号，请直接通过数据库操作（例如重置密码、删除异常管理员）。
 
 #### 端口修改（重要说明）
@@ -140,6 +157,11 @@ npm run dev
 | `ADMIN_USERNAME` | 默认管理员用户名 | 否 | `admin` | `admin` |
 | `ADMIN_PASSWORD` | 默认管理员密码 | 是 | 无 | `AdminPwd` |
 | `ENCRYPTION_KEY` | 后端加密密钥（64位 hex） | 是 | 无 | `openssl rand -hex 32` |
+| `REDIS_URL` | Redis 连接串（启用跨实例 WS 广播） | 可选（多实例推荐） | 空 | `redis://:pwd@redis:6379/0` |
+| `REDIS_ADDR` | Redis 地址（与 `REDIS_URL` 二选一） | 可选 | 空 | `redis:6379` |
+| `REDIS_PASSWORD` | Redis 密码（使用 `REDIS_ADDR` 时） | 可选 | 空 | `StrongRedisPwd` |
+| `REDIS_DB` | Redis DB（使用 `REDIS_ADDR` 时） | 可选 | `0` | `0` |
+| `REDIS_WS_CHANNEL` | 分布式 WS 事件频道名 | 可选 | `ai_cs:ws_events` | `ai_cs:ws_events` |
 | `BACKEND_PORT` | 后端映射到宿主机端口 | 否 | `18080` | `28080` |
 | `FRONTEND_PORT` | 前端映射到宿主机端口 | 否 | `3000` | `13000` |
 | `MILVUS_HOST` | 向量库地址 | 可选（启用 RAG） | `milvus-standalone` | `localhost` |
@@ -165,6 +187,12 @@ npm run dev
   - 应用仍可启动，AI 对话与人工客服不受影响
 - **你必须依赖知识库**（生产强约束）：把 `.env` 里 `MILVUS_REQUIRED=true`
   - 此时如果 Milvus 不可用，会落库一条错误日志后退出，避免“半残服务上线”
+
+## 多实例实时消息一致性（Redis）
+
+- 单实例可不配置 Redis，系统维持当前行为。
+- 多实例/多副本部署建议配置 `REDIS_URL`（或 `REDIS_ADDR` + `REDIS_PASSWORD` + `REDIS_DB`），用于 WebSocket 事件跨实例同步。
+- 可通过 `REDIS_WS_CHANNEL` 自定义事件频道（默认 `ai_cs:ws_events`）。
 
 ## 集成访客小窗到你的网站（iframe）
 
@@ -204,7 +232,7 @@ npm run dev
 - **提示音听不到**：浏览器通常需要“用户一次交互”才能解锁音频；请先点一下页面任意按钮/再打开喇叭开关测试
 - **向量库连不上导致启动失败**：检查 `.env` 的 `MILVUS_REQUIRED` 是否误开；不需要知识库时建议 `MILVUS_DISABLED=true`
 - **搜不到站点/分享卡片不正确**：设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，用于 canonical / OG / sitemap 生成
-
+          
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request。

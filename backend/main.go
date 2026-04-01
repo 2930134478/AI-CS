@@ -344,7 +344,7 @@ func main() {
 	profileService := service.NewProfileService(userRepo, storageService)
 	aiConfigService := service.NewAIConfigService(aiConfigRepo, userRepo)
 	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService, webSearchProvider, embeddingConfigService, promptConfigService, storageService, systemLogService)
-	userService := service.NewUserService(userRepo)                                                            // 用户管理服务
+	userService := service.NewUserService(userRepo, aiConfigRepo)                                              // 用户管理服务
 	faqService := service.NewFAQService(faqRepo, retrievalService, documentEmbeddingService)                   // FAQ 管理服务
 	documentService := service.NewDocumentService(docRepo, kbRepo, documentEmbeddingService, retrievalService) // 文档管理服务
 	knowledgeBaseService := service.NewKnowledgeBaseService(kbRepo, docRepo)                                   // 知识库管理服务
@@ -452,16 +452,29 @@ func main() {
 	}
 
 	// 创建 Hub（回调函数通过闭包访问 wsHub）
-	wsHub = websocket.NewHub(onConnect, onDisconnect)
+	// 可选启用 Redis Pub/Sub：配置 REDIS_URL 或 REDIS_ADDR 后自动开启跨实例广播。
+	wsBus, wsBusErr := websocket.NewRedisBusFromEnv()
+	if wsBusErr != nil {
+		log.Printf("⚠️ Redis Pub/Sub 初始化失败，将回退为单实例广播: %v", wsBusErr)
+	}
+	if wsBus != nil {
+		defer func() {
+			if err := wsBus.Close(); err != nil {
+				log.Printf("关闭 Redis Pub/Sub 失败: %v", err)
+			}
+		}()
+		log.Println("✅ 已启用 Redis Pub/Sub 跨实例广播")
+	}
+	wsHub = websocket.NewHub(onConnect, onDisconnect, wsBus)
 	go wsHub.Run() // 启动 Hub（在后台运行）
 
-	messageService := service.NewMessageService(conversationRepo, messageRepo, wsHub, aiService)
+	messageService := service.NewMessageService(db, conversationRepo, messageRepo, wsHub, aiService)
 	visitorService := service.NewVisitorService(userRepo, wsHub)
 
 	// 初始化控制器
 	authController := controller.NewAuthController(authService)
 	conversationController := controller.NewConversationController(conversationService, aiConfigService, userService)
-	messageController := controller.NewMessageController(messageService, conversationService, storageService)
+	messageController := controller.NewMessageController(messageService, conversationService, userService, storageService)
 	adminController := controller.NewAdminController(authService, userService)
 	profileController := controller.NewProfileController(profileService)
 	aiConfigController := controller.NewAIConfigController(aiConfigService, userService)
@@ -499,7 +512,7 @@ func main() {
 			Analytics:       analyticsController,
 			SystemLog:       systemLogController,
 		},
-		websocket.HandleWebSocket(wsHub),
+		websocket.HandleWebSocket(wsHub, userRepo),
 	)
 
 	// 配置静态文件服务（用于访问上传的头像等文件）

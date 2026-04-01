@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // FAQ 摘要信息
 export interface FAQSummary {
@@ -35,10 +35,12 @@ export async function fetchFAQs(query?: string): Promise<FAQSummary[]> {
 
   const res = await fetch(url, {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
 
   if (!res.ok) {
-    throw new Error("获取 FAQ 列表失败");
+    const error = await res.json().catch(() => ({}));
+    throw new Error((error as { error?: string }).error || "获取 FAQ 列表失败");
   }
 
   const data = await res.json();
@@ -49,6 +51,7 @@ export async function fetchFAQs(query?: string): Promise<FAQSummary[]> {
 export async function fetchFAQ(id: number): Promise<FAQSummary> {
   const res = await fetch(apiUrl(`/faqs/${id}`), {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
 
   if (!res.ok) {
@@ -65,7 +68,7 @@ export async function fetchFAQ(id: number): Promise<FAQSummary> {
 export async function createFAQ(data: CreateFAQRequest): Promise<FAQSummary> {
   const res = await fetch(apiUrl("/faqs"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
   });
 
@@ -84,7 +87,7 @@ export async function updateFAQ(
 ): Promise<FAQSummary> {
   const res = await fetch(apiUrl(`/faqs/${id}`), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
   });
 
@@ -103,6 +106,7 @@ export async function updateFAQ(
 export async function deleteFAQ(id: number): Promise<void> {
   const res = await fetch(apiUrl(`/faqs/${id}`), {
     method: "DELETE",
+    headers: getAgentHeaders(),
   });
 
   if (!res.ok) {

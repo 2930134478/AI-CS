@@ -115,6 +115,7 @@ export async function updateKnowledgeBase(
 export async function deleteKnowledgeBase(id: number): Promise<void> {
   const res = await fetch(apiUrl(`/knowledge-bases/${id}`), {
     method: "DELETE",
+    headers: getAgentHeaders(),
   });
 
   if (!res.ok) {

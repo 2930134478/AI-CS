@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { setAgentWSToken } from "@/utils/storage";
 
 export default function AgentLoginPage() {
   const [username, setUsername] = useState("");
@@ -42,6 +43,9 @@ export default function AgentLoginPage() {
           "agent_permissions",
           JSON.stringify(Array.isArray(data.permissions) ? data.permissions : [])
         );
+        if (typeof data.ws_token === "string" && typeof data.ws_token_exp === "number") {
+          setAgentWSToken(data.ws_token, data.ws_token_exp);
+        }
 
         // 跳转到客服工作台（三栏布局）
         router.push("/agent/dashboard");

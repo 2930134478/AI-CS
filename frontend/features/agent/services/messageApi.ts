@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 import { MessageItem } from "../types";
 import { reportFrontendLog } from "./systemLogApi";
 
@@ -172,7 +172,7 @@ export async function sendMessage({
 
   const res = await fetch(apiUrl("/messages"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {

@@ -8,10 +8,16 @@ import {
 } from "../../agent/services/conversationApi";
 import type { ConversationListType } from "../../agent/services/conversationApi";
 import type { ConversationStatus } from "../../agent/services/conversationApi";
-import { ConversationSummary, VisitorStatusUpdatePayload } from "../../agent/types";
+import {
+  ConversationSummary,
+  MessageItem,
+  VisitorStatusUpdatePayload,
+} from "../../agent/types";
 import { useWebSocket } from "./useWebSocket";
 import { WSMessage } from "@/lib/websocket";
 import { ChatWebSocketPayload } from "../../agent/types";
+import { buildMessagePreview } from "@/utils/format";
+import { getAgentWSToken } from "@/utils/storage";
 
 const sortByUpdatedAtDesc = (list: ConversationSummary[]) =>
   [...list].sort(
@@ -44,6 +50,8 @@ export function useConversations(options?: UseConversationsOptions) {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const searchRef = useRef("");
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsToken = getAgentWSToken() ?? undefined;
 
   // 根据 filter 过滤会话
   const applyFilter = useCallback(
@@ -104,6 +112,17 @@ export function useConversations(options?: UseConversationsOptions) {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // 兜底定时刷新：防止 WebSocket 漏事件/无会话时无法建立全局 WS 导致列表长期不更新。
+  useEffect(() => {
+    if (!agentId) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void loadConversations();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [agentId, loadConversations]);
 
   // 当 filter / listType 改变时，重新应用过滤（不重新加载数据）
   useEffect(() => {
@@ -203,12 +222,21 @@ export function useConversations(options?: UseConversationsOptions) {
     [conversations]
   );
 
+  const scheduleRefreshConversations = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = setTimeout(() => {
+      void loadConversations();
+    }, 500);
+  }, [loadConversations]);
+
   // 建立全局 WebSocket 连接以接收 visitor_status_update 等全局事件
   // 使用第一个对话的 ID（如果存在），否则不建立连接
   const globalConversationId = conversations.length > 0 ? conversations[0].id : null;
 
-  // 处理 visitor_status_update 事件
-  const handleVisitorStatusUpdate = useCallback(
+  // 处理全局 WebSocket 事件：访客在线状态 + 新消息摘要
+  const handleGlobalWebSocketMessage = useCallback(
     (event: WSMessage<ChatWebSocketPayload>) => {
       if (event.type === "visitor_status_update" && event.data) {
         const payload = event.data as VisitorStatusUpdatePayload;
@@ -223,10 +251,59 @@ export function useConversations(options?: UseConversationsOptions) {
           // 离线时，last_seen_at 会在后端更新，这里不需要特殊处理
           // 因为对话列表会定期刷新，或者通过其他方式更新
         }
+      } else if (event.type === "new_message" && event.data) {
+        const message = event.data as MessageItem;
+        if (typeof message?.conversation_id !== "number") {
+          return;
+        }
+        const isConversationExists = hasConversation(message.conversation_id);
+        if (!isConversationExists) {
+          // 新会话（当前列表里还没有）时，延迟刷新把它拉进来
+          scheduleRefreshConversations();
+          return;
+        }
+        const isSystemMessage =
+          (message.message_type ?? "user_message") === "system_message";
+        const isVisitorMessage = !message.sender_is_agent && !isSystemMessage;
+        const preview = buildMessagePreview(message.content ?? "");
+        updateConversation(message.conversation_id, (conv) => ({
+          ...conv,
+          updated_at: message.created_at,
+          last_seen_at: isVisitorMessage
+            ? message.created_at
+            : conv.last_seen_at ?? null,
+          unread_count: isVisitorMessage
+            ? message.conversation_id === selectedConversationId
+              ? 0
+              : (conv.unread_count ?? 0) + 1
+            : conv.unread_count ?? 0,
+          last_message: {
+            id: message.id,
+            content: preview,
+            sender_is_agent: message.sender_is_agent,
+            message_type: message.message_type ?? "user_message",
+            is_read: Boolean(message.is_read),
+            read_at: message.read_at ?? null,
+            created_at: message.created_at,
+          },
+        }));
       }
     },
-    [updateConversation]
+    [
+      hasConversation,
+      scheduleRefreshConversations,
+      selectedConversationId,
+      updateConversation,
+    ]
   );
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 
   // 建立全局 WebSocket 连接（用于接收全局事件）
   useWebSocket<ChatWebSocketPayload>({
@@ -234,7 +311,8 @@ export function useConversations(options?: UseConversationsOptions) {
     enabled: Boolean(globalConversationId && agentId),
     isVisitor: false,
     agentId: agentId ?? undefined,
-    onMessage: handleVisitorStatusUpdate,
+    wsToken,
+    onMessage: handleGlobalWebSocketMessage,
     onError: (error) => {
       // 静默处理错误，避免影响用户体验
     },

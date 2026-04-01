@@ -25,6 +25,7 @@ import { useWebSocket } from "./useWebSocket";
 import { WSMessage } from "@/lib/websocket";
 import { buildMessagePreview } from "@/utils/format";
 import { playNotificationSound } from "@/utils/sound";
+import { getAgentWSToken } from "@/utils/storage";
 
 interface UseMessagesOptions {
   conversationId: number | null;
@@ -60,6 +61,7 @@ export function useMessages({
   const [aiThinking, setAiThinking] = useState(false);
   /** 知识库测试：联网选项 */
   const [needWebSearch, setNeedWebSearch] = useState(false);
+  const wsToken = getAgentWSToken() ?? undefined;
 
   const refreshConversationDetail = useCallback(
     async (id: number) => {
@@ -226,6 +228,10 @@ export function useMessages({
         return {
           ...conversation,
           updated_at: message.created_at,
+          // 访客发言视作在线心跳，刷新 last_seen_at，避免在线绿点快速闪断。
+          last_seen_at: isVisitorMessage
+            ? message.created_at
+            : conversation.last_seen_at ?? null,
           unread_count: nextUnread,
           last_message: {
             id: message.id,
@@ -513,6 +519,7 @@ export function useMessages({
     enabled: Boolean(conversationId),
     isVisitor: false, // 客服端设置为 false
     agentId: agentId ?? undefined, // 传递客服ID，用于创建系统消息
+    wsToken,
     onMessage: onWebSocketMessage,
     onError: (error) => {
       // 静默处理错误，避免影响用户体验

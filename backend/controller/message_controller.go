@@ -18,14 +18,21 @@ import (
 type MessageController struct {
 	messageService     *service.MessageService
 	conversationService *service.ConversationService
+	userService        *service.UserService
 	storageService     infra.StorageService
 }
 
 // NewMessageController 创建 MessageController 实例。
-func NewMessageController(messageService *service.MessageService, conversationService *service.ConversationService, storageService infra.StorageService) *MessageController {
+func NewMessageController(
+	messageService *service.MessageService,
+	conversationService *service.ConversationService,
+	userService *service.UserService,
+	storageService infra.StorageService,
+) *MessageController {
 	return &MessageController{
 		messageService:     messageService,
 		conversationService: conversationService,
+		userService:        userService,
 		storageService:     storageService,
 	}
 }
@@ -53,6 +60,48 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil || req.ConversationID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
+	}
+	userID := getUserIDFromHeader(c)
+	// 若带了客服身份头，则必须按客服消息处理，禁止伪装成访客消息。
+	if userID > 0 && !req.SenderIsAgent {
+		c.JSON(http.StatusForbidden, gin.H{"error": "已登录客服不允许以访客身份发送消息"})
+		return
+	}
+	// 客服消息必须绑定当前登录用户（X-User-Id），并以服务端用户 ID 为准，避免伪造 sender_id。
+	if req.SenderIsAgent {
+		if userID == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+			return
+		}
+		req.SenderID = userID
+		if mc.userService != nil {
+			// 按会话类型进行权限校验：
+			// - visitor 会话：需要 chat 权限
+			// - internal 会话：需要 kb_test 权限，且仅会话创建者可发送
+			detail, err := mc.conversationService.GetConversationDetail(req.ConversationID, userID)
+			if err != nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+				return
+			}
+			if detail.ConversationType == "internal" {
+				if detail.AgentID != userID {
+					c.JSON(http.StatusForbidden, gin.H{"error": "仅内部会话创建者可发送消息"})
+					return
+				}
+				if err := mc.userService.CheckPermission(userID, string(service.PermKBTest)); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+					return
+				}
+			} else {
+				if err := mc.userService.CheckPermission(userID, string(service.PermChat)); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+					return
+				}
+			}
+		}
+	} else {
+		// 访客消息的 sender_id 统一由服务端置 0，避免前端注入。
+		req.SenderID = 0
 	}
 
 	// 验证：必须有内容或文件
@@ -109,6 +158,31 @@ func (mc *MessageController) ListMessages(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "会话ID不合法"})
 		return
 	}
+	if mc.userService != nil {
+		userID := getUserIDFromHeader(c)
+		detail, detailErr := mc.conversationService.GetConversationDetail(uint(conversationID), userID)
+		if detailErr != nil && userID > 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+			return
+		}
+		if detail != nil {
+			if detail.ConversationType == "internal" {
+				if userID == 0 || detail.AgentID != userID {
+					c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问内部会话"})
+					return
+				}
+				if err := mc.userService.CheckPermission(userID, string(service.PermKBTest)); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+					return
+				}
+			} else if userID > 0 {
+				if err := mc.userService.CheckPermission(userID, string(service.PermChat)); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+					return
+				}
+			}
+		}
+	}
 
 	// 解析 include_ai_messages 参数（默认 false）
 	includeAIMessages := c.DefaultQuery("include_ai_messages", "false") == "true"
@@ -133,6 +207,39 @@ func (mc *MessageController) MarkMessagesRead(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil || req.ConversationID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
+	}
+	if mc.userService != nil {
+		userID := getUserIDFromHeader(c)
+		detail, detailErr := mc.conversationService.GetConversationDetail(req.ConversationID, userID)
+		if detailErr != nil && userID > 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+			return
+		}
+		if detail != nil {
+			if detail.ConversationType == "internal" {
+				if userID == 0 || detail.AgentID != userID {
+					c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问内部会话"})
+					return
+				}
+			}
+			if req.ReaderIsAgent {
+				if userID == 0 {
+					c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+					return
+				}
+				if detail.ConversationType == "internal" {
+					if err := mc.userService.CheckPermission(userID, string(service.PermKBTest)); err != nil {
+						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+						return
+					}
+				} else {
+					if err := mc.userService.CheckPermission(userID, string(service.PermChat)); err != nil {
+						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+						return
+					}
+				}
+			}
+		}
 	}
 
 	result, err := mc.messageService.MarkMessagesRead(req.ConversationID, req.ReaderIsAgent)

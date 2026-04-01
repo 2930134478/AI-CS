@@ -51,6 +51,26 @@ func (r *AIConfigRepository) ListByUserID(userID uint) ([]models.AIConfig, error
 	return configs, nil
 }
 
+// CountByUserID 统计指定用户拥有的 AI 配置数量。
+func (r *AIConfigRepository) CountByUserID(userID uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.AIConfig{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// ReassignUser 将某用户名下的 AI 配置归属转移到另一位用户。
+func (r *AIConfigRepository) ReassignUser(fromUserID, toUserID uint) (int64, error) {
+	res := r.db.Model(&models.AIConfig{}).
+		Where("user_id = ?", fromUserID).
+		Update("user_id", toUserID)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
+}
+
 // UpdateFields 更新 AI 配置的指定字段。
 func (r *AIConfigRepository) UpdateFields(id uint, values map[string]interface{}) error {
 	if len(values) == 0 {
@@ -76,4 +96,3 @@ func (r *AIConfigRepository) ListPublic(modelType string) ([]models.AIConfig, er
 	}
 	return configs, nil
 }
-

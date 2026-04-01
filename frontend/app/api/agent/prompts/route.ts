@@ -8,8 +8,12 @@ const BACKEND_BASE = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const backendUrl = `${BACKEND_BASE}/agent/prompts?${searchParams.toString()}`;
+  const userID = request.headers.get("X-User-Id") || "";
   try {
-    const res = await fetch(backendUrl, { cache: "no-store" });
+    const res = await fetch(backendUrl, {
+      cache: "no-store",
+      headers: userID ? { "X-User-Id": userID } : {},
+    });
     const body = await res.text();
     return new NextResponse(body, {
       status: res.status,
@@ -25,11 +29,15 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const backendUrl = `${BACKEND_BASE}/agent/prompts`;
+  const userID = request.headers.get("X-User-Id") || "";
   try {
     const body = await request.text();
     const res = await fetch(backendUrl, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(userID ? { "X-User-Id": userID } : {}),
+      },
       body,
     });
     const resBody = await res.text();
