@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MessageList } from "@/components/dashboard/MessageList";
 import { OnlineAgentsList, type OnlineAgent } from "./OnlineAgentsList";
 import { VisitorMessageInput } from "./VisitorMessageInput";
@@ -11,6 +12,7 @@ import {
   ChatWebSocketPayload,
   MessageItem,
   MessagesReadPayload,
+  TypingDraftPayload,
 } from "@/features/agent/types";
 import {
   fetchMessages,
@@ -29,10 +31,13 @@ import {
   fetchVisitorWidgetConfig,
   type VisitorWidgetConfig,
 } from "@/features/agent/services/embeddingConfigApi";
+import { TYPING_DRAFT_TTL_MS } from "@/lib/constants/typing-draft";
 import { useWebSocket } from "@/features/agent/hooks/useWebSocket";
 import type { WSMessage } from "@/lib/websocket";
 import { useSoundNotification } from "@/hooks/useSoundNotification";
 import { playNotificationSound } from "@/utils/sound";
+import { getAvatarUrl } from "@/utils/avatar";
+import { cn } from "@/lib/utils";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 interface ChatWidgetProps {
@@ -70,6 +75,18 @@ function parseUserAgent(userAgent: string) {
 
   return { browser, os };
 }
+
+/** 与顶栏（Header h-16 / md:h-20 + 间距）、底栏（bottom-20 / sm:bottom-24）对齐，矮视口下限制高度 */
+const CHAT_WIDGET_PANEL_MAX_H =
+  "max-h-[min(680px,calc(100dvh-5rem-4.5rem-env(safe-area-inset-top,0px)))] sm:max-h-[min(680px,calc(100dvh-6rem-4.5rem-env(safe-area-inset-top,0px)))] md:max-h-[min(680px,calc(100dvh-6rem-5.5rem-env(safe-area-inset-top,0px)))]";
+const CHAT_WIDGET_PANEL_H =
+  "h-[min(540px,calc(100dvh-5rem-4.5rem-env(safe-area-inset-top,0px)))] sm:h-[min(620px,calc(100dvh-6rem-4.5rem-env(safe-area-inset-top,0px)))] md:h-[min(680px,calc(100dvh-6rem-5.5rem-env(safe-area-inset-top,0px)))]";
+
+/** 视口偏矮时略收窄，避免「又矮又宽」的观感；大屏高度充足时仍为 420px */
+const CHAT_WIDGET_PANEL_WIDTH =
+  "w-[min(420px,calc(100vw-1.5rem))] [@media(max-height:780px)]:w-[min(372px,calc(100vw-1.5rem))] [@media(max-height:680px)]:w-[min(340px,calc(100vw-1.5rem))]";
+const CHAT_WIDGET_PANEL_MAX_W =
+  "max-w-[420px] [@media(max-height:780px)]:max-w-[372px] [@media(max-height:680px)]:max-w-[340px]";
 
 /**
  * 聊天小窗组件
@@ -109,10 +126,14 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
   const [loadingAgents, setLoadingAgents] = useState(false);
   /** AI 模式下发消息后等待回复时显示「正在输入」提示 */
   const [aiTyping, setAiTyping] = useState(false);
+  const [agentTypingDraft, setAgentTypingDraft] = useState("");
+  const [agentTypingSenderId, setAgentTypingSenderId] = useState<number | null>(null);
   /** 联网搜索：本回合是否使用联网（访客可勾选） */
   const [needWebSearch, setNeedWebSearch] = useState(false);
   /** 访客小窗配置（由配置页控制是否显示联网设置） */
   const [widgetConfig, setWidgetConfig] = useState<VisitorWidgetConfig | null>(null);
+  const typingSeqRef = useRef(0);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 声音通知开关（访客端）
   const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(true);
@@ -498,6 +519,9 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       if (event.type === "new_message" && event.data) {
         const msg = event.data as MessageItem;
         handleNewMessage(msg);
+        if (msg.sender_is_agent) {
+          setAgentTypingDraft("");
+        }
         // AI 模式下收到对方（客服/AI）回复时关闭「正在输入」提示
         if (chatMode === "ai" && msg.sender_is_agent) {
           setAiTyping(false);
@@ -508,12 +532,41 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           payload.conversation_id = event.conversation_id;
         }
         handleMessagesReadEvent(payload);
+      } else if (event.type === "typing_draft" && event.data) {
+        const payload = event.data as TypingDraftPayload;
+        // 访客侧只展示客服草稿。
+        if (!payload.sender_is_agent) {
+          return;
+        }
+        const text = typeof payload.text === "string" ? payload.text : "";
+        setAgentTypingDraft(text);
+        setAgentTypingSenderId(
+          typeof payload.sender_id === "number" ? payload.sender_id : null
+        );
+        if (typingTimerRef.current) {
+          clearTimeout(typingTimerRef.current);
+        }
+        typingTimerRef.current = setTimeout(() => {
+          setAgentTypingDraft("");
+          setAgentTypingSenderId(null);
+        }, TYPING_DRAFT_TTL_MS);
+      } else if (event.type === "typing_stop") {
+        const payload = (event.data || {}) as TypingDraftPayload;
+        if (!payload.sender_is_agent) {
+          return;
+        }
+        setAgentTypingDraft("");
+        setAgentTypingSenderId(null);
+        if (typingTimerRef.current) {
+          clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
       }
-        },
-        [handleMessagesReadEvent, handleNewMessage, soundEnabled, chatMode]
-      );
+    },
+    [handleMessagesReadEvent, handleNewMessage, chatMode]
+  );
 
-  useWebSocket<ChatWebSocketPayload>({
+  const { send: sendWebSocketEvent } = useWebSocket<ChatWebSocketPayload>({
     conversationId,
     enabled: Boolean(conversationId) && isOpen,
     isVisitor: true,
@@ -522,6 +575,63 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       console.error("WebSocket 连接错误（访客端）:", error);
     },
   });
+
+  const sendTypingDraft = useCallback(
+    (text: string) => {
+      if (!conversationId) {
+        return;
+      }
+      const content = text.slice(0, 300);
+      if (!content.trim()) {
+        sendWebSocketEvent("typing_stop", { sender_is_agent: false });
+        return;
+      }
+      typingSeqRef.current += 1;
+      sendWebSocketEvent("typing_draft", {
+        sender_is_agent: false,
+        text: content,
+        seq: typingSeqRef.current,
+      });
+    },
+    [conversationId, sendWebSocketEvent]
+  );
+
+  const sendTypingStop = useCallback(() => {
+    if (!conversationId) {
+      return;
+    }
+    sendWebSocketEvent("typing_stop", { sender_is_agent: false });
+  }, [conversationId, sendWebSocketEvent]);
+
+  useEffect(() => {
+    if (!conversationId || !isOpen || chatMode !== "human") {
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (input.trim()) {
+        sendTypingDraft(input);
+      } else {
+        sendTypingStop();
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [chatMode, conversationId, input, isOpen, sendTypingDraft, sendTypingStop]);
+
+  useEffect(() => {
+    if (!isOpen || chatMode !== "human") {
+      setAgentTypingDraft("");
+      setAgentTypingSenderId(null);
+    }
+  }, [chatMode, isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+      sendTypingStop();
+    };
+  }, [sendTypingStop]);
 
   const handleSendMessage = useCallback(
     async (fileInfo?: UploadFileResult) => {
@@ -554,6 +664,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
       // 立即添加到消息列表
       setMessages((prev) => [...prev, tempMessage]);
       setInput("");
+      sendTypingStop();
       setSending(true);
       if (chatMode === "ai") {
         setAiTyping(true);
@@ -588,7 +699,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
         setSending(false);
       }
     },
-    [conversationId, input, sending, visitorId, chatMode, needWebSearch, widgetConfig]
+    [conversationId, input, sending, visitorId, chatMode, needWebSearch, sendTypingStop, widgetConfig]
   );
 
   // 如果不打开，不渲染内容
@@ -596,8 +707,22 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
     return null;
   }
 
-  return (
-    <Card className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-1.5rem)] max-w-[420px] h-[540px] sm:w-[420px] sm:h-[620px] md:h-[680px] flex flex-col shadow-[0_24px_60px_-24px_rgba(2,6,23,0.35)] z-40 border border-slate-200 overflow-hidden rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200/80">
+  // 挂到 body，避免页面内祖先的 transform/filter/backdrop-filter 在 Chrome 等浏览器中
+  // 成为 fixed 定位的包含块，导致小窗错位到视口中上部而右下角按钮仍正常。
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <Card
+      className={cn(
+        "fixed bottom-20 right-4 sm:bottom-24 sm:right-6 flex flex-col shadow-[0_24px_60px_-24px_rgba(2,6,23,0.35)] z-40 border border-slate-200 overflow-hidden rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200/80",
+        CHAT_WIDGET_PANEL_MAX_W,
+        CHAT_WIDGET_PANEL_WIDTH,
+        CHAT_WIDGET_PANEL_MAX_H,
+        CHAT_WIDGET_PANEL_H
+      )}
+    >
       {/* 头部：回归品牌蓝色系，保持轻量与一致 */}
       <div className="bg-gradient-to-r from-[#2563eb] to-[#3b82f6] border-b border-blue-300/40 px-4 py-3.5 flex items-center justify-between rounded-t-2xl">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -748,14 +873,47 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           onMarkMessagesRead={handleMarkAgentMessagesRead}
           leftAvatarBySenderId={chatMode === "human" ? agentAvatarMap : undefined}
           bottomSlot={
-            chatMode === "ai" && aiTyping ? (
-              <div className="flex justify-start mt-2">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-white border border-slate-200 shadow-sm text-sm text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                  <span>AI 正在思考...</span>
+            <>
+              {chatMode === "human" && agentTypingDraft ? (
+                <div className="flex justify-start mt-2">
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-200 border border-slate-300 flex-shrink-0">
+                    {(() => {
+                      const draftAvatar =
+                        agentTypingSenderId != null
+                          ? getAvatarUrl(agentAvatarMap[agentTypingSenderId])
+                          : null;
+                      return draftAvatar ? (
+                        <img
+                          src={draftAvatar}
+                          alt="客服头像"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-600">
+                          客
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="px-3.5 py-2.5 rounded-[18px] rounded-bl-md bg-slate-100/80 border border-solid border-slate-300 shadow-[0_1px_3px_rgba(15,23,42,0.04)] text-sm text-slate-500 max-w-[72%] break-words">
+                    <span>{agentTypingDraft}</span>
+                    <span className="inline-flex items-center ml-1 align-middle">
+                      <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce [animation-duration:1.2s]" />
+                      <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce [animation-duration:1.2s] [animation-delay:0.15s] mx-0.5" />
+                      <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce [animation-duration:1.2s] [animation-delay:0.3s]" />
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ) : null
+              ) : null}
+              {chatMode === "ai" && aiTyping ? (
+                <div className="flex justify-start mt-2">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-white border border-slate-200 shadow-sm text-sm text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                    <span>AI 正在思考...</span>
+                  </div>
+                </div>
+              ) : null}
+            </>
           }
         />
       </div>
@@ -833,7 +991,8 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           }
         />
       </div>
-    </Card>
+    </Card>,
+    document.body
   );
 }
 

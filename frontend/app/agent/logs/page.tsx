@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { fetchSystemLogs, type QuerySystemLogsResult } from "@/features/agent/services/systemLogApi";
+import {
+  deleteLogMinLevelPolicy,
+  fetchLogMinLevelPolicy,
+  fetchSystemLogs,
+  putLogMinLevelPolicy,
+  type LogMinLevelPolicy,
+  type QuerySystemLogsResult,
+} from "@/features/agent/services/systemLogApi";
 import { toast } from "@/hooks/useToast";
 import {
   Dialog,
@@ -46,8 +53,29 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const [selected, setSelected] = useState<(QuerySystemLogsResult["items"][number]) | null>(null);
+  const [policy, setPolicy] = useState<LogMinLevelPolicy | null>(null);
+  const [policyDraft, setPolicyDraft] = useState("info");
+  const [policyLoading, setPolicyLoading] = useState(false);
 
   const selectedMeta = useMemo(() => tryFormatJSON(selected?.meta_json), [selected]);
+
+  const loadPolicy = useCallback(async () => {
+    setPolicyLoading(true);
+    try {
+      const p = await fetchLogMinLevelPolicy();
+      setPolicy(p);
+      setPolicyDraft(p.effective_min_level);
+    } catch (e) {
+      toast.error((e as Error).message || "加载落库策略失败");
+      setPolicy(null);
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPolicy();
+  }, [loadPolicy]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +116,80 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
       <div className="mb-4">
         <h1 className="text-xl font-semibold">日志中心</h1>
         <p className="text-sm text-muted-foreground mt-1">按分类查看 AI / RAG / 系统 / 前端日志，用于排障定位。</p>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card p-4 mb-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">落库级别（性能）</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+              仅将不低于所选级别的记录写入数据库。设为 <code className="text-foreground">warn</code> 可大幅减少成功类{" "}
+              <code className="text-foreground">info</code> 写入。也可在根目录{" "}
+              <code className="text-foreground">SYSTEM_LOG_MIN_LEVEL</code> 配置默认值；此处保存后会写入数据库并覆盖环境变量，直至点击「恢复环境变量」。
+            </p>
+            {policy ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                当前生效：<span className="font-medium text-foreground">{policy.effective_min_level}</span>
+                {" · "}
+                环境变量默认：<span className="font-medium text-foreground">{policy.env_min_level}</span>
+                {policy.persisted_in_database ? (
+                  <span className="text-amber-700 dark:text-amber-500">（已由控制台覆盖）</span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={policyDraft}
+              onChange={(e) => setPolicyDraft(e.target.value)}
+              disabled={policyLoading}
+              className="rounded-md border px-2 py-1.5 text-sm min-w-[140px]"
+            >
+              <option value="debug">debug</option>
+              <option value="info">info</option>
+              <option value="warn">warn</option>
+              <option value="error">error</option>
+              <option value="none">none（关闭落库）</option>
+            </select>
+            <Button
+              size="sm"
+              disabled={policyLoading}
+              onClick={async () => {
+                setPolicyLoading(true);
+                try {
+                  await putLogMinLevelPolicy(policyDraft);
+                  toast.success("已保存并生效");
+                  await loadPolicy();
+                } catch (e) {
+                  toast.error((e as Error).message || "保存失败");
+                } finally {
+                  setPolicyLoading(false);
+                }
+              }}
+            >
+              保存到服务器
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={policyLoading}
+              onClick={async () => {
+                setPolicyLoading(true);
+                try {
+                  await deleteLogMinLevelPolicy();
+                  toast.success("已恢复为环境变量默认值");
+                  await loadPolicy();
+                } catch (e) {
+                  toast.error((e as Error).message || "恢复失败");
+                } finally {
+                  setPolicyLoading(false);
+                }
+              }}
+            >
+              恢复环境变量
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card p-3 mb-4 flex flex-wrap gap-2 items-center">

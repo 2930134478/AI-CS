@@ -90,8 +90,16 @@ export interface VisitorStatusUpdatePayload {
   visitor_count?: number;
 }
 
+export interface TypingDraftPayload {
+  sender_id?: number;
+  sender_is_agent?: boolean;
+  text?: string;
+  seq?: number;
+}
+
 export type ChatWebSocketPayload =
   | MessageItem
   | MessagesReadPayload
-  | VisitorStatusUpdatePayload;
+  | VisitorStatusUpdatePayload
+  | TypingDraftPayload;
 

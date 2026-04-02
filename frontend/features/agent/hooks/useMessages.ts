@@ -20,8 +20,10 @@ import {
   MessagesReadPayload,
   ChatWebSocketPayload,
   VisitorStatusUpdatePayload,
+  TypingDraftPayload,
 } from "../../agent/types";
 import { useWebSocket } from "./useWebSocket";
+import { TYPING_DRAFT_TTL_MS } from "@/lib/constants/typing-draft";
 import { WSMessage } from "@/lib/websocket";
 import { buildMessagePreview } from "@/utils/format";
 import { playNotificationSound } from "@/utils/sound";
@@ -61,7 +63,10 @@ export function useMessages({
   const [aiThinking, setAiThinking] = useState(false);
   /** 知识库测试：联网选项 */
   const [needWebSearch, setNeedWebSearch] = useState(false);
+  const [remoteTypingDraft, setRemoteTypingDraft] = useState<string>("");
   const wsToken = getAgentWSToken() ?? undefined;
+  const typingSeqRef = useRef(0);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const refreshConversationDetail = useCallback(
     async (id: number) => {
@@ -503,6 +508,30 @@ export function useMessages({
             refreshConversationDetail(payload.conversation_id);
           }
         }
+      } else if (event.type === "typing_draft" && event.data) {
+        const payload = event.data as TypingDraftPayload;
+        // 客服侧只显示访客草稿，忽略客服自身（或其他客服）草稿。
+        if (payload.sender_is_agent) {
+          return;
+        }
+        const text = typeof payload.text === "string" ? payload.text : "";
+        setRemoteTypingDraft(text);
+        if (typingTimerRef.current) {
+          clearTimeout(typingTimerRef.current);
+        }
+        typingTimerRef.current = setTimeout(() => {
+          setRemoteTypingDraft("");
+        }, TYPING_DRAFT_TTL_MS);
+      } else if (event.type === "typing_stop") {
+        const payload = (event.data || {}) as TypingDraftPayload;
+        if (payload.sender_is_agent) {
+          return;
+        }
+        setRemoteTypingDraft("");
+        if (typingTimerRef.current) {
+          clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
       }
     },
     [
@@ -514,7 +543,7 @@ export function useMessages({
     ]
   );
 
-  useWebSocket<ChatWebSocketPayload>({
+  const { send: sendWebSocketEvent } = useWebSocket<ChatWebSocketPayload>({
     conversationId,
     enabled: Boolean(conversationId),
     isVisitor: false, // 客服端设置为 false
@@ -528,6 +557,53 @@ export function useMessages({
       // 静默处理关闭，避免影响用户体验
     },
   });
+
+  const sendTypingDraft = useCallback(
+    (text: string) => {
+      if (!conversationId || !agentId) {
+        return;
+      }
+      const content = text.slice(0, 300);
+      if (!content.trim()) {
+        sendWebSocketEvent("typing_stop", {
+          sender_id: agentId,
+          sender_is_agent: true,
+        });
+        return;
+      }
+      typingSeqRef.current += 1;
+      sendWebSocketEvent("typing_draft", {
+        sender_id: agentId,
+        sender_is_agent: true,
+        text: content,
+        seq: typingSeqRef.current,
+      });
+    },
+    [agentId, conversationId, sendWebSocketEvent]
+  );
+
+  const sendTypingStop = useCallback(() => {
+    if (!conversationId || !agentId) {
+      return;
+    }
+    sendWebSocketEvent("typing_stop", {
+      sender_id: agentId,
+      sender_is_agent: true,
+    });
+  }, [agentId, conversationId, sendWebSocketEvent]);
+
+  useEffect(() => {
+    // 切会话时清空对端草稿状态，避免串会话显示。
+    setRemoteTypingDraft("");
+  }, [conversationId]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, []);
 
   // 切换 AI 消息显示/隐藏
   const toggleAIMessages = useCallback(async () => {
@@ -556,6 +632,9 @@ export function useMessages({
       aiThinking,
       needWebSearch,
       setNeedWebSearch,
+      remoteTypingDraft,
+      sendTypingDraft,
+      sendTypingStop,
     }),
     [
       conversationDetail,
@@ -572,6 +651,9 @@ export function useMessages({
       forceIncludeAIMessages,
       aiThinking,
       needWebSearch,
+      remoteTypingDraft,
+      sendTypingDraft,
+      sendTypingStop,
     ]
   );
 

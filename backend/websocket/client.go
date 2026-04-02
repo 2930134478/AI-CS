@@ -3,10 +3,16 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+type inboundWSMessage struct {
+	Type string                 `json:"type"`
+	Data map[string]interface{} `json:"data"`
+}
 
 const (
 	// 客户端发送 ping 的最大等待时间
@@ -71,15 +77,14 @@ func (c *Client) ReadPump() {
 
 	// 持续读取消息
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, payload, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("⚠️ WebSocket 读取错误: 对话ID=%d, 错误=%v", c.conversationID, err)
 			}
 			break
 		}
-		// 目前我们不需要处理客户端发送的消息，只接收心跳包
-		// 如果需要双向通信，可以在这里处理客户端消息
+		c.handleIncoming(payload)
 	}
 }
 
@@ -134,4 +139,44 @@ func (c *Client) SendMessage(messageType string, data interface{}) error {
 
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteMessage(websocket.TextMessage, messageJSON)
+}
+
+func (c *Client) handleIncoming(payload []byte) {
+	var in inboundWSMessage
+	if err := json.Unmarshal(payload, &in); err != nil {
+		return
+	}
+
+	switch in.Type {
+	case "typing_draft":
+		text, _ := in.Data["text"].(string)
+		text = strings.TrimSpace(text)
+		if text == "" {
+			c.hub.BroadcastMessage(c.conversationID, "typing_stop", map[string]interface{}{
+				"sender_id":       c.agentID,
+				"sender_is_agent": !c.isVisitor,
+			})
+			return
+		}
+		// 控制草稿长度，避免超长输入导致 WS 事件过大。
+		if len(text) > 300 {
+			text = text[:300]
+		}
+		out := map[string]interface{}{
+			"sender_id":       c.agentID,
+			"sender_is_agent": !c.isVisitor,
+			"text":            text,
+		}
+		if seq, ok := in.Data["seq"]; ok {
+			out["seq"] = seq
+		}
+		c.hub.BroadcastMessage(c.conversationID, "typing_draft", out)
+	case "typing_stop":
+		c.hub.BroadcastMessage(c.conversationID, "typing_stop", map[string]interface{}{
+			"sender_id":       c.agentID,
+			"sender_is_agent": !c.isVisitor,
+		})
+	default:
+		// 忽略未知客户端事件，避免污染服务端日志。
+	}
 }

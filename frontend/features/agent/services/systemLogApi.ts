@@ -36,6 +36,51 @@ export interface QuerySystemLogsParams {
   pageSize?: number;
 }
 
+export interface LogMinLevelPolicy {
+  effective_min_level: string;
+  env_min_level: string;
+  persisted_in_database: boolean;
+}
+
+export async function fetchLogMinLevelPolicy(): Promise<LogMinLevelPolicy> {
+  const res = await fetch(apiUrl("/agent/logs/min-level"), {
+    headers: getAgentHeaders(),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error((j as { error?: string }).error || `加载策略失败(${res.status})`);
+  }
+  return res.json();
+}
+
+export async function putLogMinLevelPolicy(minLevel: string): Promise<{ effective_min_level: string }> {
+  const res = await fetch(apiUrl("/agent/logs/min-level"), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAgentHeaders(),
+    },
+    body: JSON.stringify({ min_level: minLevel }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error((j as { error?: string }).error || `保存失败(${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteLogMinLevelPolicy(): Promise<{ effective_min_level: string }> {
+  const res = await fetch(apiUrl("/agent/logs/min-level"), {
+    method: "DELETE",
+    headers: getAgentHeaders(),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error((j as { error?: string }).error || `恢复失败(${res.status})`);
+  }
+  return res.json();
+}
+
 export async function fetchSystemLogs(params: QuerySystemLogsParams): Promise<QuerySystemLogsResult> {
   const q = new URLSearchParams();
   if (params.from) q.set("from", params.from);

@@ -152,6 +152,9 @@ export function DashboardShell() {
     aiThinking,
     needWebSearch,
     setNeedWebSearch,
+    remoteTypingDraft,
+    sendTypingDraft,
+    sendTypingStop,
   } = useMessages({
     conversationId: selectedConversationId,
     agentId: agent?.id ?? null,
@@ -180,11 +183,32 @@ export function DashboardShell() {
     const content = messageInput.trim();
     try {
       await sendMessage(content, fileInfo);
+      sendTypingStop();
       setMessageInput("");
     } catch (error) {
       toast.error((error as Error).message);
     }
-  }, [messageInput, sendMessage]);
+  }, [messageInput, sendMessage, sendTypingStop]);
+
+  useEffect(() => {
+    if (!selectedConversationId || isInternalChat) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (messageInput.trim()) {
+        sendTypingDraft(messageInput);
+      } else {
+        sendTypingStop();
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [isInternalChat, messageInput, selectedConversationId, sendTypingDraft, sendTypingStop]);
+
+  useEffect(() => {
+    return () => {
+      sendTypingStop();
+    };
+  }, [sendTypingStop]);
 
   // 标记当前会话全部消息为已读
   const handleMarkAllRead = useCallback(() => {
@@ -341,16 +365,30 @@ export function DashboardShell() {
               onMarkMessagesRead={markMessagesAsRead}
               internalChatMode={isInternalChat}
               bottomSlot={
-                isInternalChat && aiThinking ? (
-                  <div className="flex justify-start mt-2">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                      <span>AI 正在思考...</span>
-                    </div>
-                  </div>
-                ) : null
-              }
-            />
+                  <>
+                    {!isInternalChat && remoteTypingDraft ? (
+                      <div className="flex justify-start mt-2">
+                        <div className="px-3.5 py-2.5 rounded-[18px] rounded-bl-md bg-muted/45 text-muted-foreground border border-solid border-border/70 shadow-[0_1px_3px_rgba(15,23,42,0.04)] text-sm max-w-[72%] break-words">
+                          <span>{remoteTypingDraft}</span>
+                          <span className="inline-flex items-center ml-1 align-middle">
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce [animation-duration:1.2s]" />
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce [animation-duration:1.2s] [animation-delay:0.15s] mx-0.5" />
+                            <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce [animation-duration:1.2s] [animation-delay:0.3s]" />
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                    {isInternalChat && aiThinking ? (
+                      <div className="flex justify-start mt-2">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                          <span>AI 正在思考...</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                }
+              />
             {/* 知识库测试：联网选项 */}
             {isInternalChat && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-2 py-2 border-t border-border/50 bg-muted/30 text-xs text-muted-foreground">

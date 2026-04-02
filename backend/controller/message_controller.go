@@ -16,10 +16,10 @@ import (
 
 // MessageController 负责处理消息相关的 HTTP 请求。
 type MessageController struct {
-	messageService     *service.MessageService
+	messageService      *service.MessageService
 	conversationService *service.ConversationService
-	userService        *service.UserService
-	storageService     infra.StorageService
+	userService         *service.UserService
+	storageService      infra.StorageService
 }
 
 // NewMessageController 创建 MessageController 实例。
@@ -30,10 +30,10 @@ func NewMessageController(
 	storageService infra.StorageService,
 ) *MessageController {
 	return &MessageController{
-		messageService:     messageService,
+		messageService:      messageService,
 		conversationService: conversationService,
-		userService:        userService,
-		storageService:     storageService,
+		userService:         userService,
+		storageService:      storageService,
 	}
 }
 
@@ -42,11 +42,11 @@ type createMessageRequest struct {
 	Content        string  `json:"content"`
 	SenderIsAgent  bool    `json:"sender_is_agent"`
 	SenderID       uint    `json:"sender_id"`
-	FileURL  *string `json:"file_url"`
-	FileType *string `json:"file_type"`
-	FileName *string `json:"file_name"`
-	FileSize *int64  `json:"file_size"`
-	MimeType *string `json:"mime_type"`
+	FileURL        *string `json:"file_url"`
+	FileType       *string `json:"file_type"`
+	FileName       *string `json:"file_name"`
+	FileSize       *int64  `json:"file_size"`
+	MimeType       *string `json:"mime_type"`
 	// 回复数据源开关（仅 AI 模式有效），不传则默认：知识库+大模型开，联网关
 	UseKnowledgeBase *bool `json:"use_knowledge_base"`
 	UseLLM           *bool `json:"use_llm"`
@@ -62,11 +62,8 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 		return
 	}
 	userID := getUserIDFromHeader(c)
-	// 若带了客服身份头，则必须按客服消息处理，禁止伪装成访客消息。
-	if userID > 0 && !req.SenderIsAgent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "已登录客服不允许以访客身份发送消息"})
-		return
-	}
+	// 兼容 demo 自测场景：已登录客服也允许按访客身份发送消息（sender_is_agent=false）。
+	// 访客消息 sender_id 仍由服务端强制置 0，避免前端注入身份。
 	// 客服消息必须绑定当前登录用户（X-User-Id），并以服务端用户 ID 为准，避免伪造 sender_id。
 	if req.SenderIsAgent {
 		if userID == 0 {
@@ -261,6 +258,7 @@ func (mc *MessageController) MarkMessagesRead(c *gin.Context) {
 // 请求格式：multipart/form-data
 //   - file: 文件内容（必需）
 //   - conversation_id: 对话ID（可选，用于组织目录）
+//
 // 认证方式：
 //   - 方式1：提供 X-User-Id 请求头（客服上传）
 //   - 方式2：提供 conversation_id 参数（访客上传，会验证对话是否存在且未关闭）
@@ -270,13 +268,13 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 	// 2. 提供 conversation_id 参数（访客）
 	userID := getUserIDFromHeader(c)
 	conversationIDStr := c.PostForm("conversation_id")
-	
+
 	// 如果既没有用户ID，也没有对话ID，拒绝访问
 	if userID == 0 && conversationIDStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头或 conversation_id 参数"})
 		return
 	}
-	
+
 	// 如果是访客上传（没有用户ID，但有对话ID），验证对话是否存在且未关闭
 	if userID == 0 && conversationIDStr != "" {
 		convID, err := strconv.ParseUint(conversationIDStr, 10, 64)
@@ -295,7 +293,7 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// 解析文件
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -331,15 +329,15 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 	// ⚠️ 加强：验证 MIME 类型（防止伪造扩展名）
 	mimeType := file.Header.Get("Content-Type")
 	allowedMimeTypes := map[string]bool{
-		"image/jpeg":      true,
-		"image/jpg":       true,
-		"image/png":       true,
-		"image/gif":       true,
-		"image/webp":      true,
-		"application/pdf": true,
+		"image/jpeg":         true,
+		"image/jpg":          true,
+		"image/png":          true,
+		"image/gif":          true,
+		"image/webp":         true,
+		"application/pdf":    true,
 		"application/msword": true,
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true, // .docx
-		"text/plain":     true,
+		"text/plain": true,
 	}
 	if !allowedMimeTypes[mimeType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的文件 MIME 类型: " + mimeType})
@@ -368,7 +366,7 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 			safeFilename = nameWithoutExt[:100-len(ext)] + ext
 		}
 	}
-	
+
 	// ⚠️ 加强：验证文件内容（magic number 检查，防止伪造扩展名）
 	fileContent, err := file.Open()
 	if err != nil {
@@ -376,7 +374,7 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 		return
 	}
 	defer fileContent.Close()
-	
+
 	// 读取文件前几个字节（magic number）
 	magicBytes := make([]byte, 12)
 	n, err := fileContent.Read(magicBytes)
@@ -384,13 +382,13 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无法读取文件内容"})
 		return
 	}
-	
+
 	// 验证文件内容是否匹配扩展名
 	if !isValidFileContent(ext, magicBytes[:n]) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "文件内容与扩展名不匹配，可能是伪造的文件类型"})
 		return
 	}
-	
+
 	// 重置文件指针，以便后续保存
 	if _, err := fileContent.Seek(0, io.SeekStart); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法重置文件指针"})
@@ -437,9 +435,9 @@ func isValidFileContent(ext string, magicBytes []byte) bool {
 	if len(magicBytes) < 4 {
 		return false
 	}
-	
+
 	ext = strings.ToLower(ext)
-	
+
 	// 检查各种文件类型的 magic number
 	switch ext {
 	case ".jpg", ".jpeg":

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { AgentUser } from "../../agent/types";
 import { logout } from "../../agent/services/authApi";
-import { clearAgentUser, getAgentUser } from "@/utils/storage";
+import { clearAgentUser, getAgentUser, getAgentWSToken } from "@/utils/storage";
 
 export function useAuth() {
   const router = useRouter();
@@ -16,7 +16,14 @@ export function useAuth() {
     const current = getAgentUser();
     if (!current) {
       setLoading(false);
-      router.push("/");
+      router.push("/agent/login");
+      return;
+    }
+    // 客服端实时链路依赖 ws_token；缺失/过期时强制重新登录，避免前端持续 401 重连且功能失效。
+    if (!getAgentWSToken()) {
+      clearAgentUser();
+      setLoading(false);
+      router.push("/agent/login");
       return;
     }
     setAgent(current);

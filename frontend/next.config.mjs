@@ -47,6 +47,10 @@ const nextConfig = {
           destination: `http://${backendHost}:${backendPort}/agent/logs/frontend`,
         },
         {
+          source: "/agent/logs/min-level",
+          destination: `http://${backendHost}:${backendPort}/agent/logs/min-level`,
+        },
+        {
           source: "/:path((?!_next|agent|chat|favicon.ico).*)",
           destination: `http://${backendHost}:${backendPort}/:path*`,
         },

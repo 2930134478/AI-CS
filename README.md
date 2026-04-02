@@ -5,19 +5,20 @@
 
 ## 界面预览
 
-> 以下为当前版本关键界面截图（本地预览路径）。
+> 截图放在仓库内的 **`assets/readme/`**（随 Git 提交），README 里使用**相对路径**引用。  
+> 请勿使用 `file:///...` 或仅本机存在的路径，否则在 GitHub / Gitee 等页面上无法显示。
 
 **官网首页（核心能力模块）**
 
-![官网首页（核心能力模块）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-c4852687-51e5-47ec-b85c-35413a8b19b6.png)
+![官网首页（核心能力模块）](assets/readme/home-features.png)
 
 **客服小窗（人工客服模式）**
 
-![客服小窗（人工客服模式）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-81a593c2-6820-40da-907d-118032ed5e54.png)
+![客服小窗（人工客服模式）](assets/readme/widget-human.png)
 
 **客服小窗（AI 客服模式）**
 
-![客服小窗（AI 客服模式）](file:///C:/Users/29301/.cursor/projects/d-tools-AI-CS/assets/c__Users_29301_AppData_Roaming_Cursor_User_workspaceStorage_9cb4ac4ea85a91ea0567ed8202874002_images_image-65d7a08f-e812-4d40-95ed-24f10df81516.png)
+![客服小窗（AI 客服模式）](assets/readme/widget-ai.png)
 
 ## 在线演示
 
@@ -33,6 +34,7 @@
   - 可选“本回合联网搜索”开关（是否对访客展示可在后台控制）
 - **客服侧（工作台）**
   - 会话列表、实时消息（WebSocket）、未读角标提示
+  - 支持“实时共享草稿输入”（双方未发送内容可实时可见）
   - 多模型管理（文本/绘画等）与对话配置
   - **提示词配置**（Prompt 管理）
   - **知识库管理 + RAG**（向量检索，可按需启用；向量库不可用时可不影响启动）
@@ -147,6 +149,7 @@ npm run dev
 | `SERVER_HOST` | 后端监听地址 | 是 | `0.0.0.0` | `127.0.0.1` |
 | `SERVER_PORT` | 后端容器内端口 | 是 | `8080` | `8080` |
 | `GIN_MODE` | 后端模式 | 建议 | `release` | `debug` |
+| `SYSTEM_LOG_MIN_LEVEL` | 结构化日志最低落库级别（`system_logs`） | 否 | `info` | `warn` 可减少成功类写入；`none` 关闭落库；**客服端「日志中心」可改并持久化，覆盖本项直至恢复** |
 | `DB_HOST` | 后端数据库地址 | 是 | `mysql` | `localhost` |
 | `DB_PORT` | 后端数据库端口 | 是 | `3306` | `3306` |
 | `DB_USER` | 数据库用户名 | 是 | `ai_cs_user` | `root` |
@@ -243,4 +246,4 @@ npm run dev
 
 ---
 
-**最后更新**：2026-03-27
+**最后更新**：2026-04-02（含 `SYSTEM_LOG_MIN_LEVEL` 说明）

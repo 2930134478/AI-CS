@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/2930134478/AI-CS/backend/models"
@@ -46,17 +47,55 @@ type QuerySystemLogsResult struct {
 
 // SystemLogService 结构化日志服务（查询 + 写入）。
 type SystemLogService struct {
-	repo *repository.SystemLogRepository
+	repo            *repository.SystemLogRepository
+	minPersistLevel atomic.Int32 // 见 SYSTEM_LOG_MIN_LEVEL / 数据库覆盖；logRankNone 表示关闭全部落库
 }
 
-func NewSystemLogService(repo *repository.SystemLogRepository) *SystemLogService {
-	return &SystemLogService{repo: repo}
+func NewSystemLogService(repo *repository.SystemLogRepository, minPersistLevel int) *SystemLogService {
+	s := &SystemLogService{repo: repo}
+	s.SetMinPersistLevelRank(minPersistLevel)
+	return s
+}
+
+// SetMinPersistLevelRank 运行时调整最低落库级别（线程安全）。
+func (s *SystemLogService) SetMinPersistLevelRank(rank int) {
+	if s == nil {
+		return
+	}
+	s.minPersistLevel.Store(int32(rank))
+}
+
+// MinPersistLevelRank 当前生效的最低落库级别数值。
+func (s *SystemLogService) MinPersistLevelRank() int {
+	if s == nil {
+		return logRankInfo
+	}
+	return int(s.minPersistLevel.Load())
+}
+
+func (s *SystemLogService) shouldPersistLevel(level string) bool {
+	if s == nil {
+		return false
+	}
+	cur := int(s.minPersistLevel.Load())
+	if cur == logRankNone {
+		return false
+	}
+	return logLevelRank(level) >= cur
+}
+
+// ShouldPersistLevel 供中间件等在组装大 payload 前判断，避免无谓开销。
+func (s *SystemLogService) ShouldPersistLevel(level string) bool {
+	return s.shouldPersistLevel(strings.ToLower(strings.TrimSpace(level)))
 }
 
 func (s *SystemLogService) Create(input CreateSystemLogInput) error {
 	level := strings.ToLower(strings.TrimSpace(input.Level))
 	if level == "" {
 		level = "info"
+	}
+	if !s.shouldPersistLevel(level) {
+		return nil
 	}
 	category := strings.ToLower(strings.TrimSpace(input.Category))
 	if category == "" {

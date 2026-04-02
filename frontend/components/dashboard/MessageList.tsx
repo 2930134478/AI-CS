@@ -11,6 +11,46 @@ import { Paperclip, Download, X } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
 import { getAvatarUrl } from "@/utils/avatar";
 
+function TypewriterText({
+  text,
+  animateKey,
+  speedMs = 18,
+}: {
+  text: string;
+  animateKey: number | string;
+  speedMs?: number;
+}) {
+  const [shown, setShown] = useState("");
+
+  useEffect(() => {
+    setShown("");
+  }, [animateKey, text]);
+
+  useEffect(() => {
+    if (!text) return;
+
+    const len = text.length;
+    // 性能优先：很长的文本不可能真的每 1 个字符 setState 一次
+    // 但短文本保持更细粒度，让你看到“逐字打出”的效果。
+    const chunkSize = len < 250 ? 1 : len < 800 ? 2 : 4;
+
+    let idx = 0;
+    const timer = window.setInterval(() => {
+      idx = Math.min(len, idx + chunkSize);
+      setShown(text.slice(0, idx));
+      if (idx >= len) {
+        window.clearInterval(timer);
+      }
+    }, speedMs);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [text, animateKey, speedMs]);
+
+  return <>{shown}</>;
+}
+
 interface MessageListProps {
   messages: MessageItem[];
   loading: boolean;
@@ -401,6 +441,15 @@ export function MessageList({
               ? highlightText(message.content, keyword)
               : message.content;
 
+          const isAIMessage = Boolean(message.sender_is_agent) && message.sender_id === 0;
+          // 仅当不需要高亮搜索关键词、且该消息为 AI 回复时才启用逐字显示
+          const shouldTypewriter =
+            isAIMessage &&
+            keyword === "" &&
+            !message.file_url &&
+            typeof message.content === "string" &&
+            message.content.length > 0;
+
           if (message.message_type === "system_message") {
             return (
               <div
@@ -503,7 +552,11 @@ export function MessageList({
                   {/* 文本内容 */}
                   {message.content && (
                     <div className="whitespace-pre-wrap break-words text-sm">
-                      {bubbleContent}
+                      {shouldTypewriter ? (
+                        <TypewriterText text={message.content} animateKey={message.id} />
+                      ) : (
+                        bubbleContent
+                      )}
                     </div>
                   )}
                   

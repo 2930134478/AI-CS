@@ -172,5 +172,23 @@ export class WSClient<T = unknown> {
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
+
+  send(type: string, data?: unknown): boolean {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type,
+          conversation_id: this.conversationId,
+          data: data ?? {},
+        })
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { WSClient, WSMessage } from "@/lib/websocket";
 
 interface UseWebSocketOptions<T> {
@@ -28,6 +28,7 @@ export function useWebSocket<T>({
   const onMessageRef = useRef(onMessage);
   const onErrorRef = useRef(onError);
   const onCloseRef = useRef(onClose);
+  const clientRef = useRef<WSClient<T> | null>(null);
 
   // 更新 ref 的值
   useEffect(() => {
@@ -38,6 +39,14 @@ export function useWebSocket<T>({
 
   useEffect(() => {
     if (!conversationId || !enabled) {
+      clientRef.current?.disconnect();
+      clientRef.current = null;
+      return;
+    }
+    // 客服端必须带 wsToken；否则后端会 401，且所有实时能力（新消息/草稿/已读）都不可用。
+    if (!isVisitor && !wsToken) {
+      clientRef.current?.disconnect();
+      clientRef.current = null;
       return;
     }
 
@@ -53,14 +62,24 @@ export function useWebSocket<T>({
         : undefined,
       onClose: onCloseRef.current ? () => onCloseRef.current?.() : undefined,
     });
+    clientRef.current = client;
 
     client.connect();
 
     return () => {
       client.disconnect();
+      if (clientRef.current === client) {
+        clientRef.current = null;
+      }
     };
     // 只依赖 conversationId、enabled、isVisitor 和 agentId，不依赖回调函数
     // 回调函数通过 useRef 存储，不会导致重新连接
   }, [conversationId, enabled, isVisitor, agentId, wsToken]);
+
+  const send = useCallback((type: string, data?: unknown): boolean => {
+    return clientRef.current?.send(type, data) ?? false;
+  }, []);
+
+  return { send };
 }
 

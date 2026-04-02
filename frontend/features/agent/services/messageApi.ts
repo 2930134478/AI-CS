@@ -211,7 +211,7 @@ export async function markMessagesRead(
 ): Promise<MarkMessagesReadResult | null> {
   const res = await fetch(apiUrl("/messages/read"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify({
       conversation_id: conversationId,
       reader_is_agent: readerIsAgent,

@@ -51,6 +51,10 @@ const nextConfig: NextConfig = {
           source: "/agent/logs/frontend",
           destination: `http://${backendHost}:${backendPort}/agent/logs/frontend`,
         },
+        {
+          source: "/agent/logs/min-level",
+          destination: `http://${backendHost}:${backendPort}/agent/logs/min-level`,
+        },
         // 匹配其他 API 路径（不以 /_next、/agent、/api、/chat 开头的路径）
         // /api/agent/prompts 由 app/api/agent/prompts/route.ts 代理，不在此转发
         {

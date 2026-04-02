@@ -117,8 +117,11 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 
 		// Analytics（数据分析报表，需客服 X-User-Id）
 		routes.GET("/agent/analytics/summary", controllers.Analytics.GetSummary)
-		routes.GET("/agent/logs/api", controllers.SystemLog.GetLogs)                 // 日志查询（避免与前端 /agent/logs 页面路径冲突）
-		routes.POST("/agent/logs/frontend", controllers.SystemLog.ReportFrontendLog) // 前端日志上报
+		routes.GET("/agent/logs/api", controllers.SystemLog.GetLogs)                   // 日志查询（避免与前端 /agent/logs 页面路径冲突）
+		routes.GET("/agent/logs/min-level", controllers.SystemLog.GetLogMinLevel)      // 最低落库级别（读）
+		routes.PUT("/agent/logs/min-level", controllers.SystemLog.PutLogMinLevel)       // 最低落库级别（写库并生效）
+		routes.DELETE("/agent/logs/min-level", controllers.SystemLog.DeleteLogMinLevel) // 恢复为 .env
+		routes.POST("/agent/logs/frontend", controllers.SystemLog.ReportFrontendLog)   // 前端日志上报
 
 		// Health（健康检查）
 		routes.GET("/health", controllers.Health.HealthCheck)     // 健康检查

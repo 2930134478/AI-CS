@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/2930134478/AI-CS/backend/controller"
@@ -138,7 +139,7 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}, &models.PromptConfig{}, &models.WidgetOpenEvent{}, &models.SystemLog{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}, &models.PromptConfig{}, &models.WidgetOpenEvent{}, &models.SystemLog{}, &models.AppSetting{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
@@ -152,7 +153,19 @@ func main() {
 	embeddingConfigRepo := repository.NewEmbeddingConfigRepository(db)
 	promptConfigRepo := repository.NewPromptConfigRepository(db)
 	systemLogRepo := repository.NewSystemLogRepository(db)
-	systemLogService := service.NewSystemLogService(systemLogRepo)
+	appSettingRepo := repository.NewAppSettingRepository(db)
+	systemLogMin := service.SystemLogMinPersistLevelFromEnv()
+	systemLogService := service.NewSystemLogService(systemLogRepo, systemLogMin)
+	if row, err := appSettingRepo.Get(models.AppSettingKeySystemLogMinLevel); err == nil && row != nil && strings.TrimSpace(row.Value) != "" {
+		dbRank := service.ParseSystemLogMinPersistLevel(row.Value)
+		systemLogService.SetMinPersistLevelRank(dbRank)
+		log.Printf("ℹ️ 结构化日志最低落库级别: %s（数据库覆盖，环境变量默认 %s）",
+			service.SystemLogMinLevelLabel(dbRank), service.SystemLogMinLevelLabel(systemLogMin))
+	} else if systemLogMin == -1 {
+		log.Println("ℹ️ SYSTEM_LOG_MIN_LEVEL=none，已关闭结构化日志写入数据库（日志中心将无新记录）")
+	} else {
+		log.Printf("ℹ️ 结构化日志最低落库级别: %s（SYSTEM_LOG_MIN_LEVEL）", service.SystemLogMinLevelLabel(systemLogMin))
+	}
 
 	// 初始化默认管理员账号（如果不存在）
 	initDefaultAdmin(userRepo)
@@ -490,7 +503,7 @@ func main() {
 	widgetOpenRepo := repository.NewWidgetOpenRepository(db)
 	analyticsService := service.NewAnalyticsService(db, widgetOpenRepo)
 	analyticsController := controller.NewAnalyticsController(analyticsService, userService)
-	systemLogController := controller.NewSystemLogController(systemLogService, userService)
+	systemLogController := controller.NewSystemLogController(systemLogService, userService, appSettingRepo)
 
 	appRouter.RegisterRoutes(
 		r,

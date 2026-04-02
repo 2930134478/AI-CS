@@ -60,6 +60,9 @@ func StructuredHTTPLogger(logSvc *service.SystemLogService) gin.HandlerFunc {
 		} else if status >= 400 || latencyMs >= 2000 {
 			level = "warn"
 		}
+		if !logSvc.ShouldPersistLevel(level) {
+			return
+		}
 		var userID *uint
 		if v := c.GetHeader("X-User-Id"); v != "" {
 			if id, err := strconv.ParseUint(v, 10, 64); err == nil && id > 0 {
