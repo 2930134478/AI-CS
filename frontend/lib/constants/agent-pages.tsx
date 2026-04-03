@@ -49,6 +49,8 @@ export interface AgentPageItem {
   id: string;
   label: string;
   title: string;
+  /** i18n：title 对应的 key（可选，未接入时回退 title） */
+  titleKey?: import("@/lib/i18n/dict").I18nKey;
   Icon: LucideIcon;
   /** 需要的功能权限键（单级开关）。admin 视为全权限 */
   requiredPermission?: string;
@@ -67,6 +69,7 @@ export const AGENT_PAGES = [
     id: "dashboard",
     label: "会话对话",
     title: "对话",
+    titleKey: "agent.page.dashboard",
     Icon: MessageCircle,
     requiredPermission: "chat",
     isChatPage: true,
@@ -75,6 +78,7 @@ export const AGENT_PAGES = [
     id: "internal-chat",
     label: "知识测试",
     title: "知识库测试",
+    titleKey: "agent.page.internalChat",
     Icon: Lightbulb,
     requiredPermission: "kb_test",
     isChatPage: true,
@@ -83,6 +87,7 @@ export const AGENT_PAGES = [
     id: "knowledge",
     label: "知识管理",
     title: "知识库",
+    titleKey: "agent.page.knowledge",
     Icon: BookOpen,
     requiredPermission: "knowledge",
     component: KnowledgePage,
@@ -91,6 +96,7 @@ export const AGENT_PAGES = [
     id: "faqs",
     label: "事件管理",
     title: "事件管理",
+    titleKey: "agent.page.faqs",
     Icon: ClipboardList,
     requiredPermission: "faqs",
     component: FAQsPage,
@@ -99,6 +105,7 @@ export const AGENT_PAGES = [
     id: "analytics",
     label: "数据报表",
     title: "数据报表",
+    titleKey: "agent.page.analytics",
     Icon: BarChart3,
     requiredPermission: "analytics",
     component: AnalyticsPage,
@@ -107,6 +114,7 @@ export const AGENT_PAGES = [
     id: "logs",
     label: "日志中心",
     title: "日志中心",
+    titleKey: "agent.page.logs",
     Icon: ScrollText,
     requiredPermission: "logs",
     component: LogsPage,
@@ -115,6 +123,7 @@ export const AGENT_PAGES = [
     id: "users",
     label: "用户管理",
     title: "用户管理",
+    titleKey: "agent.page.users",
     Icon: Users,
     requiredPermission: "users",
     component: UsersPage,
@@ -123,6 +132,7 @@ export const AGENT_PAGES = [
     id: "prompts",
     label: "提示配置",
     title: "提示词",
+    titleKey: "agent.page.prompts",
     Icon: FileText,
     requiredPermission: "prompts",
     component: PromptsPage,
@@ -131,6 +141,7 @@ export const AGENT_PAGES = [
     id: "settings",
     label: "AI配置",
     title: "AI 配置",
+    titleKey: "agent.page.settings",
     Icon: Settings,
     requiredPermission: "settings",
     component: SettingsPage,

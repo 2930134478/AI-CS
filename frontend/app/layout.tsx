@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import MatomoTracker from "@/components/MatomoTracker";
 import { Toaster } from "@/components/ui/toaster";
 import { getSiteUrl } from "@/lib/site";
+import { I18nProvider } from "@/lib/i18n/provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,6 +19,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AI-CS 智能客服系统",
   description: "融合 AI 技术与人工客服，为企业提供高效、智能的客户服务解决方案",
+};
+
+/** 移动端：正确缩放、刘海屏 safe-area、禁止误触极小字号（仍允许用户双指放大） */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
 };
 
 // Matomo 容器 URL（格式：container_*.js）
@@ -43,7 +55,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <I18nProvider>{children}</I18nProvider>
         <Toaster />
         {MATOMO_CONTAINER_URL && <MatomoTracker containerUrl={MATOMO_CONTAINER_URL} />}
       </body>

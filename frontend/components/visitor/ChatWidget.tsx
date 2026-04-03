@@ -39,6 +39,8 @@ import { playNotificationSound } from "@/utils/sound";
 import { getAvatarUrl } from "@/utils/avatar";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n/provider";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
 interface ChatWidgetProps {
   visitorId: number;
@@ -93,6 +95,7 @@ const CHAT_WIDGET_PANEL_MAX_W =
  * 提供小窗形式的聊天界面，支持展开/收起
  */
 export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
+  const { t } = useI18n();
   const WEB_SEARCH_PREF_KEY = "visitor_widget_need_web_search";
   // 数据分析：每次由关→开上报一次小窗打开（供后台「小窗打开次数」统计）
   const prevIsOpenRef = useRef(false);
@@ -741,9 +744,14 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
               />
             </svg>
           </div>
-          <h2 className="text-base font-bold text-white truncate">客服聊天</h2>
+          <h2 className="text-base font-bold text-white truncate">{t("chat.title")}</h2>
         </div>
         <div className="flex items-center gap-2">
+          <LanguageSwitcher
+            variant="ghost"
+            size="sm"
+            className="text-white/90 hover:text-white hover:bg-white/20 h-8 px-2 rounded-lg transition-colors"
+          />
           {/* 声音开关按钮 */}
           <Button
             variant="ghost"
@@ -830,7 +838,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
                 : "bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300"
             }
           >
-            人工客服
+            {t("chat.mode.human")}
           </Button>
           <Button
             variant={chatMode === "ai" ? "default" : "outline"}
@@ -844,7 +852,7 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
                 : "bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-300"
             }
           >
-            AI 客服
+            {t("chat.mode.ai")}
           </Button>
         </div>
         {/* 模型选择已下沉到输入区发送按钮左侧（仅 AI 模式显示） */}

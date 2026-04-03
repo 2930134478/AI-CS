@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { websiteConfig } from "@/lib/website-config";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n/provider";
 import {
   AGENT_PAGES,
+  type AgentPageItem,
   type NavigationPage,
 } from "@/lib/constants/agent-pages";
 
@@ -33,6 +36,7 @@ export function NavigationSidebar({
   unreadChatCount = 0,
 }: NavigationSidebarProps) {
   const { agent } = useAuth();
+  const { t } = useI18n();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +72,7 @@ export function NavigationSidebar({
     const need = p.requiredPermission;
     if (!need) return true;
     return permissions.includes(need);
-  });
+  }) as unknown as AgentPageItem[];
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -78,6 +82,7 @@ export function NavigationSidebar({
             const isActive = currentPage === page.id;
             const Icon = page.Icon;
             const showUnread = page.id === "dashboard" && unreadChatCount > 0;
+            const pageTitle = page.titleKey ? t(page.titleKey) : page.title;
             return (
               <Tooltip key={page.id}>
                 <TooltipTrigger asChild>
@@ -88,7 +93,7 @@ export function NavigationSidebar({
                         : "bg-white border border-gray-200 hover:bg-gray-100 text-gray-700"
                     }`}
                     onClick={() => handleNavigate(page.id as NavigationPage)}
-                    aria-label={page.title}
+                    aria-label={pageTitle}
                   >
                     <div className="relative flex items-center justify-center">
                       <Icon className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`} />
@@ -103,7 +108,7 @@ export function NavigationSidebar({
                     </div>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{page.title}</TooltipContent>
+                <TooltipContent side="right">{pageTitle}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -111,6 +116,7 @@ export function NavigationSidebar({
 
       {/* 个人资料按钮和 GitHub 按钮（固定在底部） */}
         <div className="mt-auto flex flex-col items-center gap-2">
+          <LanguageSwitcher variant="ghost" size="icon" className="text-gray-700 hover:text-gray-900" />
           <div className="relative" ref={menuRef}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -121,7 +127,7 @@ export function NavigationSidebar({
                       : "bg-white border border-gray-200 hover:bg-gray-100"
                   }`}
                   onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                  aria-label="个人资料"
+                  aria-label={t("agent.profile")}
                 >
                   <div className="flex items-center justify-center">
                     {fullAvatarUrl ? (
@@ -141,7 +147,7 @@ export function NavigationSidebar({
                   </div>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">个人资料</TooltipContent>
+              <TooltipContent side="right">{t("agent.profile")}</TooltipContent>
             </Tooltip>
 
           {profileMenuOpen && (
@@ -196,7 +202,7 @@ export function NavigationSidebar({
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                     />
                   </svg>
-                  个人资料
+                  {t("agent.profile")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -220,7 +226,7 @@ export function NavigationSidebar({
                       d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                     />
                   </svg>
-                  退出登录
+                  {t("agent.logout")}
                 </Button>
               </div>
             </div>

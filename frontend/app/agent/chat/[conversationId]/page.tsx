@@ -25,10 +25,12 @@ import {
 import type { WSMessage } from "@/lib/websocket";
 import { toast } from "@/hooks/useToast";
 import { getAgentWSToken } from "@/utils/storage";
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function AgentChatPage() {
   const params = useParams();
   const router = useRouter();
+  const { t } = useI18n();
 
   const { agent, loading: authLoading } = useAuth();
 
@@ -151,6 +153,49 @@ export default function AgentChatPage() {
     loadConversationDetail();
     loadMessages();
   }, [conversationId, agent, loadConversationDetail, loadMessages]);
+
+  // 与 `useMessages` 一致：默认不拉取 AI 分段消息时，访客在 AI 模式下的未读不会出现在列表中，
+  // 仅靠滚动无法 mark，会导致未读数长期残留。
+  useEffect(() => {
+    if (!conversationId || !agent) {
+      return;
+    }
+    if (loadingMessages) {
+      return;
+    }
+    if (conversationDetail && conversationDetail.id !== conversationId) {
+      return;
+    }
+
+    const serverUnread = Number(conversationDetail?.unread_count ?? 0);
+    if (serverUnread <= 0) {
+      return;
+    }
+
+    const messagesBelongToConv =
+      messages.length === 0 ||
+      messages.every((m) => m.conversation_id === conversationId);
+    if (!messagesBelongToConv) {
+      return;
+    }
+
+    const visibleVisitorUnread = messages.filter(
+      (msg) => !msg.sender_is_agent && !msg.is_read
+    ).length;
+    if (visibleVisitorUnread > 0) {
+      return;
+    }
+
+    void handleMarkMessagesRead(conversationId, true);
+  }, [
+    conversationId,
+    agent,
+    loadingMessages,
+    messages,
+    conversationDetail?.id,
+    conversationDetail?.unread_count,
+    handleMarkMessagesRead,
+  ]);
 
   const handleNewMessage = useCallback(
     (message: MessageItem) => {
@@ -360,7 +405,7 @@ export default function AgentChatPage() {
   if (authLoading || !agent) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50 text-gray-600">
-        加载中...
+        {t("common.loading")}
       </div>
     );
   }
@@ -378,7 +423,7 @@ export default function AgentChatPage() {
             variant="outline"
             size="sm"
           >
-            ← 返回
+            ← {t("agent.settings.backDashboard")}
           </Button>
           <div className="flex-1">
             <ChatHeader

@@ -8,6 +8,8 @@ import {
 } from "@/features/agent/services/analyticsApi";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/useToast";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
 function formatPercent(n: number) {
   if (Number.isNaN(n)) return "—";
@@ -24,7 +26,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
+    <div className="rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:p-4">
       <div className="text-xs font-medium text-muted-foreground">{title}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
       {sub ? <div className="mt-1 text-xs text-muted-foreground">{sub}</div> : null}
@@ -37,6 +39,7 @@ function DailyBars({
   field,
   label,
   color,
+  emptyLabel,
 }: {
   daily: AnalyticsDailyRow[];
   field: keyof Pick<
@@ -45,6 +48,7 @@ function DailyBars({
   >;
   label: string;
   color: string;
+  emptyLabel: string;
 }) {
   const max = useMemo(() => {
     let m = 1;
@@ -56,13 +60,14 @@ function DailyBars({
   }, [daily, field]);
 
   if (daily.length === 0) {
-    return <p className="text-sm text-muted-foreground">暂无数据</p>;
+    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-2 text-sm font-medium text-foreground">{label}</div>
-      <div className="flex h-36 items-end gap-1 border-b border-border/40 pb-1">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <div className="flex h-36 min-w-max items-end gap-1 border-b border-border/40 pb-1">
         {daily.map((row) => {
           const v = Number(row[field]) || 0;
           const h = Math.round((v / max) * 100);
@@ -86,12 +91,24 @@ function DailyBars({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
 }
 
 export default function AnalyticsPage(_props: { embedded?: boolean }) {
+  const { t } = useI18n();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
+
   const [from, setFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
@@ -118,40 +135,36 @@ export default function AnalyticsPage(_props: { embedded?: boolean }) {
     void load();
   }, [load]);
 
-  const t = data?.totals;
+  const totals = data?.totals;
 
   return (
-    <div
-      className="flex flex-col min-h-0 overflow-auto p-4 max-w-6xl mx-auto w-full"
-    >
-      <div className="mb-6 flex flex-wrap items-end gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">数据报表</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            访客小窗与 AI 客服统计（按上海时区自然日，不含「知识库测试」内部会话）
-          </p>
+    <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-col overflow-auto p-3 sm:p-4 md:p-6">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">{t("agent.analytics.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("agent.analytics.subtitle")}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
-          <label className="text-xs text-muted-foreground flex items-center gap-1">
-            从
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:ml-auto">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground sm:gap-1">
+            <span className="shrink-0">{t("agent.analytics.from")}</span>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+              className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm sm:flex-initial"
             />
           </label>
-          <label className="text-xs text-muted-foreground flex items-center gap-1">
-            到
+          <label className="flex items-center gap-2 text-xs text-muted-foreground sm:gap-1">
+            <span className="shrink-0">{t("agent.analytics.to")}</span>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+              className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm sm:flex-initial"
             />
           </label>
-          <Button size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? "加载中…" : "查询"}
+          <Button className="w-full sm:w-auto" size="sm" onClick={() => void load()} disabled={loading}>
+            {loading ? t("agent.analytics.loading") : t("agent.analytics.query")}
           </Button>
         </div>
       </div>
@@ -160,54 +173,92 @@ export default function AnalyticsPage(_props: { embedded?: boolean }) {
         <p className="text-xs text-muted-foreground mb-4">{data.note}</p>
       )}
 
-      {t && (
+      {totals && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-            <StatCard title="小窗打开次数" value={t.widget_opens} sub="需前端埋点，历史数据可能为 0" />
-            <StatCard title="新建会话数" value={t.sessions} />
-            <StatCard title="消息数" value={t.messages} />
-            <StatCard title="AI 回复次数" value={t.ai_replies} />
-            <StatCard title="AI 失败次数" value={t.ai_failed} />
-            <StatCard title="AI 失败率" value={formatPercent(t.ai_failure_rate_percent)} sub="占 AI 回复条数" />
-            <StatCard title="知识库命中次数" value={t.kb_hits} />
-            <StatCard title="知识库命中率" value={formatPercent(t.kb_hit_rate_percent)} sub="占成功 AI 回复" />
-            <StatCard title="最大 AI 对话轮数" value={t.max_ai_rounds} sub="单会话内用户+AI 一轮" />
-            <StatCard title="AI 参与会话" value={t.sessions_with_ai} sub={`占新建会话 ${formatPercent(t.ai_participation_rate_percent)}`} />
-            <StatCard title="AI→人工（会话数）" value={t.ai_to_human_sessions} sub={`占有过 AI 发言的会话 ${formatPercent(t.ai_to_human_rate_percent)}`} />
-            <StatCard title="人工→AI（会话数）" value={t.human_to_ai_sessions} sub={`占有过人工发言的会话 ${formatPercent(t.human_to_ai_rate_percent)}`} />
+            <StatCard
+              title={t("agent.analytics.stat.widgetOpens")}
+              value={totals.widget_opens}
+              sub={t("agent.analytics.stat.widgetOpensSub")}
+            />
+            <StatCard title={t("agent.analytics.stat.sessions")} value={totals.sessions} />
+            <StatCard title={t("agent.analytics.stat.messages")} value={totals.messages} />
+            <StatCard title={t("agent.analytics.stat.aiReplies")} value={totals.ai_replies} />
+            <StatCard title={t("agent.analytics.stat.aiFailed")} value={totals.ai_failed} />
+            <StatCard
+              title={t("agent.analytics.stat.aiFailureRate")}
+              value={formatPercent(totals.ai_failure_rate_percent)}
+              sub={t("agent.analytics.stat.aiFailureRateSub")}
+            />
+            <StatCard title={t("agent.analytics.stat.kbHits")} value={totals.kb_hits} />
+            <StatCard
+              title={t("agent.analytics.stat.kbHitRate")}
+              value={formatPercent(totals.kb_hit_rate_percent)}
+              sub={t("agent.analytics.stat.kbHitRateSub")}
+            />
+            <StatCard
+              title={t("agent.analytics.stat.maxAiRounds")}
+              value={totals.max_ai_rounds}
+              sub={t("agent.analytics.stat.maxAiRoundsSub")}
+            />
+            <StatCard
+              title={t("agent.analytics.stat.sessionsWithAi")}
+              value={totals.sessions_with_ai}
+              sub={tr("agent.analytics.stat.sessionsWithAiSub", {
+                pct: formatPercent(totals.ai_participation_rate_percent),
+              })}
+            />
+            <StatCard
+              title={t("agent.analytics.stat.aiToHuman")}
+              value={totals.ai_to_human_sessions}
+              sub={tr("agent.analytics.stat.aiToHumanSub", {
+                pct: formatPercent(totals.ai_to_human_rate_percent),
+              })}
+            />
+            <StatCard
+              title={t("agent.analytics.stat.humanToAi")}
+              value={totals.human_to_ai_sessions}
+              sub={tr("agent.analytics.stat.humanToAiSub", {
+                pct: formatPercent(totals.human_to_ai_rate_percent),
+              })}
+            />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 rounded-xl border border-border/60 bg-card p-4">
+          <div className="grid grid-cols-1 gap-6 rounded-xl border border-border/60 bg-card p-3 sm:p-4 md:gap-8 lg:grid-cols-2">
             <DailyBars
               daily={data!.daily}
               field="widget_opens"
-              label="每日小窗打开"
+              label={t("agent.analytics.chart.widgetOpens")}
               color="rgb(34 197 94)"
+              emptyLabel={t("agent.analytics.empty")}
             />
             <DailyBars
               daily={data!.daily}
               field="sessions"
-              label="每日新建会话"
+              label={t("agent.analytics.chart.sessions")}
               color="rgb(59 130 246)"
+              emptyLabel={t("agent.analytics.empty")}
             />
             <DailyBars
               daily={data!.daily}
               field="messages"
-              label="每日消息数"
+              label={t("agent.analytics.chart.messages")}
               color="rgb(168 85 247)"
+              emptyLabel={t("agent.analytics.empty")}
             />
             <DailyBars
               daily={data!.daily}
               field="ai_replies"
-              label="每日 AI 回复"
+              label={t("agent.analytics.chart.aiReplies")}
               color="rgb(249 115 22)"
+              emptyLabel={t("agent.analytics.empty")}
             />
           </div>
         </>
       )}
 
-      {!loading && !t && (
-        <p className="text-sm text-muted-foreground">暂无数据或加载失败</p>
+      {!loading && !totals && (
+        <p className="text-sm text-muted-foreground">{t("agent.analytics.emptyOrFailed")}</p>
       )}
     </div>
   );

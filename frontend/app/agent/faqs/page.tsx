@@ -35,11 +35,23 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/useToast";
 import { Textarea } from "@/components/ui/textarea";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function FAQsPage(props: any = {}) {
   const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
+  const { t, lang } = useI18n();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
   const [faqs, setFaqs] = useState<FAQSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,7 +85,7 @@ export default function FAQsPage(props: any = {}) {
       setFaqs(data);
     } catch (error) {
       console.error("加载 FAQ 列表失败:", error);
-      toast.error((error as Error).message || "加载 FAQ 列表失败");
+      toast.error((error as Error).message || t("agent.faqs.toast.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -102,7 +114,7 @@ export default function FAQsPage(props: any = {}) {
   // 创建 FAQ
   const handleCreate = async () => {
     if (!createForm.question.trim() || !createForm.answer.trim()) {
-      toast.error("问题和答案不能为空");
+      toast.error(t("agent.faqs.toast.emptyRequired"));
       return;
     }
     setSubmitting(true);
@@ -111,9 +123,9 @@ export default function FAQsPage(props: any = {}) {
       setCreateDialogOpen(false);
       setCreateForm({ question: "", answer: "", keywords: "" });
       await loadFAQs();
-      toast.success("创建成功");
+      toast.success(t("agent.faqs.toast.createSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "创建 FAQ 失败");
+      toast.error((error as Error).message || t("agent.faqs.toast.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -136,7 +148,7 @@ export default function FAQsPage(props: any = {}) {
       return;
     }
     if (!editForm.question?.trim() || !editForm.answer?.trim()) {
-      toast.error("问题和答案不能为空");
+      toast.error(t("agent.faqs.toast.emptyRequired"));
       return;
     }
     setSubmitting(true);
@@ -145,9 +157,9 @@ export default function FAQsPage(props: any = {}) {
       setEditDialogOpen(false);
       setSelectedFAQ(null);
       await loadFAQs();
-      toast.success("更新成功");
+      toast.success(t("agent.faqs.toast.updateSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "更新 FAQ 失败");
+      toast.error((error as Error).message || t("agent.faqs.toast.updateFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -170,9 +182,9 @@ export default function FAQsPage(props: any = {}) {
       setDeleteDialogOpen(false);
       setSelectedFAQ(null);
       await loadFAQs();
-      toast.success("删除成功");
+      toast.success(t("agent.faqs.toast.deleteSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "删除 FAQ 失败");
+      toast.error((error as Error).message || t("agent.faqs.toast.deleteFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -181,7 +193,7 @@ export default function FAQsPage(props: any = {}) {
   // 格式化时间
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleString("zh-CN", {
+    return date.toLocaleString(lang === "en" ? "en-US" : "zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -192,16 +204,16 @@ export default function FAQsPage(props: any = {}) {
 
   // 构建头部内容
   const headerContent = (
-    <div className="bg-card border-b p-4 shadow-sm">
+    <div className="border-b bg-card p-3 shadow-sm sm:p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-foreground">事件管理（FAQ）</h1>
+        <h1 className="text-xl font-bold text-foreground">{t("agent.faqs.title")}</h1>
         {!embedded && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/agent/dashboard")}
           >
-            返回
+            {t("agent.common.back")}
           </Button>
         )}
       </div>
@@ -212,7 +224,7 @@ export default function FAQsPage(props: any = {}) {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="关键词搜索（用 % 分隔，例如：openai%api%调用）..."
+            placeholder={t("agent.faqs.search.placeholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -223,7 +235,7 @@ export default function FAQsPage(props: any = {}) {
           className="w-full sm:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
-          创建事件
+          {t("agent.faqs.createButton")}
         </Button>
       </div>
     </div>
@@ -231,15 +243,15 @@ export default function FAQsPage(props: any = {}) {
 
   // 构建主内容区
   const mainContent = (
-    <div className="flex-1 overflow-y-auto p-4 scrollbar-auto">
+    <div className="scrollbar-auto flex-1 overflow-y-auto p-3 sm:p-4">
       {loading ? (
         <div className="flex items-center justify-center h-full">
-          <span className="text-muted-foreground">加载中...</span>
+          <span className="text-muted-foreground">{t("common.loading")}</span>
         </div>
       ) : faqs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <span className="text-muted-foreground">
-            {searchQuery ? "没有找到匹配的事件" : "暂无事件"}
+            {searchQuery ? t("agent.faqs.empty.filtered") : t("agent.faqs.empty")}
           </span>
         </div>
       ) : (
@@ -258,11 +270,11 @@ export default function FAQsPage(props: any = {}) {
                 </div>
                 {faq.keywords && (
                   <div className="text-xs text-muted-foreground mb-2">
-                    关键词: {faq.keywords}
+                    {t("agent.faqs.card.keywords")}: {faq.keywords}
                   </div>
                 )}
                 <div className="text-xs text-muted-foreground">
-                  创建时间: {formatTime(faq.created_at)}
+                  {t("agent.faqs.card.createdAt")}: {formatTime(faq.created_at)}
                 </div>
               </div>
 
@@ -274,7 +286,7 @@ export default function FAQsPage(props: any = {}) {
                   className="flex-1"
                 >
                   <Edit className="w-4 h-4 mr-1" />
-                  编辑
+                  {t("agent.faqs.card.edit")}
                 </Button>
                 <Button
                   variant="destructive"
@@ -291,63 +303,53 @@ export default function FAQsPage(props: any = {}) {
     </div>
   );
 
-  // 如果是嵌入模式，只返回内容，不包含 ResponsiveLayout
-  if (embedded) {
-    return (
-      <>
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {headerContent}
-          {mainContent}
-        </div>
-        {/* 对话框 */}
-        {/* 创建 FAQ 对话框 */}
+  const faqDialogs = (
+    <>
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>创建新事件</DialogTitle>
-            <DialogDescription>
-              填写问题和答案，可以添加关键词以便搜索
-            </DialogDescription>
+            <DialogTitle>{t("agent.faqs.dialog.createTitle2")}</DialogTitle>
+            <DialogDescription>{t("agent.faqs.dialog.createDesc")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="create-question">问题 *</Label>
+              <Label htmlFor="create-question">{t("agent.faqs.form.question")} *</Label>
               <Textarea
                 id="create-question"
                 value={createForm.question}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, question: e.target.value })
                 }
-                placeholder="请输入问题"
+                placeholder={t("agent.faqs.form.placeholder.question")}
                 rows={2}
                 className="resize-none"
               />
             </div>
             <div>
-              <Label htmlFor="create-answer">答案 *</Label>
+              <Label htmlFor="create-answer">{t("agent.faqs.form.answer")} *</Label>
               <Textarea
                 id="create-answer"
                 value={createForm.answer}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, answer: e.target.value })
                 }
-                placeholder="请输入答案"
+                placeholder={t("agent.faqs.form.placeholder.answer")}
                 rows={6}
                 className="resize-none"
               />
             </div>
             <div>
-              <Label htmlFor="create-keywords">关键词（可选）</Label>
+              <Label htmlFor="create-keywords">{t("agent.faqs.form.keywordsOptional")}</Label>
               <Input
                 id="create-keywords"
                 value={createForm.keywords}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, keywords: e.target.value })
                 }
-                placeholder="例如：API、错误、配置（用逗号或空格分隔）"
+                placeholder={t("agent.faqs.form.placeholder.keywords")}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                提示：即使不填写关键词，系统也会自动搜索问题和答案中的内容。关键词字段用于添加额外的搜索索引，帮助用户更快找到相关内容。
+                {t("agent.faqs.form.keywordsTip")}
               </p>
             </div>
             <div className="flex justify-end gap-2">
@@ -356,65 +358,62 @@ export default function FAQsPage(props: any = {}) {
                 onClick={() => setCreateDialogOpen(false)}
                 disabled={submitting}
               >
-                取消
+                {t("agent.common.cancel")}
               </Button>
               <Button onClick={handleCreate} disabled={submitting}>
-                {submitting ? "创建中..." : "创建"}
+                {submitting ? t("agent.faqs.submit.creating") : t("agent.common.create")}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* 编辑 FAQ 对话框 */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>编辑事件</DialogTitle>
-            <DialogDescription>
-              修改问题和答案，可以更新关键词以便搜索
-            </DialogDescription>
+            <DialogTitle>{t("agent.faqs.dialog.editTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.faqs.dialog.editDesc")}</DialogDescription>
           </DialogHeader>
           {selectedFAQ && (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-question">问题 *</Label>
+                <Label htmlFor="edit-question">{t("agent.faqs.form.question")} *</Label>
                 <Textarea
                   id="edit-question"
                   value={editForm.question || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, question: e.target.value })
                   }
-                  placeholder="请输入问题"
+                  placeholder={t("agent.faqs.form.placeholder.question")}
                   rows={2}
                   className="resize-none"
                 />
               </div>
               <div>
-                <Label htmlFor="edit-answer">答案 *</Label>
+                <Label htmlFor="edit-answer">{t("agent.faqs.form.answer")} *</Label>
                 <Textarea
                   id="edit-answer"
                   value={editForm.answer || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, answer: e.target.value })
                   }
-                  placeholder="请输入答案"
+                  placeholder={t("agent.faqs.form.placeholder.answer")}
                   rows={6}
                   className="resize-none"
                 />
               </div>
               <div>
-                <Label htmlFor="edit-keywords">关键词（可选）</Label>
+                <Label htmlFor="edit-keywords">{t("agent.faqs.form.keywordsOptional")}</Label>
                 <Input
                   id="edit-keywords"
                   value={editForm.keywords || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, keywords: e.target.value })
                   }
-                  placeholder="例如：API、错误、配置（用逗号或空格分隔）"
+                  placeholder={t("agent.faqs.form.placeholder.keywords")}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  提示：即使不填写关键词，系统也会自动搜索问题和答案中的内容。关键词字段用于添加额外的搜索索引，帮助用户更快找到相关内容。
+                  {t("agent.faqs.form.keywordsTip")}
                 </p>
               </div>
               <div className="flex justify-end gap-2">
@@ -423,10 +422,10 @@ export default function FAQsPage(props: any = {}) {
                   onClick={() => setEditDialogOpen(false)}
                   disabled={submitting}
                 >
-                  取消
+                  {t("agent.common.cancel")}
                 </Button>
                 <Button onClick={handleUpdate} disabled={submitting}>
-                  {submitting ? "更新中..." : "更新"}
+                  {submitting ? t("common.saving") : t("agent.common.update")}
                 </Button>
               </div>
             </div>
@@ -434,19 +433,18 @@ export default function FAQsPage(props: any = {}) {
         </DialogContent>
       </Dialog>
 
-      {/* 删除确认对话框 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>删除事件</DialogTitle>
+            <DialogTitle>{t("agent.faqs.dialog.deleteTitle")}</DialogTitle>
           </DialogHeader>
           {selectedFAQ && (
             <div className="space-y-4">
               <p className="text-foreground">
-                确定要删除事件 <strong>&quot;{selectedFAQ.question}&quot;</strong> 吗？
+                {tr("agent.faqs.dialog.deleteConfirm", { name: selectedFAQ.question })}
               </p>
               <p className="text-sm text-muted-foreground">
-                此操作不可恢复，请谨慎操作。
+                {t("common.irreversibleHint")}
               </p>
               <div className="flex justify-end gap-2">
                 <Button
@@ -454,14 +452,14 @@ export default function FAQsPage(props: any = {}) {
                   onClick={() => setDeleteDialogOpen(false)}
                   disabled={submitting}
                 >
-                  取消
+                  {t("agent.common.cancel")}
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={submitting}
                 >
-                  {submitting ? "删除中..." : "删除"}
+                  {submitting ? t("agent.faqs.submit.deleting") : t("agent.common.delete")}
                 </Button>
               </div>
             </div>
@@ -470,13 +468,24 @@ export default function FAQsPage(props: any = {}) {
       </Dialog>
     </>
   );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {headerContent}
+          {mainContent}
+        </div>
+        {faqDialogs}
+      </>
+    );
   }
 
   return (
-    <ResponsiveLayout
-      main={mainContent}
-      header={headerContent}
-    />
+    <>
+      <ResponsiveLayout main={mainContent} header={headerContent} />
+      {faqDialogs}
+    </>
   );
 }
 

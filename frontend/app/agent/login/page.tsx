@@ -5,8 +5,10 @@ import { apiUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { setAgentWSToken } from "@/utils/storage";
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function AgentLoginPage() {
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ export default function AgentLoginPage() {
     e.preventDefault(); // 阻止默认行为
 
     if (!username || !password) {
-      setError("用户名和密码不能为空");
+      setError(t("agent.login.error.empty"));
       return;
     }
 
@@ -51,11 +53,11 @@ export default function AgentLoginPage() {
         router.push("/agent/dashboard");
       } else {
         // 登录失败，显示错误信息
-        setError(data.error || data.message || "登录失败");
+        setError(data.error || data.message || t("agent.login.error.failed"));
       }
     } catch (error) {
       console.error("登录失败:", error);
-      setError("登录失败，请检查网络连接");
+      setError(t("agent.login.error.network"));
     } finally {
       setLoading(false);
     }
@@ -65,16 +67,16 @@ export default function AgentLoginPage() {
     <div className="flex justify-center items-center min-h-screen bg-background">
       <div className="bg-card p-8 rounded-lg border shadow-lg w-full sm:w-96">
         <h1 className="text-center text-2xl font-bold mb-2 text-gray-800">
-          客服登录
+          {t("agent.login.title")}
         </h1>
         <p className="text-center text-sm text-gray-500 mb-6">
-          管理员和客服请在此登录
+          {t("agent.login.subtitle")}
         </p>
 
         <form onSubmit={handleLogin}>
           <Input
             type="text"
-            placeholder="用户名"
+            placeholder={t("agent.login.username")}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full mb-4"
@@ -82,7 +84,7 @@ export default function AgentLoginPage() {
           />
           <Input
             type="password"
-            placeholder="密码"
+            placeholder={t("agent.login.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full mb-4"
@@ -102,12 +104,12 @@ export default function AgentLoginPage() {
             size="default"
             className="w-full"
           >
-            {loading ? "登录中..." : "登录"}
+            {loading ? t("agent.login.submitting") : t("agent.login.submit")}
           </Button>
         </form>
 
         <div className="mt-4 text-center text-xs text-gray-400">
-          <p>默认管理员账号：admin / admin123</p>
+          <p>{t("agent.login.demoHint")}</p>
         </div>
       </div>
     </div>

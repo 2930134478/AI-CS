@@ -32,21 +32,42 @@ import {
   defaultAgentPermissions,
   type PermissionKey,
 } from "@/lib/constants/agent-permissions";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 import {
-  Plus,
   Edit,
   Trash2,
   Lock,
   Search,
   UserPlus,
-  Save,
-  X,
 } from "lucide-react";
+
+const PERM_LABEL: Record<PermissionKey, I18nKey> = {
+  chat: "agent.perm.chat",
+  kb_test: "agent.perm.kb_test",
+  knowledge: "agent.perm.knowledge",
+  faqs: "agent.perm.faqs",
+  analytics: "agent.perm.analytics",
+  logs: "agent.perm.logs",
+  prompts: "agent.perm.prompts",
+  settings: "agent.perm.settings",
+  users: "agent.perm.users",
+};
 
 export default function UsersPage(props: any = {}) {
   const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
+  const { t, lang } = useI18n();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,11 +121,11 @@ export default function UsersPage(props: any = {}) {
       setUsers(data);
     } catch (error) {
       console.error("加载用户列表失败:", error);
-      toast.error((error as Error).message || "加载用户列表失败");
+      toast.error((error as Error).message || t("agent.users.toast.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [agent?.id]);
+  }, [agent?.id, t]);
 
   // 初始加载
   useEffect(() => {
@@ -143,7 +164,7 @@ export default function UsersPage(props: any = {}) {
       return;
     }
     if (!createForm.username.trim() || !createForm.password.trim()) {
-      toast.error("用户名和密码不能为空");
+      toast.error(t("agent.users.toast.usernamePasswordRequired"));
       return;
     }
     setSubmitting(true);
@@ -151,9 +172,9 @@ export default function UsersPage(props: any = {}) {
       await createUser(createForm, agent.id);
       setCreateDialogOpen(false);
       await loadUsers();
-      toast.success("创建成功");
+      toast.success(t("agent.users.toast.createSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "创建用户失败");
+      toast.error((error as Error).message || t("agent.users.toast.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -187,9 +208,9 @@ export default function UsersPage(props: any = {}) {
       setEditDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
-      toast.success("更新成功");
+      toast.success(t("agent.users.toast.updateSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "更新用户失败");
+      toast.error((error as Error).message || t("agent.users.toast.updateFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -198,7 +219,7 @@ export default function UsersPage(props: any = {}) {
   // 打开修改密码对话框
   const handleOpenPassword = (user: UserSummary) => {
     if (user.role === "admin") {
-      toast.error("管理员密码仅支持数据库修改，前端已禁用");
+      toast.error(t("agent.users.toast.adminPasswordDisabled"));
       return;
     }
     setSelectedUser(user);
@@ -215,13 +236,13 @@ export default function UsersPage(props: any = {}) {
       return;
     }
     if (!passwordForm.new_password.trim()) {
-      toast.error("新密码不能为空");
+      toast.error(t("agent.users.toast.newPasswordRequired"));
       return;
     }
     // 如果修改的是当前用户，需要旧密码；如果是其他用户，不需要旧密码
     const isCurrentUser = selectedUser.id === agent.id;
     if (isCurrentUser && !passwordForm.old_password?.trim()) {
-      toast.error("修改自己的密码需要提供旧密码");
+      toast.error(t("agent.users.toast.oldPasswordRequired"));
       return;
     }
 
@@ -235,9 +256,9 @@ export default function UsersPage(props: any = {}) {
       setPasswordDialogOpen(false);
       setSelectedUser(null);
       setPasswordForm({ old_password: "", new_password: "" });
-      toast.success("密码更新成功");
+      toast.success(t("agent.users.toast.passwordSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "更新密码失败");
+      toast.error((error as Error).message || t("agent.users.toast.passwordFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -246,7 +267,7 @@ export default function UsersPage(props: any = {}) {
   // 打开删除对话框
   const handleOpenDelete = (user: UserSummary) => {
     if (user.role === "admin") {
-      toast.error("管理员账号仅支持数据库删除，前端已禁用");
+      toast.error(t("agent.users.toast.adminDeleteDisabled"));
       return;
     }
     setSelectedUser(user);
@@ -266,13 +287,15 @@ export default function UsersPage(props: any = {}) {
       await loadUsers();
       if (result.transferredAIConfigs > 0) {
         toast.success(
-          `删除成功，已自动转移 ${result.transferredAIConfigs} 条 AI 配置到当前管理员`
+          tr("agent.users.toast.deleteTransferred", {
+            count: String(result.transferredAIConfigs),
+          })
         );
       } else {
-        toast.success("删除成功");
+        toast.success(t("agent.users.toast.deleteSuccess"));
       }
     } catch (error) {
-      toast.error((error as Error).message || "删除用户失败");
+      toast.error((error as Error).message || t("agent.users.toast.deleteFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -281,7 +304,7 @@ export default function UsersPage(props: any = {}) {
   // 格式化时间
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleString("zh-CN", {
+    return date.toLocaleString(lang === "en" ? "en-US" : "zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -296,16 +319,16 @@ export default function UsersPage(props: any = {}) {
 
   // 构建头部内容
   const headerContent = (
-    <div className="bg-card border-b p-4 shadow-sm">
+    <div className="border-b bg-card p-3 shadow-sm sm:p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-foreground">用户管理</h1>
+        <h1 className="text-xl font-bold text-foreground">{t("agent.users.title")}</h1>
         {!embedded && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/agent/dashboard")}
           >
-            返回
+            {t("agent.common.back")}
           </Button>
         )}
       </div>
@@ -316,7 +339,7 @@ export default function UsersPage(props: any = {}) {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="搜索用户（用户名、昵称、邮箱）..."
+            placeholder={t("agent.users.search.placeholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -327,7 +350,7 @@ export default function UsersPage(props: any = {}) {
           className="w-full sm:w-auto"
         >
           <UserPlus className="w-4 h-4 mr-2" />
-          创建用户
+          {t("agent.users.createButton")}
         </Button>
       </div>
     </div>
@@ -335,15 +358,15 @@ export default function UsersPage(props: any = {}) {
 
   // 构建主内容区
   const mainContent = (
-    <div className="flex-1 overflow-y-auto p-4 scrollbar-auto">
+    <div className="scrollbar-auto flex-1 overflow-y-auto p-3 sm:p-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <span className="text-muted-foreground">加载中...</span>
+            <span className="text-muted-foreground">{t("common.loading")}</span>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-muted-foreground">
-              {searchQuery ? "没有找到匹配的用户" : "暂无用户"}
+              {searchQuery ? t("agent.users.empty.filtered") : t("agent.users.empty")}
             </span>
           </div>
         ) : (
@@ -358,15 +381,23 @@ export default function UsersPage(props: any = {}) {
                     <Badge
                       variant={user.role === "admin" ? "default" : "secondary"}
                     >
-                      {user.role === "admin" ? "管理员" : "客服"}
+                      {user.role === "admin"
+                        ? t("agent.users.role.admin")
+                        : t("agent.users.role.agent")}
                     </Badge>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1 mb-2">
-                    <div>用户名: {user.username}</div>
-                    {user.email && <div>邮箱: {user.email}</div>}
+                    <div>
+                      {t("agent.users.field.username")}: {user.username}
+                    </div>
+                    {user.email && (
+                      <div>
+                        {t("agent.users.field.email")}: {user.email}
+                      </div>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    创建时间: {formatTime(user.created_at)}
+                    {t("agent.users.field.createdAt")}: {formatTime(user.created_at)}
                   </div>
                 </div>
 
@@ -378,7 +409,7 @@ export default function UsersPage(props: any = {}) {
                     className="flex-1"
                   >
                     <Edit className="w-4 h-4 mr-1" />
-                    编辑
+                    {t("agent.users.card.edit")}
                   </Button>
                   <Button
                     variant="outline"
@@ -386,10 +417,14 @@ export default function UsersPage(props: any = {}) {
                     onClick={() => handleOpenPassword(user)}
                     className="flex-1"
                     disabled={user.role === "admin"}
-                    title={user.role === "admin" ? "管理员密码仅支持数据库修改" : ""}
+                    title={
+                      user.role === "admin"
+                        ? t("agent.users.tooltip.adminPasswordDbOnly")
+                        : ""
+                    }
                   >
                     <Lock className="w-4 h-4 mr-1" />
-                    密码
+                    {t("agent.users.card.password")}
                   </Button>
                   <Button
                     variant="destructive"
@@ -398,9 +433,9 @@ export default function UsersPage(props: any = {}) {
                     disabled={user.id === agent.id || user.role === "admin"}
                     title={
                       user.role === "admin"
-                        ? "管理员账号仅支持数据库删除"
+                        ? t("agent.users.tooltip.adminDeleteDbOnly")
                         : user.id === agent.id
-                          ? "不能删除当前登录用户"
+                          ? t("agent.users.tooltip.cannotDeleteSelf")
                           : ""
                     }
                   >
@@ -414,36 +449,28 @@ export default function UsersPage(props: any = {}) {
     </div>
   );
 
-  // 如果是嵌入模式，只返回内容，不包含 ResponsiveLayout
-  if (embedded) {
-    return (
-      <>
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {headerContent}
-          {mainContent}
-        </div>
-        {/* 对话框 */}
-
+  const userDialogs = (
+    <>
       {/* 创建用户对话框 */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>创建新用户</DialogTitle>
+            <DialogTitle>{t("agent.users.dialog.createTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="create-username">用户名 *</Label>
+              <Label htmlFor="create-username">{t("agent.users.form.username")} *</Label>
               <Input
                 id="create-username"
                 value={createForm.username}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, username: e.target.value })
                 }
-                placeholder="请输入用户名"
+                placeholder={t("agent.users.placeholder.username")}
               />
             </div>
             <div>
-              <Label htmlFor="create-password">密码 *</Label>
+              <Label htmlFor="create-password">{t("agent.users.form.password")} *</Label>
               <Input
                 id="create-password"
                 type="password"
@@ -451,11 +478,11 @@ export default function UsersPage(props: any = {}) {
                 onChange={(e) =>
                   setCreateForm({ ...createForm, password: e.target.value })
                 }
-                placeholder="请输入密码"
+                placeholder={t("agent.users.placeholder.password")}
               />
             </div>
             <div>
-              <Label htmlFor="create-role">角色 *</Label>
+              <Label htmlFor="create-role">{t("agent.users.form.role")} *</Label>
               <select
                 id="create-role"
                 value={createForm.role}
@@ -471,15 +498,15 @@ export default function UsersPage(props: any = {}) {
                 }
                 className="w-full px-3 py-2 border border-border rounded-md bg-background"
               >
-                <option value="agent">客服</option>
-                <option value="admin">管理员</option>
+                <option value="agent">{t("agent.users.role.agent")}</option>
+                <option value="admin">{t("agent.users.role.admin")}</option>
               </select>
             </div>
 
             {/* 功能权限（开/关一级；role=admin 默认全开） */}
             {createForm.role !== "admin" && (
               <div>
-                <Label>功能权限</Label>
+                <Label>{t("agent.users.form.permissions")}</Label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {PERMISSION_OPTIONS.map((p) => {
                     const checked = (createForm.permissions ?? []).includes(p.key);
@@ -498,29 +525,29 @@ export default function UsersPage(props: any = {}) {
                             setCreateForm({ ...createForm, permissions: Array.from(next) });
                           }}
                         />
-                        <span>{p.label}</span>
+                        <span>{t(PERM_LABEL[p.key])}</span>
                       </label>
                     );
                   })}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  默认仅开启“对话”。关闭后对应菜单不可见且后端接口会返回 403。
+                  {t("agent.users.form.permissionsHint")}
                 </p>
               </div>
             )}
             <div>
-              <Label htmlFor="create-nickname">昵称</Label>
+              <Label htmlFor="create-nickname">{t("agent.users.form.nickname")}</Label>
               <Input
                 id="create-nickname"
                 value={createForm.nickname}
                 onChange={(e) =>
                   setCreateForm({ ...createForm, nickname: e.target.value })
                 }
-                placeholder="请输入昵称（可选）"
+                placeholder={t("agent.users.placeholder.nicknameOptional")}
               />
             </div>
             <div>
-              <Label htmlFor="create-email">邮箱</Label>
+              <Label htmlFor="create-email">{t("agent.users.form.email")}</Label>
               <Input
                 id="create-email"
                 type="email"
@@ -528,7 +555,7 @@ export default function UsersPage(props: any = {}) {
                 onChange={(e) =>
                   setCreateForm({ ...createForm, email: e.target.value })
                 }
-                placeholder="请输入邮箱（可选）"
+                placeholder={t("agent.users.placeholder.emailOptional")}
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -537,10 +564,10 @@ export default function UsersPage(props: any = {}) {
                 onClick={() => setCreateDialogOpen(false)}
                 disabled={submitting}
               >
-                取消
+                {t("agent.common.cancel")}
               </Button>
               <Button onClick={handleCreate} disabled={submitting}>
-                {submitting ? "创建中..." : "创建"}
+                {submitting ? t("agent.users.submit.creating") : t("agent.common.create")}
               </Button>
             </div>
           </div>
@@ -551,19 +578,19 @@ export default function UsersPage(props: any = {}) {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑用户</DialogTitle>
+            <DialogTitle>{t("agent.users.dialog.editTitle")}</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
               <div>
-                <Label>用户名</Label>
+                <Label>{t("agent.users.field.username")}</Label>
                 <Input value={selectedUser.username} disabled />
                 <p className="text-xs text-muted-foreground mt-1">
-                  用户名不能修改
+                  {t("agent.users.usernameImmutableHint")}
                 </p>
               </div>
               <div>
-                <Label htmlFor="edit-role">角色 *</Label>
+                <Label htmlFor="edit-role">{t("agent.users.form.role")} *</Label>
                 <select
                   id="edit-role"
                   value={editForm.role}
@@ -579,14 +606,14 @@ export default function UsersPage(props: any = {}) {
                   }
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
                 >
-                  <option value="agent">客服</option>
-                  <option value="admin">管理员</option>
+                  <option value="agent">{t("agent.users.role.agent")}</option>
+                  <option value="admin">{t("agent.users.role.admin")}</option>
                 </select>
               </div>
 
               {editForm.role !== "admin" && (
                 <div>
-                  <Label>功能权限</Label>
+                  <Label>{t("agent.users.form.permissions")}</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {PERMISSION_OPTIONS.map((p) => {
                       const checked = (editForm.permissions ?? []).includes(p.key);
@@ -605,7 +632,7 @@ export default function UsersPage(props: any = {}) {
                               setEditForm({ ...editForm, permissions: Array.from(next) });
                             }}
                           />
-                          <span>{p.label}</span>
+                          <span>{t(PERM_LABEL[p.key])}</span>
                         </label>
                       );
                     })}
@@ -613,18 +640,18 @@ export default function UsersPage(props: any = {}) {
                 </div>
               )}
               <div>
-                <Label htmlFor="edit-nickname">昵称</Label>
+                <Label htmlFor="edit-nickname">{t("agent.users.form.nickname")}</Label>
                 <Input
                   id="edit-nickname"
                   value={editForm.nickname || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, nickname: e.target.value })
                   }
-                  placeholder="请输入昵称"
+                  placeholder={t("agent.users.placeholder.nickname")}
                 />
               </div>
               <div>
-                <Label htmlFor="edit-email">邮箱</Label>
+                <Label htmlFor="edit-email">{t("agent.users.form.email")}</Label>
                 <Input
                   id="edit-email"
                   type="email"
@@ -632,7 +659,7 @@ export default function UsersPage(props: any = {}) {
                   onChange={(e) =>
                     setEditForm({ ...editForm, email: e.target.value })
                   }
-                  placeholder="请输入邮箱"
+                  placeholder={t("agent.users.placeholder.email")}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -649,7 +676,7 @@ export default function UsersPage(props: any = {}) {
                   className="w-4 h-4"
                 />
                 <Label htmlFor="edit-receive-ai" className="cursor-pointer">
-                  接收 AI 对话
+                  {t("agent.users.receiveAiLabel")}
                 </Label>
               </div>
               <div className="flex justify-end gap-2">
@@ -658,10 +685,10 @@ export default function UsersPage(props: any = {}) {
                   onClick={() => setEditDialogOpen(false)}
                   disabled={submitting}
                 >
-                  取消
+                  {t("agent.common.cancel")}
                 </Button>
                 <Button onClick={handleUpdate} disabled={submitting}>
-                  {submitting ? "更新中..." : "更新"}
+                  {submitting ? t("agent.users.submit.updating") : t("agent.common.update")}
                 </Button>
               </div>
             </div>
@@ -673,17 +700,17 @@ export default function UsersPage(props: any = {}) {
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>修改密码</DialogTitle>
+            <DialogTitle>{t("agent.users.dialog.passwordTitle")}</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
               <div>
-                <Label>用户名</Label>
+                <Label>{t("agent.users.field.username")}</Label>
                 <Input value={selectedUser.username} disabled />
               </div>
               {selectedUser.id === agent?.id && (
                 <div>
-                  <Label htmlFor="password-old">旧密码 *</Label>
+                  <Label htmlFor="password-old">{t("agent.users.form.oldPassword")} *</Label>
                   <Input
                     id="password-old"
                     type="password"
@@ -694,12 +721,12 @@ export default function UsersPage(props: any = {}) {
                         old_password: e.target.value,
                       })
                     }
-                    placeholder="请输入旧密码"
+                    placeholder={t("agent.users.placeholder.oldPassword")}
                   />
                 </div>
               )}
               <div>
-                <Label htmlFor="password-new">新密码 *</Label>
+                <Label htmlFor="password-new">{t("agent.users.form.newPassword")} *</Label>
                 <Input
                   id="password-new"
                   type="password"
@@ -710,7 +737,7 @@ export default function UsersPage(props: any = {}) {
                       new_password: e.target.value,
                     })
                   }
-                  placeholder="请输入新密码"
+                  placeholder={t("agent.users.placeholder.password")}
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -719,10 +746,10 @@ export default function UsersPage(props: any = {}) {
                   onClick={() => setPasswordDialogOpen(false)}
                   disabled={submitting}
                 >
-                  取消
+                  {t("agent.common.cancel")}
                 </Button>
                 <Button onClick={handleUpdatePassword} disabled={submitting}>
-                  {submitting ? "更新中..." : "更新"}
+                  {submitting ? t("agent.users.submit.updating") : t("agent.common.update")}
                 </Button>
               </div>
             </div>
@@ -734,15 +761,17 @@ export default function UsersPage(props: any = {}) {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>删除用户</DialogTitle>
+            <DialogTitle>{t("agent.users.dialog.deleteTitle")}</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
               <p className="text-foreground">
-                确定要删除用户 <strong>{selectedUser.username}</strong> 吗？
+                {tr("agent.users.dialog.deleteConfirm", {
+                  username: selectedUser.username,
+                })}
               </p>
               <p className="text-sm text-muted-foreground">
-                此操作不可恢复。若该用户有 AI 配置，系统会自动转移给当前管理员，避免配置丢失。
+                {t("agent.users.dialog.deleteNote")}
               </p>
               <div className="flex justify-end gap-2">
                 <Button
@@ -750,14 +779,14 @@ export default function UsersPage(props: any = {}) {
                   onClick={() => setDeleteDialogOpen(false)}
                   disabled={submitting}
                 >
-                  取消
+                  {t("agent.common.cancel")}
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={submitting}
                 >
-                  {submitting ? "删除中..." : "删除"}
+                  {submitting ? t("agent.users.submit.deleting") : t("agent.common.delete")}
                 </Button>
               </div>
             </div>
@@ -766,13 +795,24 @@ export default function UsersPage(props: any = {}) {
       </Dialog>
     </>
   );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {headerContent}
+          {mainContent}
+        </div>
+        {userDialogs}
+      </>
+    );
   }
 
   return (
-    <ResponsiveLayout
-      main={mainContent}
-      header={headerContent}
-    />
+    <>
+      <ResponsiveLayout main={mainContent} header={headerContent} />
+      {userDialogs}
+    </>
   );
 }
 

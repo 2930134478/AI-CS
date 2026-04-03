@@ -202,6 +202,56 @@ export function useMessages({
     refreshConversationDetail(conversationId);
   }, [conversationId, agentId, effectiveIncludeAIMessages, loadMessages, refreshConversationDetail]);
 
+  /**
+   * 关闭「显示 AI 消息」时，列表接口会过滤 chat_mode=ai 的访客消息；
+   * 它们仍会计入 unread_count，但 MessageList 里看不到未读，滚动逻辑永远不会触发标记已读。
+   * 此时在加载完成后自动调用一次 mark，清掉「仅存在于 AI 分段」里的访客未读。
+   */
+  useEffect(() => {
+    if (!conversationId || !agentId) {
+      return;
+    }
+    if (loadingMessages) {
+      return;
+    }
+    if (effectiveIncludeAIMessages) {
+      return;
+    }
+    if (conversationDetail && conversationDetail.id !== conversationId) {
+      return;
+    }
+
+    const serverUnread = Number(conversationDetail?.unread_count ?? 0);
+    if (serverUnread <= 0) {
+      return;
+    }
+
+    const messagesBelongToConv =
+      messages.length === 0 ||
+      messages.every((m) => m.conversation_id === conversationId);
+    if (!messagesBelongToConv) {
+      return;
+    }
+
+    const visibleVisitorUnread = messages.filter(
+      (msg) => !msg.sender_is_agent && !msg.is_read
+    ).length;
+    if (visibleVisitorUnread > 0) {
+      return;
+    }
+
+    void handleMarkMessagesRead(conversationId, true);
+  }, [
+    conversationId,
+    agentId,
+    loadingMessages,
+    effectiveIncludeAIMessages,
+    messages,
+    conversationDetail?.id,
+    conversationDetail?.unread_count,
+    handleMarkMessagesRead,
+  ]);
+
   const handleNewMessageRef = useRef<(message: MessageItem) => void>(() => {});
 
   const handleNewMessage = useCallback(

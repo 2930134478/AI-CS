@@ -6,6 +6,7 @@ import { ConversationSearch } from "./ConversationSearch";
 import { ConversationList } from "./ConversationList";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { useI18n } from "@/lib/i18n/provider";
 
 type ConversationStatus = "open" | "closed";
 
@@ -37,15 +38,16 @@ export function ConversationSidebar({
   mode = "visitor",
   onNewClick,
 }: ConversationSidebarProps) {
+  const { t } = useI18n();
   return (
     <div className="w-80 min-w-0 flex-1 flex flex-col bg-white border-r border-gray-200 min-h-0 overflow-hidden">
       {mode === "internal" ? (
         <div className="h-14 flex items-center justify-between px-3 border-b border-border bg-background flex-shrink-0">
-          <span className="text-sm font-medium text-foreground truncate">知识库测试</span>
+          <span className="text-sm font-medium text-foreground truncate">{t("agent.internalChat.title")}</span>
           {onNewClick && (
             <Button size="sm" variant="outline" onClick={onNewClick} className="flex-shrink-0 gap-1">
               <Plus className="w-4 h-4" />
-              新建
+              {t("agent.internalChat.new")}
             </Button>
           )}
         </div>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { uploadFile, UploadFileResult } from "@/features/agent/services/messageApi";
 import { X, Paperclip, Image as ImageIcon } from "lucide-react";
 import { toast } from "@/hooks/useToast";
+import { useI18n } from "@/lib/i18n/provider";
 
 interface MessageInputProps {
   value: string;
@@ -27,6 +28,7 @@ export function MessageInput({
   sending,
   conversationId,
 }: MessageInputProps) {
+  const { t } = useI18n();
   // 输入框引用，用于发送消息后自动聚焦
   const inputRef = useRef<HTMLInputElement>(null);
   // 文件输入框引用
@@ -58,7 +60,7 @@ export function MessageInput({
       // 验证文件大小（10MB）
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
-        toast.error("文件大小超过限制（最大10MB）");
+        toast.error(t("agent.input.fileTooLarge"));
         return;
       }
 
@@ -66,7 +68,7 @@ export function MessageInput({
       const ext = file.name.toLowerCase().split(".").pop();
       const allowedExts = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx", "txt"];
       if (!ext || !allowedExts.includes(ext)) {
-        toast.error("不支持的文件类型");
+        toast.error(t("agent.input.fileTypeNotSupported"));
         return;
       }
 
@@ -178,7 +180,7 @@ export function MessageInput({
         try {
           fileInfo = await uploadFile(filePreview.file, conversationId);
         } catch (error) {
-          toast.error((error as Error).message || "文件上传失败");
+          toast.error((error as Error).message || t("agent.input.uploadFailed"));
           setUploading(false);
           return;
         }
@@ -254,7 +256,10 @@ export function MessageInput({
       )}
 
       {/* 输入区域 */}
-      <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
+      <form
+        onSubmit={handleSubmit}
+        className="px-4 py-3 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+      >
         <input
           ref={fileInputRef}
           type="file"
@@ -268,7 +273,7 @@ export function MessageInput({
           size="sm"
           onClick={() => fileInputRef.current?.click()}
           disabled={sending || uploading}
-          title="上传文件"
+          title={t("agent.input.upload")}
           className="hover:bg-primary/10 hover:text-primary transition-colors"
         >
           <Paperclip className="w-4 h-4" />
@@ -276,7 +281,11 @@ export function MessageInput({
         <Input
           ref={inputRef}
           type="text"
-          placeholder={filePreview ? "添加消息（可选）..." : "输入消息..."}
+          placeholder={
+            filePreview
+              ? t("agent.input.placeholder.withAttachment")
+              : t("agent.input.placeholder")
+          }
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className="flex-1 border-border/50 focus:border-primary/50 focus:ring-primary/20"
@@ -289,7 +298,11 @@ export function MessageInput({
           size="default"
           className="bg-primary hover:bg-primary/90 shadow-md hover:shadow-lg transition-all"
         >
-          {uploading ? "上传中..." : sending ? "发送中..." : "发送"}
+          {uploading
+            ? t("agent.input.uploading")
+            : sending
+              ? t("agent.input.sending")
+              : t("agent.input.send")}
         </Button>
       </form>
     </div>

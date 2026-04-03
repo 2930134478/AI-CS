@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/agent/hooks/useAuth";
 import { ResponsiveLayout } from "@/components/layout";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 import {
   fetchKnowledgeBases,
   createKnowledgeBase,
@@ -66,6 +68,16 @@ export default function KnowledgePage(props: any = {}) {
   const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
+  const { t, lang } = useI18n();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
 
   // 知识库状态
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -119,11 +131,11 @@ export default function KnowledgePage(props: any = {}) {
       setKnowledgeBases(data);
     } catch (error) {
       console.error("加载知识库列表失败:", error);
-      toast.error((error as Error).message || "加载知识库列表失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.loadKbFailed"));
     } finally {
       setLoadingKBs(false);
     }
-  }, []);
+  }, [t]);
 
   // 加载文档列表（silent：后台轮询向量化状态时不全屏“加载中”、不弹 Toast，避免刷屏）
   const loadDocuments = useCallback(
@@ -152,7 +164,7 @@ export default function KnowledgePage(props: any = {}) {
       } catch (error) {
         console.error("加载文档列表失败:", error);
         if (!silent) {
-          toast.error((error as Error).message || "加载文档列表失败");
+          toast.error((error as Error).message || t("agent.knowledge.toast.loadDocFailed"));
           setDocuments([]);
           setDocumentResult(null);
         }
@@ -162,7 +174,7 @@ export default function KnowledgePage(props: any = {}) {
         }
       }
     },
-    [selectedKnowledgeBase, currentPage, searchKeyword, statusFilter]
+    [selectedKnowledgeBase, currentPage, searchKeyword, statusFilter, t]
   );
 
   // 初始加载
@@ -203,7 +215,7 @@ export default function KnowledgePage(props: any = {}) {
   // 创建知识库
   const handleCreateKB = async () => {
     if (!createKBForm.name.trim()) {
-      toast.error("知识库名称不能为空");
+      toast.error(t("agent.knowledge.toast.kbNameRequired"));
       return;
     }
     setSubmitting(true);
@@ -212,9 +224,9 @@ export default function KnowledgePage(props: any = {}) {
       setCreateKBDialogOpen(false);
       setCreateKBForm({ name: "", description: "" });
       await loadKnowledgeBases();
-      toast.success("创建成功");
+      toast.success(t("agent.knowledge.toast.createSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "创建知识库失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.createKbFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -238,9 +250,9 @@ export default function KnowledgePage(props: any = {}) {
       await updateKnowledgeBase(selectedKnowledgeBase.id, editKBForm);
       setEditKBDialogOpen(false);
       await loadKnowledgeBases();
-      toast.success("更新成功");
+      toast.success(t("agent.knowledge.toast.updateSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "更新知识库失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.updateKbFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -261,9 +273,9 @@ export default function KnowledgePage(props: any = {}) {
       setDeleteKBDialogOpen(false);
       setSelectedKnowledgeBase(null);
       await loadKnowledgeBases();
-      toast.success("删除成功");
+      toast.success(t("agent.knowledge.toast.deleteSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "删除知识库失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.deleteKbFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -272,7 +284,7 @@ export default function KnowledgePage(props: any = {}) {
   // 打开创建文档对话框
   const handleOpenCreateDoc = () => {
     if (!selectedKnowledgeBase) {
-      toast.error("请先选择知识库");
+      toast.error(t("agent.knowledge.toast.selectKbFirst"));
       return;
     }
     setCreateDocForm({
@@ -289,7 +301,7 @@ export default function KnowledgePage(props: any = {}) {
   // 创建文档
   const handleCreateDoc = async () => {
     if (!createDocForm.title.trim() || !createDocForm.content.trim()) {
-      toast.error("标题和内容不能为空");
+      toast.error(t("agent.knowledge.toast.docTitleContentRequired"));
       return;
     }
     setSubmitting(true);
@@ -305,9 +317,9 @@ export default function KnowledgePage(props: any = {}) {
         status: "draft",
       });
       await loadDocuments();
-      toast.success("创建成功");
+      toast.success(t("agent.knowledge.toast.createSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "创建文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.createDocFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -333,9 +345,9 @@ export default function KnowledgePage(props: any = {}) {
       await updateDocument(docId, editDocForm);
       setEditDocDialogOpen(false);
       await loadDocuments();
-      toast.success("更新成功");
+      toast.success(t("agent.knowledge.toast.updateSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "更新文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.updateDocFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -354,9 +366,9 @@ export default function KnowledgePage(props: any = {}) {
       await deleteDocument(docId);
       setDeleteDocDialogOpen(false);
       await loadDocuments();
-      toast.success("删除成功");
+      toast.success(t("agent.knowledge.toast.deleteSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "删除文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.deleteDocFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -367,9 +379,9 @@ export default function KnowledgePage(props: any = {}) {
     try {
       await publishDocument(docId);
       await loadDocuments();
-      toast.success("发布成功");
+      toast.success(t("agent.knowledge.toast.publishSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "发布文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.publishFailed"));
     }
   };
 
@@ -378,20 +390,20 @@ export default function KnowledgePage(props: any = {}) {
     try {
       await unpublishDocument(docId);
       await loadDocuments();
-      toast.success("取消发布成功");
+      toast.success(t("agent.knowledge.toast.unpublishSuccess"));
     } catch (error) {
-      toast.error((error as Error).message || "取消发布文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.unpublishFailed"));
     }
   };
 
   // 导入文件
   const handleImportFiles = async () => {
     if (!selectedKnowledgeBase) {
-      toast.error("请先选择知识库");
+      toast.error(t("agent.knowledge.toast.selectKbFirst"));
       return;
     }
     if (importFiles.length === 0) {
-      toast.error("请选择要导入的文件");
+      toast.error(t("agent.knowledge.toast.selectFiles"));
       return;
     }
     setSubmitting(true);
@@ -399,11 +411,26 @@ export default function KnowledgePage(props: any = {}) {
       const result: ImportResult = await importDocuments(selectedKnowledgeBase.id, importFiles);
       const errMsg = result.errors?.length ? result.errors[0] : "";
       if (result.failed_count > 0 && result.success_count === 0) {
-        toast.error(errMsg || `导入失败：${result.failed_count} 个文件未成功`);
+        toast.error(
+          errMsg ||
+            tr("agent.knowledge.toast.importFailed.files", {
+              count: String(result.failed_count),
+            })
+        );
       } else if (result.failed_count > 0) {
-        toast.success(`导入完成：成功 ${result.success_count}，失败 ${result.failed_count}${errMsg ? `（${errMsg}）` : ""}`);
+        toast.success(
+          tr("agent.knowledge.toast.importDone.partial", {
+            success: String(result.success_count),
+            failed: String(result.failed_count),
+            err: errMsg ? `(${errMsg})` : "",
+          })
+        );
       } else {
-        toast.success(`导入完成：成功 ${result.success_count} 个文件`);
+        toast.success(
+          tr("agent.knowledge.toast.importDone.files", {
+            success: String(result.success_count),
+          })
+        );
       }
       setImportDialogOpen(false);
       setImportFiles([]);
@@ -411,10 +438,10 @@ export default function KnowledgePage(props: any = {}) {
         await loadDocuments();
         await loadKnowledgeBases();
       } catch {
-        toast.error("导入成功，但刷新列表失败，请手动刷新页面");
+        toast.error(t("agent.knowledge.toast.importRefreshFailed"));
       }
     } catch (error) {
-      toast.error((error as Error).message || "导入文档失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.importDocFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -423,7 +450,7 @@ export default function KnowledgePage(props: any = {}) {
   // 导入 URL
   const handleImportUrls = async () => {
     if (!selectedKnowledgeBase) {
-      toast.error("请先选择知识库");
+      toast.error(t("agent.knowledge.toast.selectKbFirst"));
       return;
     }
     const urls = importUrls
@@ -431,7 +458,7 @@ export default function KnowledgePage(props: any = {}) {
       .map((url) => url.trim())
       .filter((url) => url.length > 0);
     if (urls.length === 0) {
-      toast.error("请输入至少一个 URL");
+      toast.error(t("agent.knowledge.toast.urlRequired"));
       return;
     }
     setSubmitting(true);
@@ -442,11 +469,26 @@ export default function KnowledgePage(props: any = {}) {
       });
       const errMsg = result.errors?.length ? result.errors[0] : "";
       if (result.failed_count > 0 && result.success_count === 0) {
-        toast.error(errMsg || `导入失败：${result.failed_count} 个 URL 未成功`);
+        toast.error(
+          errMsg ||
+            tr("agent.knowledge.toast.importFailed.urls", {
+              count: String(result.failed_count),
+            })
+        );
       } else if (result.failed_count > 0) {
-        toast.success(`导入完成：成功 ${result.success_count}，失败 ${result.failed_count}${errMsg ? `（${errMsg}）` : ""}`);
+        toast.success(
+          tr("agent.knowledge.toast.importDone.partial", {
+            success: String(result.success_count),
+            failed: String(result.failed_count),
+            err: errMsg ? `(${errMsg})` : "",
+          })
+        );
       } else {
-        toast.success(`导入完成：成功 ${result.success_count} 个 URL`);
+        toast.success(
+          tr("agent.knowledge.toast.importDone.urls", {
+            success: String(result.success_count),
+          })
+        );
       }
       setImportDialogOpen(false);
       setImportUrls("");
@@ -454,10 +496,10 @@ export default function KnowledgePage(props: any = {}) {
         await loadDocuments();
         await loadKnowledgeBases();
       } catch {
-        toast.error("导入成功，但刷新列表失败，请手动刷新页面");
+        toast.error(t("agent.knowledge.toast.importRefreshFailed"));
       }
     } catch (error) {
-      toast.error((error as Error).message || "导入 URL 失败");
+      toast.error((error as Error).message || t("agent.knowledge.toast.importUrlFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -466,7 +508,7 @@ export default function KnowledgePage(props: any = {}) {
   // 格式化时间
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleString("zh-CN", {
+    return date.toLocaleString(lang === "en" ? "en-US" : "zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -482,13 +524,13 @@ export default function KnowledgePage(props: any = {}) {
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
             <CheckCircle2 className="w-3 h-3 mr-1" />
-            已发布
+            {t("agent.knowledge.status.published")}
           </span>
         );
       case "draft":
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-            草稿
+            {t("agent.knowledge.status.draft")}
           </span>
         );
       default:
@@ -507,28 +549,28 @@ export default function KnowledgePage(props: any = {}) {
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
             <CheckCircle2 className="w-3 h-3 mr-1" />
-            已完成
+            {t("agent.knowledge.embedding.completed")}
           </span>
         );
       case "processing":
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            处理中
+            {t("agent.knowledge.embedding.processing")}
           </span>
         );
       case "failed":
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
             <XCircle className="w-3 h-3 mr-1" />
-            失败
+            {t("agent.knowledge.embedding.failed")}
           </span>
         );
       case "pending":
       default:
         return (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-            待处理
+            {t("agent.knowledge.embedding.pending")}
           </span>
         );
     }
@@ -536,16 +578,16 @@ export default function KnowledgePage(props: any = {}) {
 
   // 构建头部内容
   const headerContent = (
-    <div className="bg-card border-b p-4 shadow-sm">
+    <div className="bg-card border-b p-3 shadow-sm sm:p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-foreground">知识库管理</h1>
+        <h1 className="text-xl font-bold text-foreground">{t("agent.knowledge.title")}</h1>
         {!embedded && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/agent/dashboard")}
           >
-            返回
+            {t("agent.common.back")}
           </Button>
         )}
       </div>
@@ -554,9 +596,9 @@ export default function KnowledgePage(props: any = {}) {
 
   // 构建主内容区
   const mainContent = (
-    <div className="flex-1 flex overflow-hidden">
-      {/* 左侧：知识库列表 */}
-      <div className="w-64 border-r bg-gray-50 flex flex-col">
+    <div className="flex flex-1 min-h-0 flex-col overflow-hidden md:flex-row">
+      {/* 左侧：知识库列表（小屏置顶且限高，避免挤掉文档区） */}
+      <div className="flex h-[min(40vh,320px)] w-full shrink-0 flex-col border-b border-border bg-gray-50 md:h-auto md:max-h-none md:w-64 md:border-b-0 md:border-r">
         <div className="p-4 border-b">
           <Button
             onClick={() => setCreateKBDialogOpen(true)}
@@ -564,17 +606,17 @@ export default function KnowledgePage(props: any = {}) {
             size="sm"
           >
             <Plus className="w-4 h-4 mr-2" />
-            新建知识库
+            {t("agent.knowledge.kb.create")}
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {loadingKBs ? (
             <div className="flex items-center justify-center h-full">
-              <span className="text-muted-foreground">加载中...</span>
+              <span className="text-muted-foreground">{t("common.loading")}</span>
             </div>
           ) : knowledgeBases.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <span className="text-muted-foreground">暂无知识库</span>
+              <span className="text-muted-foreground">{t("agent.knowledge.kb.empty")}</span>
             </div>
           ) : (
             <div className="space-y-2">
@@ -601,7 +643,9 @@ export default function KnowledgePage(props: any = {}) {
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {kb.document_count} 篇文档
+                          {tr("agent.knowledge.kb.docCount", {
+                            count: String(kb.document_count),
+                          })}
                         </span>
                       </div>
                     </div>
@@ -638,16 +682,23 @@ export default function KnowledgePage(props: any = {}) {
       </div>
 
       {/* 右侧：文档列表 */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {selectedKnowledgeBase ? (
           <>
             {/* 文档列表头部 */}
-            <div className="p-4 border-b bg-white">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">{selectedKnowledgeBase.name}</h2>
-                <div className="flex gap-2 items-center">
-                  <div className="flex items-center gap-2 mr-2">
-                    <Label htmlFor="rag-enabled" className="text-sm text-muted-foreground whitespace-nowrap">参与 RAG</Label>
+            <div className="border-b bg-white p-3 sm:p-4">
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <h2 className="text-lg font-semibold leading-tight break-words">
+                  {selectedKnowledgeBase.name}
+                </h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="rag-enabled"
+                      className="whitespace-nowrap text-sm text-muted-foreground"
+                    >
+                      {t("agent.knowledge.rag")}
+                    </Label>
                     <Switch
                       id="rag-enabled"
                       checked={selectedKnowledgeBase.rag_enabled !== false}
@@ -657,37 +708,41 @@ export default function KnowledgePage(props: any = {}) {
                           setSelectedKnowledgeBase((prev) => (prev?.id === updated.id ? { ...prev, rag_enabled: updated.rag_enabled } : prev));
                           setKnowledgeBases((prev) => prev.map((kb) => (kb.id === updated.id ? { ...kb, rag_enabled: updated.rag_enabled } : kb)));
                         } catch (e) {
-                          toast.error((e as Error).message || "更新失败");
+                          toast.error((e as Error).message || t("agent.knowledge.toast.updateFailed"));
                         }
                       }}
                     />
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setImportTab("url");
-                      setImportDialogOpen(true);
-                    }}
-                  >
-                    <LinkIcon className="w-4 h-4 mr-2" />
-                    导入 URL
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setImportTab("file");
-                      setImportDialogOpen(true);
-                    }}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    导入文件
-                  </Button>
-                  <Button size="sm" onClick={handleOpenCreateDoc}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    新建文档
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 min-w-[8rem] sm:flex-initial"
+                      onClick={() => {
+                        setImportTab("url");
+                        setImportDialogOpen(true);
+                      }}
+                    >
+                      <LinkIcon className="mr-2 h-4 w-4 shrink-0" />
+                      {t("agent.knowledge.import.url")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 min-w-[8rem] sm:flex-initial"
+                      onClick={() => {
+                        setImportTab("file");
+                        setImportDialogOpen(true);
+                      }}
+                    >
+                      <Upload className="mr-2 h-4 w-4 shrink-0" />
+                      {t("agent.knowledge.import.file")}
+                    </Button>
+                    <Button size="sm" className="w-full sm:w-auto" onClick={handleOpenCreateDoc}>
+                      <Plus className="mr-2 h-4 w-4 shrink-0" />
+                      {t("agent.knowledge.doc.create")}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -697,7 +752,7 @@ export default function KnowledgePage(props: any = {}) {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="搜索文档..."
+                    placeholder={t("agent.knowledge.doc.searchPh")}
                     value={searchKeyword}
                     onChange={(e) => setSearchKeyword(e.target.value)}
                     className="pl-10"
@@ -708,85 +763,95 @@ export default function KnowledgePage(props: any = {}) {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3 py-2 border rounded-md text-sm"
                 >
-                  <option value="all">全部状态</option>
-                  <option value="draft">草稿</option>
-                  <option value="published">已发布</option>
+                  <option value="all">{t("agent.knowledge.filter.all")}</option>
+                  <option value="draft">{t("agent.knowledge.status.draft")}</option>
+                  <option value="published">{t("agent.knowledge.status.published")}</option>
                 </select>
               </div>
             </div>
 
             {/* 文档列表 */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
               {loadingDocs ? (
                 <div className="flex items-center justify-center h-full">
-                  <span className="text-muted-foreground">加载中...</span>
+                  <span className="text-muted-foreground">{t("common.loading")}</span>
                 </div>
               ) : (documents?.length ?? 0) === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <span className="text-muted-foreground">
                     {searchKeyword || statusFilter !== "all"
-                      ? "没有找到匹配的文档"
-                      : "暂无文档"}
+                      ? t("agent.knowledge.doc.empty.filtered")
+                      : t("agent.knowledge.doc.empty")}
                   </span>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {(documents ?? []).map((doc) => (
-                    <Card key={doc.id} className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                            <h3 className="font-medium text-foreground truncate">
+                    <Card key={doc.id} className="p-3 sm:p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <FileText className="h-5 w-5 shrink-0 text-blue-600" />
+                            <h3 className="min-w-0 flex-1 font-medium text-foreground break-words sm:truncate">
                               {doc.title}
                             </h3>
-                            {getStatusBadge(doc.status)}
-                            {getEmbeddingStatusBadge(doc.embedding_status)}
+                            <span className="flex flex-wrap gap-1">
+                              {getStatusBadge(doc.status)}
+                              {getEmbeddingStatusBadge(doc.embedding_status)}
+                            </span>
                           </div>
                           {doc.summary && (
-                            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                            <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">
                               {doc.summary}
                             </p>
                           )}
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>类型: {doc.type}</span>
-                            <span>创建时间: {formatTime(doc.created_at)}</span>
+                          <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-4">
+                            <span>
+                              {t("agent.knowledge.doc.type")}: {doc.type}
+                            </span>
+                            <span className="break-words">
+                              {t("agent.knowledge.doc.createdAt")}: {formatTime(doc.created_at)}
+                            </span>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 ml-4">
-                          <div className="flex gap-2">
+                        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:ml-4">
+                          <div className="flex flex-wrap gap-2">
                             <Button
                               variant="outline"
                               size="sm"
+                              className="min-w-0 flex-1 sm:flex-initial"
                               onClick={() => handleOpenEditDoc(doc)}
                             >
-                              <Edit className="w-4 h-4 mr-1" />
-                              编辑
+                              <Edit className="mr-1 h-4 w-4 shrink-0" />
+                              {t("agent.common.edit")}
                             </Button>
                             <Button
                               variant="destructive"
                               size="sm"
+                              className="shrink-0"
                               onClick={() => handleOpenDeleteDoc(doc)}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             {doc.status === "published" ? (
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 onClick={() => handleUnpublishDoc(doc.id)}
                               >
-                                取消发布
+                                {t("agent.knowledge.doc.unpublish")}
                               </Button>
                             ) : (
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 onClick={() => handlePublishDoc(doc.id)}
                               >
-                                发布
+                                {t("agent.knowledge.doc.publish")}
                               </Button>
                             )}
                           </div>
@@ -809,7 +874,11 @@ export default function KnowledgePage(props: any = {}) {
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
                   <span className="text-sm text-muted-foreground">
-                    第 {currentPage} / {documentResult.total_page} 页，共 {documentResult.total} 条
+                    {tr("agent.knowledge.pagination", {
+                      page: String(currentPage),
+                      totalPage: String(documentResult.total_page),
+                      total: String(documentResult.total),
+                    })}
                   </span>
                   <Button
                     variant="outline"
@@ -825,14 +894,375 @@ export default function KnowledgePage(props: any = {}) {
           </>
         ) : (
           <div className="flex items-center justify-center h-full">
-            <span className="text-muted-foreground">请选择一个知识库</span>
+            <span className="text-muted-foreground">{t("agent.knowledge.kb.selectOne")}</span>
           </div>
         )}
       </div>
     </div>
   );
 
-  // 如果是嵌入模式，只返回内容，不包含 ResponsiveLayout
+  const dialogs = (
+    <>
+      <Dialog open={createKBDialogOpen} onOpenChange={setCreateKBDialogOpen}>
+        <DialogContent className="max-h-[90dvh] max-w-[min(100vw-2rem,42rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.kbCreateTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.knowledge.dialog.kbCreateDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="create-kb-name">{t("agent.knowledge.field.name")} *</Label>
+              <Input
+                id="create-kb-name"
+                value={createKBForm.name}
+                onChange={(e) => setCreateKBForm({ ...createKBForm, name: e.target.value })}
+                placeholder={t("agent.knowledge.ph.kbName")}
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-kb-desc">{t("agent.knowledge.field.descOptional")}</Label>
+              <Textarea
+                id="create-kb-desc"
+                value={createKBForm.description || ""}
+                onChange={(e) =>
+                  setCreateKBForm({ ...createKBForm, description: e.target.value })
+                }
+                placeholder={t("agent.knowledge.ph.kbDesc")}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCreateKBDialogOpen(false)}
+                disabled={submitting}
+              >
+                {t("agent.common.cancel")}
+              </Button>
+              <Button onClick={handleCreateKB} disabled={submitting}>
+                {submitting ? t("agent.knowledge.submitting.creating") : t("agent.common.create")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editKBDialogOpen} onOpenChange={setEditKBDialogOpen}>
+        <DialogContent className="max-h-[90dvh] max-w-[min(100vw-2rem,42rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.kbEditTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.knowledge.dialog.kbEditDesc")}</DialogDescription>
+          </DialogHeader>
+          {selectedKnowledgeBase && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-kb-name">{t("agent.knowledge.field.name")} *</Label>
+                <Input
+                  id="edit-kb-name"
+                  value={editKBForm.name || selectedKnowledgeBase.name}
+                  onChange={(e) => setEditKBForm({ ...editKBForm, name: e.target.value })}
+                  placeholder={t("agent.knowledge.ph.kbName")}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-kb-desc">{t("agent.knowledge.field.descOptional")}</Label>
+                <Textarea
+                  id="edit-kb-desc"
+                  value={editKBForm.description ?? selectedKnowledgeBase.description ?? ""}
+                  onChange={(e) =>
+                    setEditKBForm({ ...editKBForm, description: e.target.value })
+                  }
+                  placeholder={t("agent.knowledge.ph.kbDesc")}
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditKBDialogOpen(false)}
+                  disabled={submitting}
+                >
+                  {t("agent.common.cancel")}
+                </Button>
+                <Button onClick={handleUpdateKB} disabled={submitting}>
+                  {submitting ? t("agent.knowledge.submitting.updating") : t("agent.common.update")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteKBDialogOpen} onOpenChange={setDeleteKBDialogOpen}>
+        <DialogContent className="max-w-[min(100vw-2rem,28rem)]">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.kbDeleteTitle")}</DialogTitle>
+          </DialogHeader>
+          {selectedKnowledgeBase && (
+            <div className="space-y-4">
+              <p className="text-foreground">
+                {tr("agent.knowledge.dialog.kbDeleteConfirm", { name: selectedKnowledgeBase.name })}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {t("agent.knowledge.dialog.kbDeleteHint")}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteKBDialogOpen(false)}
+                  disabled={submitting}
+                >
+                  {t("agent.common.cancel")}
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteKB} disabled={submitting}>
+                  {submitting ? t("agent.knowledge.submitting.deleting") : t("agent.common.delete")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createDocDialogOpen} onOpenChange={setCreateDocDialogOpen}>
+        <DialogContent className="max-h-[90dvh] max-w-[min(100vw-2rem,48rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.docCreateTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.knowledge.dialog.docCreateDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="create-doc-title">{t("agent.knowledge.field.title")} *</Label>
+              <Input
+                id="create-doc-title"
+                value={createDocForm.title}
+                onChange={(e) => setCreateDocForm({ ...createDocForm, title: e.target.value })}
+                placeholder={t("agent.knowledge.ph.docTitle")}
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-doc-summary">{t("agent.knowledge.field.summaryOptional")}</Label>
+              <Textarea
+                id="create-doc-summary"
+                value={createDocForm.summary || ""}
+                onChange={(e) => setCreateDocForm({ ...createDocForm, summary: e.target.value })}
+                placeholder={t("agent.knowledge.ph.docSummary")}
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-doc-content">{t("agent.knowledge.field.content")} *</Label>
+              <Textarea
+                id="create-doc-content"
+                value={createDocForm.content}
+                onChange={(e) =>
+                  setCreateDocForm({ ...createDocForm, content: e.target.value })
+                }
+                placeholder={t("agent.knowledge.ph.docContent")}
+                rows={10}
+                className="resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCreateDocDialogOpen(false)}
+                disabled={submitting}
+              >
+                {t("agent.common.cancel")}
+              </Button>
+              <Button onClick={handleCreateDoc} disabled={submitting}>
+                {submitting ? t("agent.knowledge.submitting.creating") : t("agent.common.create")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDocDialogOpen} onOpenChange={setEditDocDialogOpen}>
+        <DialogContent className="max-h-[90dvh] max-w-[min(100vw-2rem,48rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.docEditTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.knowledge.dialog.docEditDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-doc-title">{t("agent.knowledge.field.title")} *</Label>
+              <Input
+                id="edit-doc-title"
+                value={editDocForm.title || ""}
+                onChange={(e) => setEditDocForm({ ...editDocForm, title: e.target.value })}
+                placeholder={t("agent.knowledge.ph.docTitle")}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-doc-summary">{t("agent.knowledge.field.summaryOptional")}</Label>
+              <Textarea
+                id="edit-doc-summary"
+                value={editDocForm.summary || ""}
+                onChange={(e) => setEditDocForm({ ...editDocForm, summary: e.target.value })}
+                placeholder={t("agent.knowledge.ph.docSummary")}
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-doc-content">{t("agent.knowledge.field.content")} *</Label>
+              <Textarea
+                id="edit-doc-content"
+                value={editDocForm.content || ""}
+                onChange={(e) => setEditDocForm({ ...editDocForm, content: e.target.value })}
+                placeholder={t("agent.knowledge.ph.docContent")}
+                rows={10}
+                className="resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditDocDialogOpen(false)}
+                disabled={submitting}
+              >
+                {t("agent.common.cancel")}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedDocument) {
+                    handleUpdateDoc(selectedDocument.id);
+                  }
+                }}
+                disabled={submitting}
+              >
+                {submitting ? t("agent.knowledge.submitting.updating") : t("agent.common.update")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
+        <DialogContent className="max-w-[min(100vw-2rem,28rem)]">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.docDeleteTitle")}</DialogTitle>
+          </DialogHeader>
+          {selectedDocument && (
+            <div className="space-y-4">
+              <p className="text-foreground">
+                {tr("agent.knowledge.dialog.docDeleteConfirm", { title: selectedDocument.title })}
+              </p>
+              <p className="text-sm text-muted-foreground">{t("common.irreversibleHint")}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDocDialogOpen(false)}
+              disabled={submitting}
+            >
+              {t("agent.common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedDocument) {
+                  handleDeleteDoc(selectedDocument.id);
+                }
+              }}
+              disabled={submitting}
+            >
+              {submitting ? t("agent.knowledge.submitting.deleting") : t("agent.common.delete")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={importDialogOpen}
+        onOpenChange={(open) => {
+          setImportDialogOpen(open);
+          if (!open) {
+            setImportFiles([]);
+            setImportUrls("");
+            setImportTab("file");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] max-w-[min(100vw-2rem,42rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("agent.knowledge.dialog.importTitle")}</DialogTitle>
+            <DialogDescription>{t("agent.knowledge.dialog.importDesc")}</DialogDescription>
+          </DialogHeader>
+          <Tabs
+            value={importTab}
+            onValueChange={(v) => setImportTab(v as "file" | "url")}
+            defaultValue="file"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="file">{t("agent.knowledge.import.tabFile")}</TabsTrigger>
+              <TabsTrigger value="url">{t("agent.knowledge.import.tabUrl")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="file" className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="import-files">{t("agent.knowledge.import.pickFiles")}</Label>
+                <Input
+                  id="import-files"
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setImportFiles(files);
+                  }}
+                />
+                {importFiles.length > 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {tr("agent.knowledge.import.filesSelected", {
+                      count: String(importFiles.length),
+                    })}
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(false)}
+                  disabled={submitting}
+                >
+                  {t("agent.common.cancel")}
+                </Button>
+                <Button onClick={handleImportFiles} disabled={submitting}>
+                  {submitting ? t("agent.knowledge.submitting.importing") : t("agent.knowledge.import.action")}
+                </Button>
+              </div>
+            </TabsContent>
+            <TabsContent value="url" className="space-y-4 mt-4">
+              <div>
+                <Label htmlFor="import-urls">{t("agent.knowledge.import.urlListLabel")}</Label>
+                <Textarea
+                  id="import-urls"
+                  value={importUrls}
+                  onChange={(e) => setImportUrls(e.target.value)}
+                  placeholder="https://example.com/page1&#10;https://example.com/page2"
+                  rows={8}
+                  className="resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(false)}
+                  disabled={submitting}
+                >
+                  {t("agent.common.cancel")}
+                </Button>
+                <Button onClick={handleImportUrls} disabled={submitting}>
+                  {submitting ? t("agent.knowledge.submitting.importing") : t("agent.knowledge.import.action")}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
   if (embedded) {
     return (
       <>
@@ -840,400 +1270,15 @@ export default function KnowledgePage(props: any = {}) {
           {headerContent}
           {mainContent}
         </div>
-
-        {/* 对话框 */}
-        {/* 创建知识库对话框 */}
-        <Dialog open={createKBDialogOpen} onOpenChange={setCreateKBDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>创建知识库</DialogTitle>
-              <DialogDescription>填写知识库名称和描述</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="create-kb-name">名称 *</Label>
-                <Input
-                  id="create-kb-name"
-                  value={createKBForm.name}
-                  onChange={(e) =>
-                    setCreateKBForm({ ...createKBForm, name: e.target.value })
-                  }
-                  placeholder="请输入知识库名称"
-                />
-              </div>
-              <div>
-                <Label htmlFor="create-kb-desc">描述（可选）</Label>
-                <Textarea
-                  id="create-kb-desc"
-                  value={createKBForm.description || ""}
-                  onChange={(e) =>
-                    setCreateKBForm({ ...createKBForm, description: e.target.value })
-                  }
-                  placeholder="请输入知识库描述"
-                  rows={3}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setCreateKBDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  取消
-                </Button>
-                <Button onClick={handleCreateKB} disabled={submitting}>
-                  {submitting ? "创建中..." : "创建"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 编辑知识库对话框 */}
-        <Dialog open={editKBDialogOpen} onOpenChange={setEditKBDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>编辑知识库</DialogTitle>
-              <DialogDescription>修改知识库名称和描述</DialogDescription>
-            </DialogHeader>
-            {selectedKnowledgeBase && (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="edit-kb-name">名称 *</Label>
-                  <Input
-                    id="edit-kb-name"
-                    value={editKBForm.name || selectedKnowledgeBase.name}
-                    onChange={(e) =>
-                      setEditKBForm({ ...editKBForm, name: e.target.value })
-                    }
-                    placeholder="请输入知识库名称"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-kb-desc">描述（可选）</Label>
-                  <Textarea
-                    id="edit-kb-desc"
-                    value={editKBForm.description ?? selectedKnowledgeBase.description ?? ""}
-                    onChange={(e) =>
-                      setEditKBForm({ ...editKBForm, description: e.target.value })
-                    }
-                    placeholder="请输入知识库描述"
-                    rows={3}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setEditKBDialogOpen(false)}
-                    disabled={submitting}
-                  >
-                    取消
-                  </Button>
-                  <Button onClick={handleUpdateKB} disabled={submitting}>
-                    {submitting ? "更新中..." : "更新"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* 删除知识库对话框 */}
-        <Dialog open={deleteKBDialogOpen} onOpenChange={setDeleteKBDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>删除知识库</DialogTitle>
-            </DialogHeader>
-            {selectedKnowledgeBase && (
-              <div className="space-y-4">
-                <p className="text-foreground">
-                  确定要删除知识库 <strong>&quot;{selectedKnowledgeBase.name}&quot;</strong> 吗？
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  此操作将同时删除该知识库下的所有文档，此操作不可恢复，请谨慎操作。
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setDeleteKBDialogOpen(false)}
-                    disabled={submitting}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleDeleteKB}
-                    disabled={submitting}
-                  >
-                    {submitting ? "删除中..." : "删除"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* 创建文档对话框 */}
-        <Dialog open={createDocDialogOpen} onOpenChange={setCreateDocDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>创建文档</DialogTitle>
-              <DialogDescription>填写文档标题和内容</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="create-doc-title">标题 *</Label>
-                <Input
-                  id="create-doc-title"
-                  value={createDocForm.title}
-                  onChange={(e) =>
-                    setCreateDocForm({ ...createDocForm, title: e.target.value })
-                  }
-                  placeholder="请输入文档标题"
-                />
-              </div>
-              <div>
-                <Label htmlFor="create-doc-summary">摘要（可选）</Label>
-                <Textarea
-                  id="create-doc-summary"
-                  value={createDocForm.summary || ""}
-                  onChange={(e) =>
-                    setCreateDocForm({ ...createDocForm, summary: e.target.value })
-                  }
-                  placeholder="请输入文档摘要"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label htmlFor="create-doc-content">内容 *</Label>
-                <Textarea
-                  id="create-doc-content"
-                  value={createDocForm.content}
-                  onChange={(e) =>
-                    setCreateDocForm({ ...createDocForm, content: e.target.value })
-                  }
-                  placeholder="请输入文档内容"
-                  rows={10}
-                  className="resize-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setCreateDocDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  取消
-                </Button>
-                <Button onClick={handleCreateDoc} disabled={submitting}>
-                  {submitting ? "创建中..." : "创建"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 编辑文档对话框 */}
-        <Dialog open={editDocDialogOpen} onOpenChange={setEditDocDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>编辑文档</DialogTitle>
-              <DialogDescription>修改文档标题和内容</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="edit-doc-title">标题 *</Label>
-                <Input
-                  id="edit-doc-title"
-                  value={editDocForm.title || ""}
-                  onChange={(e) =>
-                    setEditDocForm({ ...editDocForm, title: e.target.value })
-                  }
-                  placeholder="请输入文档标题"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-doc-summary">摘要（可选）</Label>
-                <Textarea
-                  id="edit-doc-summary"
-                  value={editDocForm.summary || ""}
-                  onChange={(e) =>
-                    setEditDocForm({ ...editDocForm, summary: e.target.value })
-                  }
-                  placeholder="请输入文档摘要"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-doc-content">内容 *</Label>
-                <Textarea
-                  id="edit-doc-content"
-                  value={editDocForm.content || ""}
-                  onChange={(e) =>
-                    setEditDocForm({ ...editDocForm, content: e.target.value })
-                  }
-                  placeholder="请输入文档内容"
-                  rows={10}
-                  className="resize-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setEditDocDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  取消
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (selectedDocument) {
-                      handleUpdateDoc(selectedDocument.id);
-                    }
-                  }}
-                  disabled={submitting}
-                >
-                  {submitting ? "更新中..." : "更新"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 删除文档对话框 */}
-        <Dialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>删除文档</DialogTitle>
-            </DialogHeader>
-            {selectedDocument && (
-              <div className="space-y-4">
-                <p className="text-foreground">
-                  确定要删除文档 <strong>&quot;{selectedDocument.title}&quot;</strong> 吗？
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  此操作不可恢复，请谨慎操作。
-                </p>
-              </div>
-            )}
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setDeleteDocDialogOpen(false)}
-                  disabled={submitting}
-                >
-                  取消
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    if (selectedDocument) {
-                      handleDeleteDoc(selectedDocument.id);
-                    }
-                  }}
-                  disabled={submitting}
-                >
-                  {submitting ? "删除中..." : "删除"}
-                </Button>
-              </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 导入文档对话框（文件上传 + URL 导入） */}
-        <Dialog
-          open={importDialogOpen}
-          onOpenChange={(open) => {
-            setImportDialogOpen(open);
-            if (!open) {
-              setImportFiles([]);
-              setImportUrls("");
-              setImportTab("file");
-            }
-          }}
-        >
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>导入文档</DialogTitle>
-              <DialogDescription>
-                选择文件上传或输入 URL 批量导入。当前支持的文件格式：<strong>Markdown（.md、.markdown）</strong>；PDF、Word 解析功能开发中。
-              </DialogDescription>
-            </DialogHeader>
-            <Tabs
-              value={importTab}
-              onValueChange={(v) => setImportTab(v as "file" | "url")}
-              defaultValue="file"
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="file">文件上传</TabsTrigger>
-                <TabsTrigger value="url">URL 导入</TabsTrigger>
-              </TabsList>
-              <TabsContent value="file" className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="import-files">选择文件</Label>
-                  <Input
-                    id="import-files"
-                    type="file"
-                    multiple
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      setImportFiles(files);
-                    }}
-                  />
-                  {importFiles.length > 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      已选择 {importFiles.length} 个文件
-                    </p>
-                  )}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setImportDialogOpen(false)}
-                    disabled={submitting}
-                  >
-                    取消
-                  </Button>
-                  <Button onClick={handleImportFiles} disabled={submitting}>
-                    {submitting ? "导入中..." : "导入"}
-                  </Button>
-                </div>
-              </TabsContent>
-              <TabsContent value="url" className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="import-urls">URL 列表（每行一个）</Label>
-                  <Textarea
-                    id="import-urls"
-                    value={importUrls}
-                    onChange={(e) => setImportUrls(e.target.value)}
-                    placeholder="https://example.com/page1&#10;https://example.com/page2"
-                    rows={8}
-                    className="resize-none"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setImportDialogOpen(false)}
-                    disabled={submitting}
-                  >
-                    取消
-                  </Button>
-                  <Button onClick={handleImportUrls} disabled={submitting}>
-                    {submitting ? "导入中..." : "导入"}
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
+        {dialogs}
       </>
     );
   }
 
   return (
-    <ResponsiveLayout
-      main={mainContent}
-      header={headerContent}
-    />
+    <>
+      <ResponsiveLayout main={mainContent} header={headerContent} />
+      {dialogs}
+    </>
   );
 }

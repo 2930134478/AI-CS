@@ -1,9 +1,11 @@
-// 统计数据配置
-export const stats = [
-  { label: "服务企业", value: "1000+" },
-  { label: "处理对话", value: "100万+" },
-  { label: "响应时间", value: "<100ms" },
-  { label: "满意度", value: "98%" },
+import type { I18nKey } from "@/lib/i18n/dict";
+
+/** 首页数字条：标签与展示数值均支持中英 */
+export const stats: { labelKey: I18nKey; valueKey: I18nKey }[] = [
+  { labelKey: "home.stats.clients", valueKey: "home.stats.val.clients" },
+  { labelKey: "home.stats.conversations", valueKey: "home.stats.val.conversations" },
+  { labelKey: "home.stats.latency", valueKey: "home.stats.val.latency" },
+  { labelKey: "home.stats.satisfaction", valueKey: "home.stats.val.satisfaction" },
 ];
 
 // 客户评价

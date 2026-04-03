@@ -3,6 +3,9 @@
 import { formatConversationTime } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useI18n } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
+import { Bot } from "lucide-react";
 
 interface ChatHeaderProps {
   conversationId: number;
@@ -16,6 +19,8 @@ interface ChatHeaderProps {
   soundEnabled?: boolean;
   onToggleSound?: () => void;
   hideAIToggle?: boolean; // 内部对话时隐藏「显示 AI 消息」切换
+  /** 为工作台移动端悬浮菜单（左/右圆钮）留出内边距，避免盖住标题与操作区 */
+  mobileGutters?: { left?: boolean; right?: boolean };
 }
 
 export function ChatHeader({
@@ -31,27 +36,34 @@ export function ChatHeader({
   onToggleSound,
   hideAIToggle = false,
 }: ChatHeaderProps) {
+  const { t } = useI18n();
   return (
     <div className="h-16 flex items-center justify-between px-4 bg-background flex-shrink-0 relative">
       <div className="z-10">
-        <div className="font-semibold text-foreground">对话 #{conversationId}</div>
+        <div className="font-semibold text-foreground">
+          {t("agent.chat.conversation")} #{conversationId}
+        </div>
         <div className="text-xs text-muted-foreground mt-0.5">
           {lastSeenAt
-            ? `last seen ${formatConversationTime(lastSeenAt)}`
-            : "last seen 未知"}
+            ? `${t("agent.chat.lastSeen")} ${formatConversationTime(lastSeenAt)}`
+            : t("agent.chat.lastSeenUnknown")}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
         {/* 显示/隐藏 AI 消息切换按钮（内部对话不显示，默认始终包含 AI 消息） */}
         {onToggleAIMessages && !hideAIToggle && (
           <Button
             variant={includeAIMessages ? "default" : "outline"}
             size="sm"
             onClick={onToggleAIMessages}
-            title={includeAIMessages ? "隐藏 AI 消息" : "显示 AI 消息"}
-            className="text-xs"
+            title={includeAIMessages ? t("agent.chat.hideAI") : t("agent.chat.showAI")}
+            aria-label={includeAIMessages ? t("agent.chat.hideAI") : t("agent.chat.showAI")}
+            className="text-xs gap-1 px-2 sm:px-3"
           >
-            {includeAIMessages ? "隐藏 AI 消息" : "显示 AI 消息"}
+            <Bot className="h-4 w-4 sm:hidden shrink-0" aria-hidden />
+            <span className="hidden sm:inline">
+              {includeAIMessages ? t("agent.chat.hideAI") : t("agent.chat.showAI")}
+            </span>
           </Button>
         )}
         {/* 声音开关按钮 */}
@@ -59,7 +71,7 @@ export function ChatHeader({
           <Button
             variant="ghost"
             size="icon"
-            title={soundEnabled ? "关闭声音提示" : "开启声音提示"}
+            title={soundEnabled ? t("agent.chat.soundOn") : t("agent.chat.soundOff")}
             onClick={onToggleSound}
           >
             {soundEnabled ? (
@@ -102,7 +114,7 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          title="关闭会话"
+          title={t("agent.chat.closeConversation")}
           onClick={onCloseConversation}
           disabled={!onCloseConversation}
         >
@@ -123,7 +135,7 @@ export function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
-          title="刷新"
+          title={t("agent.chat.refresh")}
           onClick={onRefresh}
         >
           <svg

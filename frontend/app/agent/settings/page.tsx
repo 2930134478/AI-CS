@@ -26,10 +26,24 @@ import { apiUrl } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/useToast";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
 export default function SettingsPage(props: any = {}) {
   const { embedded = false } = props;
   const router = useRouter();
+  const { t } = useI18n();
+
+  const modelTypeLabel = (mt: string) => {
+    const map: Record<string, I18nKey> = {
+      text: "agent.settings.modelType.text",
+      image: "agent.settings.modelType.image",
+      audio: "agent.settings.modelType.audio",
+      video: "agent.settings.modelType.video",
+    };
+    const k = map[mt];
+    return k ? t(k) : mt;
+  };
   const [userId, setUserId] = useState<number | null>(null);
   const [configs, setConfigs] = useState<AIConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +105,7 @@ export default function SettingsPage(props: any = {}) {
       setConfigs(data);
     } catch (error) {
       console.error("加载配置失败:", error);
-      setError("加载配置失败");
+      setError(t("agent.settings.error.loadConfigs"));
     } finally {
       setLoading(false);
     }
@@ -121,7 +135,7 @@ export default function SettingsPage(props: any = {}) {
       });
     } catch (e) {
       console.error("加载知识库向量配置失败:", e);
-      setEmbeddingError("加载失败");
+      setEmbeddingError(t("agent.settings.error.loadEmbedding"));
     } finally {
       setEmbeddingLoading(false);
     }
@@ -153,7 +167,7 @@ export default function SettingsPage(props: any = {}) {
       }
       await updateEmbeddingConfig(userId, data);
       await loadEmbeddingConfig();
-      toast.success("保存成功，配置已立即生效。");
+      toast.success(t("agent.settings.toast.embeddingSaved"));
     } catch (err) {
       setEmbeddingError((err as Error).message);
     } finally {
@@ -224,7 +238,7 @@ export default function SettingsPage(props: any = {}) {
       resetForm();
       await loadConfigs();
     } catch (error) {
-      setError((error as Error).message || "操作失败");
+      setError((error as Error).message || t("agent.settings.error.operation"));
     } finally {
       setSubmitting(false);
     }
@@ -233,13 +247,13 @@ export default function SettingsPage(props: any = {}) {
   // 删除配置
   const handleDelete = async (id: number) => {
     if (!userId) return;
-    if (!confirm("确定要删除这个配置吗？")) return;
+    if (!confirm(t("agent.settings.confirmDeleteConfig"))) return;
 
     try {
       await deleteAIConfig(userId, id);
       await loadConfigs();
     } catch (error) {
-      setError((error as Error).message || "删除失败");
+      setError((error as Error).message || t("agent.settings.error.delete"));
     }
   };
 
@@ -263,11 +277,11 @@ export default function SettingsPage(props: any = {}) {
 
   // 构建头部内容
   const headerContent = (
-    <div className="bg-card border-b p-4 shadow-sm">
+    <div className="border-b bg-card p-3 shadow-sm sm:p-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">AI 配置管理</h1>
-          <div className="text-sm text-muted-foreground mt-1">管理 AI 服务商配置</div>
+          <h1 className="text-xl font-bold text-foreground">{t("agent.settings.title")}</h1>
+          <div className="text-sm text-muted-foreground mt-1">{t("agent.settings.subtitle")}</div>
         </div>
         {!embedded && (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -277,7 +291,7 @@ export default function SettingsPage(props: any = {}) {
               size="sm"
               className="w-full sm:w-auto"
             >
-              返回工作台
+              {t("agent.settings.backDashboard")}
             </Button>
             <Button
               onClick={handleLogout}
@@ -285,7 +299,7 @@ export default function SettingsPage(props: any = {}) {
               size="sm"
               className="w-full sm:w-auto"
             >
-              退出登录
+              {t("agent.logout")}
             </Button>
           </div>
         )}
@@ -295,12 +309,12 @@ export default function SettingsPage(props: any = {}) {
 
   // 构建主内容区
   const mainContent = (
-    <div className="flex-1 overflow-auto p-4 md:p-6">
+    <div className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* 全局设置 */}
           <Card>
             <CardHeader>
-              <CardTitle>全局设置</CardTitle>
+              <CardTitle>{t("agent.settings.section.global")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
@@ -315,7 +329,7 @@ export default function SettingsPage(props: any = {}) {
                         });
                       } catch (error) {
                         console.error("更新设置失败:", error);
-                        toast.error("更新设置失败，请重试");
+                        toast.error(t("agent.settings.toast.profileUpdateFailed"));
                       }
                     }
                   }}
@@ -325,12 +339,11 @@ export default function SettingsPage(props: any = {}) {
                   htmlFor="receive_ai_conversations"
                   className="text-sm font-medium cursor-pointer"
                 >
-                  客服不接收 AI 对话
+                  {t("agent.settings.global.noReceiveAi")}
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                开启后，AI 对话将不会显示在对话列表中，也不会收到 AI 消息通知。
-                但您仍可以在会话页面手动开启&quot;显示 AI 消息&quot;来查看 AI 对话历史。
+                {t("agent.settings.global.noReceiveAiHint")}
               </p>
             </CardContent>
           </Card>
@@ -338,14 +351,14 @@ export default function SettingsPage(props: any = {}) {
           {/* 知识库向量模型（平台级，仅管理员可修改；保存后立即生效） */}
           <Card>
             <CardHeader>
-              <CardTitle>知识库向量模型</CardTitle>
+              <CardTitle>{t("agent.settings.embedding.title")}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                用于知识库文档向量化与 RAG 检索。仅管理员可修改；保存后立即生效，无需重启。
+                {t("agent.settings.embedding.lead")}
               </p>
             </CardHeader>
             <CardContent>
               {embeddingLoading ? (
-                <div className="text-center py-6 text-muted-foreground">加载中...</div>
+                <div className="text-center py-6 text-muted-foreground">{t("common.loading")}</div>
               ) : (
                 <form onSubmit={handleSaveEmbeddingConfig} className="space-y-4">
                   {embeddingError && (
@@ -355,7 +368,7 @@ export default function SettingsPage(props: any = {}) {
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="block text-sm font-medium mb-1">类型</Label>
+                      <Label className="block text-sm font-medium mb-1">{t("agent.settings.embedding.type")}</Label>
                       <select
                         value={embeddingForm.embedding_type}
                         onChange={(e) =>
@@ -363,39 +376,43 @@ export default function SettingsPage(props: any = {}) {
                         }
                         className="w-full px-3 py-2 border border-input rounded-md text-sm bg-background"
                       >
-                        <option value="openai">OpenAI / 兼容 API</option>
-                        <option value="bge">BGE 本地</option>
+                        <option value="openai">{t("agent.settings.embedding.openaiCompatible")}</option>
+                        <option value="bge">{t("agent.settings.embedding.bgeLocal")}</option>
                       </select>
                     </div>
                     <div>
-                      <Label className="block text-sm font-medium mb-1">API 地址</Label>
+                      <Label className="block text-sm font-medium mb-1">{t("agent.settings.embedding.apiUrl")}</Label>
                       <Input
                         value={embeddingForm.api_url}
                         onChange={(e) =>
                           setEmbeddingForm({ ...embeddingForm, api_url: e.target.value })
                         }
-                        placeholder="https://api.openai.com/v1 或兼容地址"
+                        placeholder={t("agent.settings.embedding.apiUrlPh")}
                       />
                     </div>
                     <div>
-                      <Label className="block text-sm font-medium mb-1">API Key</Label>
+                      <Label className="block text-sm font-medium mb-1">{t("agent.settings.embedding.apiKey")}</Label>
                       <Input
                         type="password"
                         value={embeddingForm.api_key}
                         onChange={(e) =>
                           setEmbeddingForm({ ...embeddingForm, api_key: e.target.value })
                         }
-                        placeholder={embeddingConfig?.api_key_masked ? "留空则不更新" : "输入 API Key"}
+                        placeholder={
+                          embeddingConfig?.api_key_masked
+                            ? t("agent.settings.embedding.apiKeyKeepEmpty")
+                            : t("agent.settings.embedding.apiKeyInput")
+                        }
                       />
                     </div>
                     <div>
-                      <Label className="block text-sm font-medium mb-1">模型</Label>
+                      <Label className="block text-sm font-medium mb-1">{t("agent.settings.embedding.model")}</Label>
                       <Input
                         value={embeddingForm.model}
                         onChange={(e) =>
                           setEmbeddingForm({ ...embeddingForm, model: e.target.value })
                         }
-                        placeholder="text-embedding-3-small"
+                        placeholder={t("agent.settings.embedding.modelPh")}
                       />
                     </div>
                   </div>
@@ -411,11 +428,13 @@ export default function SettingsPage(props: any = {}) {
                       }
                     />
                     <Label htmlFor="customer_can_use_kb" className="text-sm cursor-pointer">
-                      开放知识库给客服使用（允许创建知识库、上传文档、对话中引用）
+                      {t("agent.settings.embedding.customerKb")}
                     </Label>
                   </div>
                   <Button type="submit" disabled={embeddingSubmitting}>
-                    {embeddingSubmitting ? "保存中..." : "保存配置"}
+                    {embeddingSubmitting
+                      ? t("common.saving")
+                      : t("agent.settings.embedding.save")}
                   </Button>
                 </form>
               )}
@@ -425,14 +444,14 @@ export default function SettingsPage(props: any = {}) {
           {/* 联网搜索设置（与知识库向量模型独立；实际仍写入同一配置，仅 UI 分离） */}
           <Card>
             <CardHeader>
-              <CardTitle>联网搜索设置</CardTitle>
+              <CardTitle>{t("agent.settings.webSearch.title")}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                控制对话中的联网搜索方式与访客端是否显示联网选项。与上方「知识库向量模型」无关，仅影响 AI 对话时的联网行为。
+                {t("agent.settings.webSearch.lead")}
               </p>
             </CardHeader>
             <CardContent>
               {embeddingLoading ? (
-                <div className="text-center py-6 text-muted-foreground">加载中...</div>
+                <div className="text-center py-6 text-muted-foreground">{t("common.loading")}</div>
               ) : (
                 <form onSubmit={handleSaveEmbeddingConfig} className="space-y-4">
                   {embeddingError && (
@@ -441,7 +460,7 @@ export default function SettingsPage(props: any = {}) {
                     </div>
                   )}
                   <div>
-                    <Label className="block text-sm font-medium mb-1">联网方式</Label>
+                    <Label className="block text-sm font-medium mb-1">{t("agent.settings.webSearch.mode")}</Label>
                     <select
                       value={embeddingForm.web_search_source}
                       onChange={(e) =>
@@ -452,11 +471,11 @@ export default function SettingsPage(props: any = {}) {
                       }
                       className="w-full max-w-xs px-3 py-2 border border-input rounded-md text-sm bg-background"
                     >
-                      <option value="custom">自建(Serper)</option>
-                      <option value="vendor">厂商内置</option>
+                      <option value="custom">{t("agent.settings.webSearch.modeCustom")}</option>
+                      <option value="vendor">{t("agent.settings.webSearch.modeVendor")}</option>
                     </select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      自建：由后端通过 Serper（MCP 或 HTTP）执行；厂商内置：使用当前对话所用 AI 厂商自带的 web search，不占用 Serper。
+                      {t("agent.settings.webSearch.modeHint")}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -471,11 +490,11 @@ export default function SettingsPage(props: any = {}) {
                       }
                     />
                     <Label htmlFor="visitor_web_search_enabled_standalone" className="text-sm cursor-pointer">
-                      访客小窗显示「本回合联网搜索」选项
+                      {t("agent.settings.webSearch.visitorToggle")}
                     </Label>
                   </div>
                   <Button type="submit" disabled={embeddingSubmitting}>
-                    {embeddingSubmitting ? "保存中..." : "保存联网设置"}
+                    {embeddingSubmitting ? t("common.saving") : t("agent.settings.webSearch.save")}
                   </Button>
                 </form>
               )}
@@ -486,7 +505,9 @@ export default function SettingsPage(props: any = {}) {
           <Card>
             <CardHeader>
               <CardTitle>
-                {editingId ? "编辑 AI 配置" : "添加 AI 配置"}
+                {editingId
+                  ? t("agent.settings.aiCard.titleEdit")
+                  : t("agent.settings.aiCard.titleAdd")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -500,35 +521,38 @@ export default function SettingsPage(props: any = {}) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      服务商名称 <span className="text-red-500">*</span>
+                      {t("agent.settings.aiForm.provider")}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <Input
                       value={formData.provider}
                       onChange={(e) =>
                         setFormData({ ...formData, provider: e.target.value })
                       }
-                      placeholder="例如：OpenAI、Claude、自定义"
+                      placeholder={t("agent.settings.aiForm.providerPh")}
                       required
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      API 地址 <span className="text-red-500">*</span>
+                      {t("agent.settings.aiForm.apiUrl")}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <Input
                       value={formData.api_url}
                       onChange={(e) =>
                         setFormData({ ...formData, api_url: e.target.value })
                       }
-                      placeholder="https://api.openai.com/v1/chat/completions"
+                      placeholder={t("agent.settings.aiForm.apiUrlPh")}
                       required
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      API Key <span className="text-red-500">*</span>
+                      {t("agent.settings.aiForm.apiKey")}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <Input
                       type="password"
@@ -536,28 +560,33 @@ export default function SettingsPage(props: any = {}) {
                       onChange={(e) =>
                         setFormData({ ...formData, api_key: e.target.value })
                       }
-                      placeholder={editingId ? "留空则不更新" : "输入 API Key"}
+                      placeholder={
+                        editingId
+                          ? t("agent.settings.embedding.apiKeyKeepEmpty")
+                          : t("agent.settings.embedding.apiKeyInput")
+                      }
                       required={!editingId}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      模型名称 <span className="text-red-500">*</span>
+                      {t("agent.settings.aiForm.model")}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
                     <Input
                       value={formData.model}
                       onChange={(e) =>
                         setFormData({ ...formData, model: e.target.value })
                       }
-                      placeholder="例如：gpt-3.5-turbo、gpt-4"
+                      placeholder={t("agent.settings.aiForm.modelPh")}
                       required
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      模型类型
+                      {t("agent.settings.aiForm.modelType")}
                     </label>
                     <select
                       value={formData.model_type}
@@ -566,24 +595,24 @@ export default function SettingsPage(props: any = {}) {
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     >
-                      <option value="text">文本</option>
-                      <option value="image">图片</option>
-                      <option value="audio">语音</option>
-                      <option value="video">视频</option>
+                      <option value="text">{t("agent.settings.modelType.text")}</option>
+                      <option value="image">{t("agent.settings.modelType.image")}</option>
+                      <option value="audio">{t("agent.settings.modelType.audio")}</option>
+                      <option value="video">{t("agent.settings.modelType.video")}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    配置描述
+                    {t("agent.settings.aiForm.description")}
                   </label>
                   <Input
                     value={formData.description}
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    placeholder="例如：OpenAI GPT-3.5 Turbo 模型"
+                    placeholder={t("agent.settings.aiForm.descPh")}
                   />
                 </div>
 
@@ -597,7 +626,7 @@ export default function SettingsPage(props: any = {}) {
                       }
                       className="w-4 h-4"
                     />
-                    <span className="text-sm">启用配置</span>
+                    <span className="text-sm">{t("agent.settings.aiForm.active")}</span>
                   </label>
 
                   <label className="flex items-center gap-2">
@@ -609,17 +638,17 @@ export default function SettingsPage(props: any = {}) {
                       }
                       className="w-4 h-4"
                     />
-                    <span className="text-sm">开放给访客使用</span>
+                    <span className="text-sm">{t("agent.settings.aiForm.public")}</span>
                   </label>
                 </div>
 
                 <div className="flex gap-2">
                   <Button type="submit" disabled={submitting}>
                     {submitting
-                      ? "提交中..."
+                      ? t("agent.settings.aiForm.submitting")
                       : editingId
-                        ? "更新配置"
-                        : "创建配置"}
+                        ? t("agent.settings.aiForm.submitUpdate")
+                        : t("agent.settings.aiForm.submitCreate")}
                   </Button>
                   {editingId && (
                     <Button
@@ -627,7 +656,7 @@ export default function SettingsPage(props: any = {}) {
                       variant="outline"
                       onClick={resetForm}
                     >
-                      取消
+                      {t("agent.common.cancel")}
                     </Button>
                   )}
                 </div>
@@ -638,16 +667,16 @@ export default function SettingsPage(props: any = {}) {
           {/* 配置列表 */}
           <Card>
             <CardHeader>
-              <CardTitle>已配置的 AI 服务</CardTitle>
+              <CardTitle>{t("agent.settings.list.title")}</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="text-center py-8 text-gray-500">
-                  加载中...
+                  {t("common.loading")}
                 </div>
               ) : configs.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  暂无配置，请添加
+                  {t("agent.settings.list.empty")}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -664,27 +693,27 @@ export default function SettingsPage(props: any = {}) {
                             </h3>
                             {config.is_active && (
                               <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                                启用
+                                {t("agent.settings.badge.active")}
                               </span>
                             )}
                             {config.is_public && (
                               <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                                开放
+                                {t("agent.settings.badge.public")}
                               </span>
                             )}
                           </div>
                           <div className="text-sm text-gray-600 space-y-1">
                             <p>
-                              <span className="font-medium">API 地址：</span>
+                              <span className="font-medium">{t("agent.settings.list.apiUrlLabel")}</span>
                               {config.api_url}
                             </p>
                             <p>
-                              <span className="font-medium">模型类型：</span>
-                              {config.model_type}
+                              <span className="font-medium">{t("agent.settings.list.modelTypeLabel")}</span>
+                              {modelTypeLabel(config.model_type)}
                             </p>
                             {config.description && (
                               <p>
-                                <span className="font-medium">描述：</span>
+                                <span className="font-medium">{t("agent.settings.list.descLabel")}</span>
                                 {config.description}
                               </p>
                             )}
@@ -696,14 +725,14 @@ export default function SettingsPage(props: any = {}) {
                             variant="outline"
                             onClick={() => handleEdit(config)}
                           >
-                            编辑
+                            {t("agent.common.edit")}
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => handleDelete(config.id)}
                           >
-                            删除
+                            {t("agent.common.delete")}
                           </Button>
                         </div>
                       </div>

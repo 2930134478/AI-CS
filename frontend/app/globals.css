@@ -92,6 +92,16 @@ html {
   scroll-behavior: smooth;
 }
 
+/* 移动端：刘海 / 手势条安全区（与 Tailwind 任意值 env(safe-area-inset-*) 配合） */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
 // 对话类型定义
 interface Conversation {
@@ -15,11 +17,23 @@ interface Conversation {
 }
 
 export default function ConversationsPage() {
+  const { t, lang } = useI18n();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState<string>("");
   const [role, setRole] = useState<string>("");
   const router = useRouter();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
+
+  const locale = lang === "en" ? "en-US" : "zh-CN";
 
   // 检查是否已登录
   useEffect(() => {
@@ -90,18 +104,24 @@ export default function ConversationsPage() {
 
     // 今天：只显示时间
     if (diff < 24 * 3600 * 1000 && date.getDate() === now.getDate()) {
-      return date.toLocaleTimeString("zh-CN", {
+      return date.toLocaleTimeString(locale, {
         hour: "2-digit",
         minute: "2-digit",
       });
     }
     // 更早：显示日期+时间
-    return date.toLocaleString("zh-CN", {
+    return date.toLocaleString(locale, {
       month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const statusLabel = (status: string) => {
+    if (status === "open") return t("agent.conversations.status.open");
+    if (status === "closed") return t("agent.conversations.status.closed");
+    return status;
   };
 
   // 点击对话，跳转到聊天页面
@@ -123,9 +143,11 @@ export default function ConversationsPage() {
       <div className="bg-card border-b p-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-foreground">对话列表</h1>
+            <h1 className="text-xl font-bold text-foreground">{t("agent.conversationsPage.title")}</h1>
             <div className="text-sm text-muted-foreground mt-1">
-              {username} ({role === "admin" ? "管理员" : "客服"})
+              {username} (
+              {role === "admin" ? t("agent.users.role.admin") : t("agent.users.role.agent")}
+              )
             </div>
           </div>
           <Button
@@ -133,7 +155,7 @@ export default function ConversationsPage() {
             variant="outline"
             size="sm"
           >
-            退出登录
+            {t("agent.logout")}
           </Button>
         </div>
       </div>
@@ -142,7 +164,7 @@ export default function ConversationsPage() {
       <div className="flex-1 overflow-y-auto p-4">
         {conversations.length === 0 ? (
           <div className="text-center text-gray-400 mt-8">
-            暂无对话
+            {t("agent.conversationsPage.empty")}
           </div>
         ) : (
           <div className="space-y-2">
@@ -156,7 +178,7 @@ export default function ConversationsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-gray-800">
-                        对话 #{conv.id}
+                        {tr("agent.conversationsPage.convLabel", { id: String(conv.id) })}
                       </span>
                       <span
                         className={`px-2 py-1 rounded text-xs ${
@@ -165,18 +187,24 @@ export default function ConversationsPage() {
                             : "bg-gray-100 text-gray-700"
                         }`}
                       >
-                        {conv.status === "open" ? "进行中" : conv.status}
+                        {statusLabel(conv.status)}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      访客ID: {conv.visitor_id}
+                      {tr("agent.conversationsPage.visitorLabel", {
+                        id: String(conv.visitor_id),
+                      })}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
-                      创建时间: {formatTime(conv.created_at)}
+                      {tr("agent.conversationsPage.createdAt", {
+                        time: formatTime(conv.created_at),
+                      })}
                     </div>
                   </div>
                   <div className="text-xs text-gray-400">
-                    最后更新: {formatTime(conv.updated_at)}
+                    {tr("agent.conversationsPage.updatedAt", {
+                      time: formatTime(conv.updated_at),
+                    })}
                   </div>
                 </div>
               </div>

@@ -7,43 +7,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchPrompts, updatePrompt, type PromptItem } from "@/features/agent/services/promptsApi";
 import { toast } from "@/hooks/useToast";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
-function getPlaceholderHint(key: string): string {
-  switch (key) {
-    case "rag_prompt":
-    case "rag_prompt_with_web_optional":
-      return "占位符：{{rag_context}} 为知识库检索内容，{{user_message}} 为用户问题。";
-    case "no_kb_prompt":
-      return "占位符：{{user_message}} 为用户问题。";
-    case "web_search_result_prompt":
-      return "占位符：{{web_context}} 为联网搜索结果，{{user_message}} 为用户问题。（当前流程未使用此模板）";
-    case "no_source_reply":
-    case "ai_fail_reply":
-      return "无占位符，内容将作为完整回复语直接展示给用户。";
-    default:
-      return "请勿删除占位符，保存后由系统替换为实际内容。";
-  }
-}
+const PROMPT_HINT_KEYS: Partial<Record<string, I18nKey>> = {
+  rag_prompt: "agent.prompts.hint.rag_prompt",
+  rag_prompt_with_web_optional: "agent.prompts.hint.rag_prompt_with_web_optional",
+  no_kb_prompt: "agent.prompts.hint.no_kb_prompt",
+  web_search_result_prompt: "agent.prompts.hint.web_search_result_prompt",
+  no_source_reply: "agent.prompts.hint.no_source_reply",
+  ai_fail_reply: "agent.prompts.hint.ai_fail_reply",
+};
 
-/** 各提示词的使用场景说明（展示在卡片中） */
-function getUsageScenario(key: string): string {
-  switch (key) {
-    case "rag_prompt":
-      return "有知识库检索结果，且本回合未勾选「联网搜索」时，用此模板拼成 prompt 发给模型。";
-    case "rag_prompt_with_web_optional":
-      return "有知识库检索结果且本回合勾选「联网搜索」时，用此模板并传入联网工具，由模型决定是否调用联网。";
-    case "no_kb_prompt":
-      return "没有知识库检索结果且本回合未走联网时，用此模板让模型仅凭自身知识回答。";
-    case "web_search_result_prompt":
-      return "预留：若将来有「先联网搜再拼成一段 prompt」的流程，会使用此模板。当前未使用。";
-    case "no_source_reply":
-      return "既未命中知识库、也未使用大模型或联网时（如用户关闭了所有数据源），直接向用户展示这句话。";
-    case "ai_fail_reply":
-      return "调用 AI 接口失败（超时、报错等）时，向用户展示这句话。";
-    default:
-      return "";
-  }
-}
+const PROMPT_USAGE_KEYS: Partial<Record<string, I18nKey>> = {
+  rag_prompt: "agent.prompts.usage.rag_prompt",
+  rag_prompt_with_web_optional: "agent.prompts.usage.rag_prompt_with_web_optional",
+  no_kb_prompt: "agent.prompts.usage.no_kb_prompt",
+  web_search_result_prompt: "agent.prompts.usage.web_search_result_prompt",
+  no_source_reply: "agent.prompts.usage.no_source_reply",
+  ai_fail_reply: "agent.prompts.usage.ai_fail_reply",
+};
 
 function getTextareaMinHeight(key: string): string {
   return key === "no_source_reply" || key === "ai_fail_reply" ? "min-h-[80px]" : "min-h-[200px]";
@@ -51,6 +34,7 @@ function getTextareaMinHeight(key: string): string {
 
 export default function PromptsPage({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [userId, setUserId] = useState<number | null>(null);
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +59,7 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
       setPrompts(data);
     } catch (e) {
       console.error("加载提示词失败:", e);
-      setError((e as Error).message || "加载提示词失败");
+      setError((e as Error).message || t("agent.prompts.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -90,10 +74,10 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
     setSavingKey(key);
     try {
       await updatePrompt(userId, key, content);
-      toast.success("保存成功，将立即生效。");
+      toast.success(t("agent.prompts.saveSuccess"));
       await loadPrompts();
     } catch (e) {
-      toast.error((e as Error).message || "保存失败");
+      toast.error((e as Error).message || t("agent.prompts.saveFailed"));
     } finally {
       setSavingKey(null);
     }
@@ -108,12 +92,12 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
   if (!userId) return null;
 
   const headerContent = (
-    <div className="bg-card border-b p-4 shadow-sm">
+    <div className="border-b bg-card p-3 shadow-sm sm:p-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">提示词</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("agent.prompts.title")}</h1>
           <div className="text-sm text-muted-foreground mt-1">
-            配置系统中使用的提示词模板，用于 RAG、联网等场景。仅管理员可修改。占位符说明见下方各卡片。
+            {t("agent.prompts.subtitle")}
           </div>
         </div>
         {!embedded && (
@@ -122,7 +106,7 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
             variant="outline"
             size="sm"
           >
-            返回工作台
+            {t("agent.settings.backDashboard")}
           </Button>
         )}
       </div>
@@ -130,7 +114,7 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
   );
 
   const mainContent = (
-    <div className="flex-1 overflow-auto p-4 md:p-6">
+    <div className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
@@ -138,38 +122,46 @@ export default function PromptsPage({ embedded = false }: { embedded?: boolean }
           </div>
         )}
         {loading ? (
-          <div className="text-center py-12 text-muted-foreground">加载中...</div>
+          <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
         ) : (
-          prompts.map((item) => (
-            <Card key={item.key}>
-              <CardHeader>
-                <CardTitle className="text-base">{item.name}</CardTitle>
-                {getUsageScenario(item.key) && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    <span className="font-medium">使用场景：</span>
-                    {getUsageScenario(item.key)}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">{getPlaceholderHint(item.key)}</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <textarea
-                  className={`w-full ${getTextareaMinHeight(item.key)} px-3 py-2 border border-input rounded-md text-sm bg-background font-mono resize-y`}
-                  value={item.content}
-                  onChange={(e) => handleContentChange(item.key, e.target.value)}
-                  placeholder={item.key === "no_source_reply" || item.key === "ai_fail_reply" ? "请输入一句完整回复语" : "请输入提示词内容，保留占位符"}
-                  spellCheck={false}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => handleSave(item.key, item.content)}
-                  disabled={savingKey === item.key}
-                >
-                  {savingKey === item.key ? "保存中..." : "保存"}
-                </Button>
-              </CardContent>
-            </Card>
-          ))
+          prompts.map((item) => {
+            const usageKey = PROMPT_USAGE_KEYS[item.key];
+            const hintKey = PROMPT_HINT_KEYS[item.key] ?? "agent.prompts.hint.default";
+            return (
+              <Card key={item.key}>
+                <CardHeader>
+                  <CardTitle className="text-base">{item.name}</CardTitle>
+                  {usageKey && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium">{t("agent.prompts.usageLabel")}</span>
+                      {t(usageKey)}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">{t(hintKey)}</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <textarea
+                    className={`w-full ${getTextareaMinHeight(item.key)} px-3 py-2 border border-input rounded-md text-sm bg-background font-mono resize-y`}
+                    value={item.content}
+                    onChange={(e) => handleContentChange(item.key, e.target.value)}
+                    placeholder={
+                      item.key === "no_source_reply" || item.key === "ai_fail_reply"
+                        ? t("agent.prompts.ph.shortReply")
+                        : t("agent.prompts.ph.withPlaceholders")
+                    }
+                    spellCheck={false}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => handleSave(item.key, item.content)}
+                    disabled={savingKey === item.key}
+                  >
+                    {savingKey === item.key ? t("agent.prompts.saving") : t("agent.prompts.save")}
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

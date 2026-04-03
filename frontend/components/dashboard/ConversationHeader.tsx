@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
+import { useI18n } from "@/lib/i18n/provider";
 
 export type ConversationFilter = "all" | "mine" | "others";
 
@@ -27,10 +28,18 @@ export function ConversationHeader({
   listStatus,
   onListStatusChange,
 }: ConversationHeaderProps) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const currentLabel = FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? "全部对话";
+  const options = [
+    { value: "all" as const, label: t("agent.conversations.filter.all") },
+    { value: "mine" as const, label: t("agent.conversations.filter.mine") },
+    { value: "others" as const, label: t("agent.conversations.filter.others") },
+  ];
+  const currentLabel =
+    options.find((o) => o.value === filter)?.label ??
+    t("agent.conversations.filter.all");
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -58,7 +67,7 @@ export function ConversationHeader({
         </button>
         {open && (
           <div className="absolute top-full left-0 mt-1 py-1 rounded-lg border border-border bg-popover shadow-md z-50 min-w-[theme(spacing.32)]">
-            {FILTER_OPTIONS.map((opt) => (
+            {options.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
@@ -90,7 +99,7 @@ export function ConversationHeader({
               }`}
               onClick={() => onListStatusChange!("open")}
             >
-              进行中
+              {t("agent.conversations.status.open")}
             </button>
             <button
               type="button"
@@ -101,7 +110,7 @@ export function ConversationHeader({
               }`}
               onClick={() => onListStatusChange!("closed")}
             >
-              历史
+              {t("agent.conversations.status.closed")}
             </button>
           </div>
         </div>

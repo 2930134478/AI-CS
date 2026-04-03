@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageItem } from "@/features/agent/types";
 import { formatMessageTime } from "@/utils/format";
 import { highlightText } from "@/utils/highlight";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Paperclip, Download, X } from "lucide-react";
 import { API_BASE_URL } from "@/lib/config";
 import { getAvatarUrl } from "@/utils/avatar";
+import { useI18n } from "@/lib/i18n/provider";
 
 function TypewriterText({
   text,
@@ -81,6 +82,7 @@ export function MessageList({
   internalChatMode = false,
   leftAvatarBySenderId,
 }: MessageListProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const shouldStickToBottomRef = useRef(true);
@@ -90,9 +92,60 @@ export function MessageList({
   const lastMessageIdRef = useRef<number | null>(null);
   const lastMessageCountRef = useRef<number>(0);
   const hasInitialScrolledRef = useRef(false); // 标记是否已经完成初始滚动
+  /** 逐字打字效果：避免历史消息在重进会话/重开小窗时重复播放 */
+  const typewriterInitializedRef = useRef(false);
+  const typewriterSeenIdsRef = useRef<Set<number>>(new Set());
   // 图片预览状态（必须在所有条件返回之前声明）
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  const typewriterStorageKey =
+    conversationId != null ? `ai_cs_typewriter_seen_ai_${conversationId}` : null;
+
+  const loadTypewriterSeenSet = useCallback(() => {
+    if (typeof window === "undefined" || !typewriterStorageKey) {
+      typewriterSeenIdsRef.current = new Set();
+      return;
+    }
+    try {
+      const raw = window.sessionStorage.getItem(typewriterStorageKey);
+      if (!raw) {
+        typewriterSeenIdsRef.current = new Set();
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        typewriterSeenIdsRef.current = new Set();
+        return;
+      }
+      typewriterSeenIdsRef.current = new Set(
+        parsed.map((n) => Number(n)).filter((n) => Number.isFinite(n))
+      );
+    } catch {
+      typewriterSeenIdsRef.current = new Set();
+    }
+  }, [typewriterStorageKey]);
+
+  const persistTypewriterSeenSet = useCallback(() => {
+    if (typeof window === "undefined" || !typewriterStorageKey) return;
+    try {
+      const ids = Array.from(typewriterSeenIdsRef.current);
+      const sliced = ids.length > 600 ? ids.slice(ids.length - 600) : ids;
+      window.sessionStorage.setItem(typewriterStorageKey, JSON.stringify(sliced));
+    } catch {
+      // ignore
+    }
+  }, [typewriterStorageKey]);
+
+  const markTypewriterSeen = useCallback(
+    (messageId: number) => {
+      if (!Number.isFinite(messageId)) return;
+      if (typewriterSeenIdsRef.current.has(messageId)) return;
+      typewriterSeenIdsRef.current.add(messageId);
+      persistTypewriterSeenSet();
+    },
+    [persistTypewriterSeenSet]
+  );
 
   useEffect(() => {
     if (conversationId !== lastConversationIdRef.current) {
@@ -101,8 +154,27 @@ export function MessageList({
       lastMessageIdRef.current = null;
       lastMessageCountRef.current = 0;
       hasInitialScrolledRef.current = false; // 重置初始滚动标记
+      typewriterInitializedRef.current = false;
+      loadTypewriterSeenSet();
     }
   }, [conversationId]);
+
+  // 首次加载某个会话的历史消息：全部视作“已展示过打字”，避免重复播放
+  useEffect(() => {
+    if (typewriterInitializedRef.current) return;
+    if (!messages || messages.length === 0) return;
+    // 确保已载入 storage
+    if (typewriterSeenIdsRef.current.size === 0) {
+      loadTypewriterSeenSet();
+    }
+    for (const msg of messages) {
+      const isAIMessage = Boolean(msg.sender_is_agent) && msg.sender_id === 0;
+      if (isAIMessage) {
+        markTypewriterSeen(msg.id);
+      }
+    }
+    typewriterInitializedRef.current = true;
+  }, [messages, loadTypewriterSeenSet, markTypewriterSeen]);
 
   // 监听滚动事件，当滚动到底部附近时标记消息为已读
   // 注意：即使 disableAutoScroll 为 true，也应该允许通过滚动来标记消息为已读
@@ -442,9 +514,11 @@ export function MessageList({
               : message.content;
 
           const isAIMessage = Boolean(message.sender_is_agent) && message.sender_id === 0;
-          // 仅当不需要高亮搜索关键词、且该消息为 AI 回复时才启用逐字显示
+          const hasShownTypewriter = typewriterSeenIdsRef.current.has(message.id);
+          // 仅当不需要高亮搜索关键词、且该消息为 AI 回复、且从未展示过打字效果时才启用逐字显示
           const shouldTypewriter =
             isAIMessage &&
+            !hasShownTypewriter &&
             keyword === "" &&
             !message.file_url &&
             typeof message.content === "string" &&
@@ -553,7 +627,13 @@ export function MessageList({
                   {message.content && (
                     <div className="whitespace-pre-wrap break-words text-sm">
                       {shouldTypewriter ? (
-                        <TypewriterText text={message.content} animateKey={message.id} />
+                        (() => {
+                          // 标记为已展示，避免重新进入会话/重开小窗时重复打字
+                          markTypewriterSeen(message.id);
+                          return (
+                            <TypewriterText text={message.content} animateKey={message.id} />
+                          );
+                        })()
                       ) : (
                         bubbleContent
                       )}
@@ -621,9 +701,9 @@ export function MessageList({
                   <div className="mt-1 text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0">
                     {message.sources_used.split(",").map((s) => s.trim()).filter(Boolean).map((src) => (
                       <span key={src}>
-                        {src === "knowledge_base" && "已使用知识库"}
-                        {src === "llm" && "已使用大模型"}
-                        {src === "web" && "已使用联网搜索"}
+                        {src === "knowledge_base" && t("agent.aiSource.kb")}
+                        {src === "llm" && t("agent.aiSource.llm")}
+                        {src === "web" && t("agent.aiSource.web")}
                       </span>
                     ))}
                   </div>

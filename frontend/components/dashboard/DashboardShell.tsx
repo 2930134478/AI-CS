@@ -30,8 +30,10 @@ import { VisitorDetailPanel } from "./VisitorDetailPanel";
 import { useSoundNotification } from "@/hooks/useSoundNotification";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { reportFrontendLog } from "@/features/agent/services/systemLogApi";
+import { useI18n } from "@/lib/i18n/provider";
 
 export function DashboardShell() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -221,12 +223,12 @@ export function DashboardShell() {
     if (!selectedConversationId) return;
     try {
       await closeConversation(selectedConversationId);
-      toast.success("已关闭会话");
+      toast.success(t("agent.chat.toast.conversationClosed"));
       // 清空选中并刷新列表/详情
       selectConversation(null);
       refreshConversations();
     } catch (e) {
-      toast.error((e as Error).message || "关闭会话失败");
+      toast.error((e as Error).message || t("agent.chat.toast.closeFailed"));
     }
   }, [refreshConversations, selectConversation, selectedConversationId]);
 
@@ -280,7 +282,7 @@ export function DashboardShell() {
       selectConversation(conversation_id);
     } catch (e) {
       console.error("创建内部对话失败:", e);
-      toast.error((e as Error).message || "创建内部对话失败");
+      toast.error((e as Error).message || t("agent.internalChat.createFailed"));
     }
   }, [agent?.id, refreshConversations, selectConversation]);
 
@@ -354,6 +356,11 @@ export function DashboardShell() {
               soundEnabled={soundEnabled}
               onToggleSound={toggleSound}
               hideAIToggle={isInternalChat}
+              mobileGutters={{
+                left: true,
+                right:
+                  currentPage === "dashboard" && selectedConversationId != null,
+              }}
             />
             <MessageList
               messages={messages}
@@ -382,7 +389,7 @@ export function DashboardShell() {
                       <div className="flex justify-start mt-2">
                         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl rounded-bl-none bg-card border border-border/50 shadow-sm text-sm text-muted-foreground">
                           <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                          <span>AI 正在思考...</span>
+                          <span>{t("agent.internalChat.aiThinking")}</span>
                         </div>
                       </div>
                     ) : null}
@@ -399,7 +406,7 @@ export function DashboardShell() {
                     onCheckedChange={(v) => setNeedWebSearch(Boolean(v))}
                   />
                   <Label htmlFor="internal-need-web-search" className="cursor-pointer font-normal">
-                    本回合联网搜索
+                    {t("agent.internalChat.webSearchThisTurn")}
                   </Label>
                 </div>
               </div>
@@ -413,8 +420,8 @@ export function DashboardShell() {
             />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            {isInternalChat ? "选择或新建内部对话，测试知识库效果" : "选择一个对话开始聊天"}
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-6 text-center">
+            {isInternalChat ? t("agent.internalChat.emptyHint") : t("agent.chat.emptyPick")}
           </div>
         )
       ) : (

@@ -3,23 +3,15 @@
 import * as React from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import { Menu, PanelRight } from "lucide-react";
 import { LAYOUT } from "@/lib/constants/breakpoints";
+import { useI18n } from "@/lib/i18n/provider";
 
 /**
  * ResponsiveLayout - 响应式布局组件
- * 
+ *
  * 提供统一的响应式布局，支持桌面端和移动端自适应。
- * 
- * @example
- * ```tsx
- * <ResponsiveLayout
- *   sidebar={<ConversationSidebar />}
- *   main={<MessageList />}
- *   rightPanel={<VisitorDetailPanel />}
- * />
- * ```
- * 
+ *
  * @param sidebar - 侧边栏内容（桌面端显示，移动端可折叠）
  * @param main - 主内容区（所有设备都显示）
  * @param rightPanel - 右侧面板（大屏幕显示，小屏幕隐藏或折叠）
@@ -32,7 +24,7 @@ export interface ResponsiveLayoutProps {
   rightPanel?: React.ReactNode;
   header?: React.ReactNode;
   className?: string;
-  sidebarWidth?: string; // 侧边栏宽度（可选，默认使用 LAYOUT.sidebarWidth）
+  sidebarWidth?: string;
 }
 
 export function ResponsiveLayout({
@@ -44,70 +36,79 @@ export function ResponsiveLayout({
   sidebarWidth,
 }: ResponsiveLayoutProps) {
   const actualSidebarWidth = sidebarWidth || LAYOUT.sidebarWidth;
-  
+  const { t } = useI18n();
+
+  /** 与顶部安全区对齐；与 ChatHeader（h-16）上圆钮视觉对齐 */
+  const mobileFabTop =
+    "top-[max(0.75rem,env(safe-area-inset-top,0px)+0.25rem)]";
+
   return (
-    <div className={`flex h-screen bg-background overflow-hidden ${className || ""}`}>
-      {/* 桌面端侧边栏：中等屏幕及以上显示 */}
+    <div
+      className={`flex h-[100dvh] max-h-[100dvh] bg-background overflow-hidden ${className || ""}`}
+    >
       {sidebar && (
-        <aside className={`hidden md:block border-r bg-background flex-shrink-0`} style={{ width: actualSidebarWidth }}>
+        <aside
+          className="hidden md:block border-r bg-background flex-shrink-0"
+          style={{ width: actualSidebarWidth }}
+        >
           {sidebar}
         </aside>
       )}
 
-      {/* 移动端侧边栏：使用 Sheet 组件实现可折叠侧边栏 */}
       {sidebar && (
         <Sheet>
           <SheetTrigger asChild>
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="fixed top-4 left-4 z-50 md:hidden bg-background/80 backdrop-blur-sm"
+              className={`fixed left-3 z-50 md:hidden h-10 w-10 rounded-full border-border/80 bg-background/90 shadow-sm backdrop-blur-sm ${mobileFabTop}`}
+              aria-label={t("agent.layout.openNavMenu")}
             >
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">打开菜单</span>
+              <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-80 p-0" style={{ width: actualSidebarWidth }}>
+          <SheetContent
+            side="left"
+            className="w-[min(100vw-2rem,24rem)] max-w-[24rem] p-0"
+            style={{ width: actualSidebarWidth }}
+          >
             {sidebar}
           </SheetContent>
         </Sheet>
       )}
 
-      {/* 主内容区 */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* 顶部栏（如果提供） */}
         {header && (
-          <header className="flex-shrink-0 border-b bg-background">
-            {header}
-          </header>
+          <header className="flex-shrink-0 border-b bg-background">{header}</header>
         )}
 
-        {/* 主内容区和右侧面板容器 */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* 主内容区 */}
-          <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {main}
-          </main>
+          <main className="flex-1 flex flex-col min-h-0 overflow-hidden">{main}</main>
 
-          {/* 右侧面板：大屏幕显示，小屏幕隐藏 */}
           {rightPanel && (
             <>
-              <aside className={`hidden lg:block border-l bg-background flex-shrink-0`} style={{ width: LAYOUT.rightPanelWidth }}>
+              <aside
+                className="hidden lg:block border-l bg-background flex-shrink-0"
+                style={{ width: LAYOUT.rightPanelWidth }}
+              >
                 {rightPanel}
               </aside>
-              {/* 移动端右侧面板：使用 Sheet 组件实现可折叠面板 */}
               <Sheet>
                 <SheetTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="fixed top-4 right-4 z-50 lg:hidden bg-background/80 backdrop-blur-sm"
+                    className={`fixed right-3 z-50 lg:hidden h-10 w-10 rounded-full border-border/80 bg-background/90 shadow-sm backdrop-blur-sm ${mobileFabTop}`}
+                    aria-label={t("agent.layout.openVisitorPanel")}
                   >
-                    <Menu className="h-6 w-6" />
-                    <span className="sr-only">打开详情</span>
+                    <PanelRight className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-80 p-0" style={{ width: LAYOUT.rightPanelWidth }}>
+                <SheetContent
+                  side="right"
+                  className="w-[min(100vw-2rem,20rem)] max-w-[20rem] p-0"
+                  style={{ width: LAYOUT.rightPanelWidth }}
+                >
                   {rightPanel}
                 </SheetContent>
               </Sheet>
@@ -118,4 +119,3 @@ export function ResponsiveLayout({
     </div>
   );
 }
-

@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Copy } from "lucide-react";
+import type { I18nKey } from "@/lib/i18n/dict";
+import { useI18n } from "@/lib/i18n/provider";
 
 function tryFormatJSON(raw?: string | null): string {
   if (!raw) return "";
@@ -36,6 +38,18 @@ function levelColor(level: string): string {
 }
 
 export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
+  const { t, lang } = useI18n();
+
+  const tr = (key: I18nKey, vars?: Record<string, string>) => {
+    let s = t(key);
+    if (!vars) return s;
+    for (const k of Object.keys(vars)) {
+      s = s.replaceAll(`{{${k}}}`, vars[k] ?? "");
+    }
+    return s;
+  };
+
+  const locale = lang === "en" ? "en-US" : "zh-CN";
   const [from, setFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
@@ -66,12 +80,12 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
       setPolicy(p);
       setPolicyDraft(p.effective_min_level);
     } catch (e) {
-      toast.error((e as Error).message || "加载落库策略失败");
+      toast.error((e as Error).message || t("agent.logs.toast.loadPolicyFailed"));
       setPolicy(null);
     } finally {
       setPolicyLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadPolicy();
@@ -95,12 +109,12 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
       });
       setData(res);
     } catch (e) {
-      toast.error((e as Error).message || "加载日志失败");
+      toast.error((e as Error).message || t("agent.logs.toast.loadLogsFailed"));
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [from, to, level, category, source, event, keyword, conversationId, page]);
+  }, [from, to, level, category, source, event, keyword, conversationId, page, t]);
 
   useEffect(() => {
     void load();
@@ -112,28 +126,26 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
   }, [data]);
 
   return (
-    <div className={`flex flex-col min-h-0 overflow-auto ${embedded ? "p-4" : "p-6 max-w-6xl mx-auto w-full"}`}>
+    <div
+      className={`flex min-h-0 flex-col overflow-auto ${embedded ? "p-3 sm:p-4" : "w-full max-w-6xl p-4 sm:p-6 mx-auto"}`}
+    >
       <div className="mb-4">
-        <h1 className="text-xl font-semibold">日志中心</h1>
-        <p className="text-sm text-muted-foreground mt-1">按分类查看 AI / RAG / 系统 / 前端日志，用于排障定位。</p>
+        <h1 className="text-xl font-semibold">{t("agent.logs.title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("agent.logs.subtitle")}</p>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card p-4 mb-4 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold">落库级别（性能）</h2>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-              仅将不低于所选级别的记录写入数据库。设为 <code className="text-foreground">warn</code> 可大幅减少成功类{" "}
-              <code className="text-foreground">info</code> 写入。也可在根目录{" "}
-              <code className="text-foreground">SYSTEM_LOG_MIN_LEVEL</code> 配置默认值；此处保存后会写入数据库并覆盖环境变量，直至点击「恢复环境变量」。
-            </p>
+            <h2 className="text-sm font-semibold">{t("agent.logs.policy.title")}</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">{t("agent.logs.policy.desc")}</p>
             {policy ? (
               <p className="text-xs text-muted-foreground mt-2">
-                当前生效：<span className="font-medium text-foreground">{policy.effective_min_level}</span>
+                {t("agent.logs.policy.current")}<span className="font-medium text-foreground">{policy.effective_min_level}</span>
                 {" · "}
-                环境变量默认：<span className="font-medium text-foreground">{policy.env_min_level}</span>
+                {t("agent.logs.policy.env")}<span className="font-medium text-foreground">{policy.env_min_level}</span>
                 {policy.persisted_in_database ? (
-                  <span className="text-amber-700 dark:text-amber-500">（已由控制台覆盖）</span>
+                  <span className="text-amber-700 dark:text-amber-500">{t("agent.logs.policy.overridden")}</span>
                 ) : null}
               </p>
             ) : null}
@@ -149,7 +161,7 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
               <option value="info">info</option>
               <option value="warn">warn</option>
               <option value="error">error</option>
-              <option value="none">none（关闭落库）</option>
+              <option value="none">none</option>
             </select>
             <Button
               size="sm"
@@ -158,16 +170,16 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
                 setPolicyLoading(true);
                 try {
                   await putLogMinLevelPolicy(policyDraft);
-                  toast.success("已保存并生效");
+                  toast.success("OK");
                   await loadPolicy();
                 } catch (e) {
-                  toast.error((e as Error).message || "保存失败");
+                  toast.error((e as Error).message || t("agent.logs.toast.savePolicyFailed"));
                 } finally {
                   setPolicyLoading(false);
                 }
               }}
             >
-              保存到服务器
+              {t("common.save")}
             </Button>
             <Button
               size="sm"
@@ -177,33 +189,33 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
                 setPolicyLoading(true);
                 try {
                   await deleteLogMinLevelPolicy();
-                  toast.success("已恢复为环境变量默认值");
+                  toast.success(t("agent.logs.toast.policyRestored"));
                   await loadPolicy();
                 } catch (e) {
-                  toast.error((e as Error).message || "恢复失败");
+                  toast.error((e as Error).message || t("agent.logs.toast.restorePolicyFailed"));
                 } finally {
                   setPolicyLoading(false);
                 }
               }}
             >
-              恢复环境变量
+              {t("common.restoreEnv")}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border/60 bg-card p-3 mb-4 flex flex-wrap gap-2 items-center">
+      <div className="mb-4 flex flex-col gap-2 rounded-xl border border-border/60 bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border px-2 py-1 text-sm" />
-        <span className="text-xs text-muted-foreground">到</span>
+        <span className="text-xs text-muted-foreground">{t("common.to")}</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border px-2 py-1 text-sm" />
         <select value={level} onChange={(e) => setLevel(e.target.value)} className="rounded-md border px-2 py-1 text-sm">
-          <option value="">全部级别</option>
+          <option value="">{t("agent.logs.level.all")}</option>
           <option value="info">info</option>
           <option value="warn">warn</option>
           <option value="error">error</option>
         </select>
         <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-md border px-2 py-1 text-sm">
-          <option value="">全部分类</option>
+          <option value="">{t("agent.logs.category.all")}</option>
           <option value="ai">ai</option>
           <option value="rag">rag</option>
           <option value="frontend">frontend</option>
@@ -213,48 +225,52 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
           <option value="vector">vector</option>
         </select>
         <select value={source} onChange={(e) => setSource(e.target.value)} className="rounded-md border px-2 py-1 text-sm">
-          <option value="">全部来源</option>
+          <option value="">{t("agent.logs.source.all")}</option>
           <option value="backend">backend</option>
           <option value="frontend">frontend</option>
         </select>
         <input
-          placeholder="事件名(event)"
+          placeholder={t("agent.logs.event.placeholder")}
           value={event}
           onChange={(e) => setEvent(e.target.value)}
           className="rounded-md border px-2 py-1 text-sm min-w-[180px]"
         />
         <input
-          placeholder="会话ID"
+          placeholder={t("agent.logs.conversationId.placeholder")}
           value={conversationId}
           onChange={(e) => setConversationId(e.target.value)}
           className="rounded-md border px-2 py-1 text-sm w-24"
         />
         <input
-          placeholder="关键词（message/meta）"
+          placeholder={t("agent.logs.keyword.placeholder")}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           className="rounded-md border px-2 py-1 text-sm min-w-[220px]"
         />
         <Button size="sm" disabled={loading} onClick={() => { setPage(1); void load(); }}>
-          {loading ? "加载中..." : "查询"}
+          {loading ? t("common.loading") : t("common.search")}
         </Button>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-        <div className="px-3 py-2 border-b text-xs text-muted-foreground">
-          共 {data?.total ?? 0} 条，当前第 {data?.page ?? page}/{totalPages} 页
+        <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+          {tr("agent.logs.paginationSummary", {
+            total: String(data?.total ?? 0),
+            page: String(data?.page ?? page),
+            pages: String(totalPages),
+          })}
         </div>
-        <div className="overflow-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="text-left px-3 py-2">时间</th>
-                <th className="text-left px-3 py-2">级别</th>
-                <th className="text-left px-3 py-2">分类</th>
-                <th className="text-left px-3 py-2">事件</th>
-                <th className="text-left px-3 py-2">会话</th>
-                <th className="text-left px-3 py-2">来源</th>
-                <th className="text-left px-3 py-2">消息</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.time")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.level")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.category")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.event")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.conversation")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.source")}</th>
+                <th className="text-left px-3 py-2">{t("agent.logs.table.message")}</th>
               </tr>
             </thead>
             <tbody>
@@ -264,7 +280,9 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
                   className="border-t cursor-pointer hover:bg-muted/30"
                   onClick={() => setSelected(item)}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap text-xs">{new Date(item.timestamp).toLocaleString()}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-xs">
+                    {new Date(item.timestamp).toLocaleString(locale)}
+                  </td>
                   <td className={`px-3 py-2 font-medium ${levelColor(item.level)}`}>{item.level}</td>
                   <td className="px-3 py-2">{item.category}</td>
                   <td className="px-3 py-2">{item.event}</td>
@@ -275,7 +293,9 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
               ))}
               {(data?.items ?? []).length === 0 && !loading && (
                 <tr>
-                  <td className="px-3 py-8 text-center text-muted-foreground" colSpan={7}>暂无日志</td>
+                  <td className="px-3 py-8 text-center text-muted-foreground" colSpan={7}>
+                    {t("agent.logs.empty")}
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -288,7 +308,7 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
             disabled={loading || page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            上一页
+            {t("common.prevPage")}
           </Button>
           <Button
             variant="outline"
@@ -296,7 +316,7 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
             disabled={loading || page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            下一页
+            {t("common.nextPage")}
           </Button>
         </div>
       </div>
@@ -310,7 +330,7 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span>日志详情</span>
+              <span>{t("agent.logs.detail.title")}</span>
               {selected ? (
                 <span className={`text-xs px-2 py-0.5 rounded border ${selected.level === "error" ? "border-red-200 text-red-700" : selected.level === "warn" ? "border-amber-200 text-amber-700" : "border-emerald-200 text-emerald-700"}`}>
                   {selected.level}
@@ -323,29 +343,31 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">时间</div>
-                  <div className="font-medium">{new Date(selected.timestamp).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.time")}</div>
+                  <div className="font-medium">
+                    {new Date(selected.timestamp).toLocaleString(locale)}
+                  </div>
                 </div>
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">source / event</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.sourceEvent")}</div>
                   <div className="font-medium">
                     {selected.source} / {selected.event}
                   </div>
                 </div>
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">category</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.category")}</div>
                   <div className="font-medium">{selected.category}</div>
                 </div>
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">trace_id</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.traceId")}</div>
                   <div className="font-medium break-all">{selected.trace_id || "-"}</div>
                 </div>
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">conversation_id</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.conversationId")}</div>
                   <div className="font-medium">{selected.conversation_id ?? "-"}</div>
                 </div>
                 <div className="rounded-lg border p-2">
-                  <div className="text-xs text-muted-foreground">user_id / visitor_id</div>
+                  <div className="text-xs text-muted-foreground">{t("agent.logs.detail.userVisitor")}</div>
                   <div className="font-medium">
                     {selected.user_id ?? "-"} / {selected.visitor_id ?? "-"}
                   </div>
@@ -354,30 +376,30 @@ export default function LogsPage({ embedded = false }: { embedded?: boolean }) {
 
               <div className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="text-sm font-medium">message</div>
+                  <div className="text-sm font-medium">{t("agent.logs.detail.message")}</div>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(selected.message);
-                        toast.success("已复制 message");
+                        toast.success(t("agent.logs.toast.messageCopied"));
                       } catch {
-                        toast.error("复制失败");
+                        toast.error(t("agent.logs.toast.copyFailed"));
                       }
                     }}
                   >
                     <Copy className="h-4 w-4 mr-1" />
-                    复制
+                    {t("common.copy")}
                   </Button>
                 </div>
                 <pre className="whitespace-pre-wrap text-sm bg-muted/30 rounded p-2 max-h-48 overflow-auto">{selected.message}</pre>
               </div>
 
               <div className="rounded-lg border p-3">
-                <div className="text-sm font-medium mb-2">meta_json</div>
+                <div className="text-sm font-medium mb-2">{t("agent.logs.detail.metaJson")}</div>
                 <pre className="whitespace-pre-wrap text-xs bg-muted/30 rounded p-2 max-h-80 overflow-auto">
-                  {selectedMeta || "（无 meta_json）"}
+                  {selectedMeta || t("agent.logs.detail.noMeta")}
                 </pre>
               </div>
             </div>
