@@ -5,8 +5,6 @@
 
 ## 界面预览
 
-> 截图放在仓库内的 **`assets/readme/`**（随 Git 提交），README 里使用**相对路径**引用。  
-> 请勿使用 `file:///...` 或仅本机存在的路径，否则在 GitHub / Gitee 等页面上无法显示。
 
 **官网首页（核心能力模块）**
 
@@ -26,7 +24,7 @@
 - **访客聊天页**：[demo.cscorp.top/chat](https://demo.cscorp.top/chat)（也可从首页右下角按钮进入）
 - **客服登录**：[demo.cscorp.top/agent/login](https://demo.cscorp.top/agent/login)
 
-## 你能用它做什么（功能回顾）
+## 你能用它做什么
 
 - **访客侧（嵌入小窗）**
   - 右下角聊天小窗，可嵌入任意网站（iframe 方式）
