@@ -92,7 +92,10 @@
   function createChatWindow() {
     const iframe = document.createElement('iframe');
     iframe.id = 'ai-cs-widget-iframe';
-    iframe.src = config.chatPageUrl || `${config.apiUrl.replace('/api', '')}/chat`;
+    const baseChat =
+      config.chatPageUrl || `${config.apiUrl.replace('/api', '')}/chat`;
+    const sep = baseChat.includes('?') ? '&' : '?';
+    iframe.src = `${baseChat}${sep}embed=1`;
     iframe.style.cssText = `
       position: fixed;
       bottom: 5rem;

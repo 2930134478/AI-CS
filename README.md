@@ -197,7 +197,8 @@ npm run dev
 
 ## 集成访客小窗到你的网站（iframe）
 
-把下面代码放到你网站的 `</body>` 前，核心是把 `src` 指向你自己的部署域名的 `/chat`：
+把下面代码放到你网站的 `</body>` 前，核心是把 `src` 指向你自己的部署域名的 `/chat`。  
+**说明**：`/chat` 在 iframe 内会自动进入嵌入模式（也可显式加 `?embed=1`），只显示聊天界面，不会出现第二个浮动按钮；宿主站点保留外层「打开/关闭」按钮即可，**点一次**即可对话。
 
 ```html
 <div id="ai-cs-widget" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">

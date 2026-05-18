@@ -45,6 +45,8 @@ import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 interface ChatWidgetProps {
   visitorId: number;
   isOpen: boolean;
+  /** iframe 嵌入：铺满容器，不使用 fixed + portal */
+  embedded?: boolean;
   onToggle: () => void;
 }
 
@@ -94,7 +96,12 @@ const CHAT_WIDGET_PANEL_MAX_W =
  * 聊天小窗组件
  * 提供小窗形式的聊天界面，支持展开/收起
  */
-export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
+export function ChatWidget({
+  visitorId,
+  isOpen,
+  embedded = false,
+  onToggle,
+}: ChatWidgetProps) {
   const { t } = useI18n();
   const WEB_SEARCH_PREF_KEY = "visitor_widget_need_web_search";
   // 数据分析：每次由关→开上报一次小窗打开（供后台「小窗打开次数」统计）
@@ -710,20 +717,19 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
     return null;
   }
 
-  // 挂到 body，避免页面内祖先的 transform/filter/backdrop-filter 在 Chrome 等浏览器中
-  // 成为 fixed 定位的包含块，导致小窗错位到视口中上部而右下角按钮仍正常。
-  if (typeof document === "undefined") {
-    return null;
-  }
-
-  return createPortal(
+  const panel = (
     <Card
       className={cn(
-        "fixed bottom-20 right-4 sm:bottom-24 sm:right-6 flex flex-col shadow-[0_24px_60px_-24px_rgba(2,6,23,0.35)] z-40 border border-slate-200 overflow-hidden rounded-2xl bg-white text-slate-900 ring-1 ring-slate-200/80",
-        CHAT_WIDGET_PANEL_MAX_W,
-        CHAT_WIDGET_PANEL_WIDTH,
-        CHAT_WIDGET_PANEL_MAX_H,
-        CHAT_WIDGET_PANEL_H
+        "flex flex-col overflow-hidden bg-white text-slate-900",
+        embedded
+          ? "h-full w-full min-h-0 rounded-none border-0 shadow-none ring-0"
+          : cn(
+              "fixed bottom-20 right-4 sm:bottom-24 sm:right-6 shadow-[0_24px_60px_-24px_rgba(2,6,23,0.35)] z-40 border border-slate-200 rounded-2xl ring-1 ring-slate-200/80",
+              CHAT_WIDGET_PANEL_MAX_W,
+              CHAT_WIDGET_PANEL_WIDTH,
+              CHAT_WIDGET_PANEL_MAX_H,
+              CHAT_WIDGET_PANEL_H
+            )
       )}
     >
       {/* 头部：回归品牌蓝色系，保持轻量与一致 */}
@@ -999,8 +1005,19 @@ export function ChatWidget({ visitorId, isOpen, onToggle }: ChatWidgetProps) {
           }
         />
       </div>
-    </Card>,
-    document.body
+    </Card>
   );
+
+  if (embedded) {
+    return panel;
+  }
+
+  // 挂到 body，避免页面内祖先的 transform/filter/backdrop-filter 在 Chrome 等浏览器中
+  // 成为 fixed 定位的包含块，导致小窗错位到视口中上部而右下角按钮仍正常。
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(panel, document.body);
 }
 
