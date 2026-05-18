@@ -1,22 +1,59 @@
+[English](./README.en.md) | **中文**
+
+[![GitHub stars](https://img.shields.io/github/stars/2930134478/AI-CS?style=social)](https://github.com/2930134478/AI-CS/stargazers)
+[![Forks](https://img.shields.io/github/forks/2930134478/AI-CS?style=social)](https://github.com/2930134478/AI-CS/fork)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+
 # AI-CS 智能客服系统
 
 > 开源的 AI 客服系统：**AI + 人工一体**、可私有化部署、可配置、可观测。  
-> 适合把“官网右下角客服小窗”与“客服工作台”一起落地的团队。
+> 适合把「官网右下角客服小窗」与「客服工作台」一起落地的团队。
+
+## 目录
+
+- [界面预览](#preview)
+- [在线演示](#demo)
+- [你能用它做什么](#features)
+- [项目结构](#structure)
+- [快速开始](#quick-start)
+- [配置字典](#config)
+- [启用/关闭知识库（RAG）](#rag)
+- [多实例实时消息（Redis）](#redis)
+- [集成访客小窗（iframe）](#embed)
+- [相关文档](#docs)
+- [常见问题与排障](#faq)
+- [Star History](#star-history)
+- [Friendly Links](#friendly-links)
+- [贡献](#contributing)
+- [许可证](#license)
+
+<a id="preview"></a>
 
 ## 界面预览
-
 
 **官网首页（核心能力模块）**
 
 ![官网首页（核心能力模块）](assets/readme/home-features.png)
 
-**客服小窗（人工客服模式）**
+**客服小窗**
 
-![客服小窗（人工客服模式）](assets/readme/widget-human.png)
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>人工客服模式</strong><br />
+      <img src="assets/readme/widget-human.png" alt="客服小窗（人工客服模式）" width="420" />
+    </td>
+    <td align="center" width="50%">
+      <strong>AI 客服模式</strong><br />
+      <img src="assets/readme/widget-ai.png" alt="客服小窗（AI 客服模式）" width="420" />
+    </td>
+  </tr>
+</table>
 
-**客服小窗（AI 客服模式）**
-
-![客服小窗（AI 客服模式）](assets/readme/widget-ai.png)
+<a id="demo"></a>
 
 ## 在线演示
 
@@ -24,16 +61,18 @@
 - **访客聊天页**：[demo.cscorp.top/chat](https://demo.cscorp.top/chat)（也可从首页右下角按钮进入）
 - **客服登录**：[demo.cscorp.top/agent/login](https://demo.cscorp.top/agent/login)
 
+<a id="features"></a>
+
 ## 你能用它做什么
 
 - **访客侧（嵌入小窗）**
   - 右下角聊天小窗，可嵌入任意网站（iframe 方式）
   - 支持 AI 模式 / 人工模式切换、消息提示音、文件上传
-  - 可选“本回合联网搜索”开关（是否对访客展示可在后台控制）
+  - 可选「本回合联网搜索」开关（是否对访客展示可在后台控制）
 - **客服侧（工作台）**
   - 会话列表、实时消息（WebSocket）、未读角标提示
   - 访客 **IP 与大致地理位置**（离线 [ip2region](https://github.com/lionsoul2014/ip2region)，客服工作台访客详情展示）
-  - 支持“实时共享草稿输入”（双方未发送内容可实时可见）
+  - 支持「实时共享草稿输入」（双方未发送内容可实时可见）
   - 多模型管理（文本/绘画等）与对话配置
   - **提示词配置**（Prompt 管理）
   - **知识库管理 + RAG**（向量检索，可按需启用；向量库不可用时可不影响启动）
@@ -44,7 +83,39 @@
   - `metadata` / Open Graph / JSON-LD / `sitemap.xml` / `robots.txt`，便于搜索引擎收录与社交分享
 - **可选联网搜索（Web Search）**
   - 支持 **Serper**：MCP 接入（`SERPER_MCP_URL`）或直连 API（`SERPER_API_KEY`）
-  - 也支持“厂商内置 web search”（由模型自己决定是否搜）的 function calling 流程（按模型能力与供应商而定）
+  - 也支持「厂商内置 web search」（由模型自己决定是否搜）的 function calling 流程（按模型能力与供应商而定）
+
+<a id="structure"></a>
+
+## 项目结构
+
+```
+AI-CS/
+├── backend/                    # Go 后端：API、WebSocket、AI、RAG
+│   ├── controller/             # HTTP 控制器
+│   ├── service/                # 业务逻辑（会话、消息、知识库、AI…）
+│   ├── repository/             # 数据访问
+│   ├── models/                 # 数据模型
+│   ├── infra/                  # DB、Milvus、ip2region、存储
+│   ├── websocket/              # 实时消息与 Redis 广播
+│   ├── router/                 # 路由注册
+│   ├── data/                   # ip2region xdb（可选，见 data/README.md）
+│   └── main.go
+├── frontend/                   # Next.js：官网、访客小窗、客服工作台
+│   ├── app/                    # 页面路由（/、/chat、/agent/*）
+│   ├── components/             # UI 组件
+│   ├── features/               # 按领域划分的 API / hooks
+│   └── public/widget.js        # 可嵌入站点的脚本小窗
+├── doc/                        # 项目文档与 CHANGELOG
+├── scripts/                    # 辅助脚本（如下载 ip2region xdb）
+├── assets/readme/              # README 截图资源
+├── docker-compose.yml          # 本地构建部署
+├── docker-compose.prod.yml     # 预构建镜像部署
+├── docker-compose.milvus.yml     # Milvus 相关（按需）
+└── .env.example                # 环境变量模板（复制为 .env）
+```
+
+<a id="quick-start"></a>
 
 ## 快速开始（只维护根目录 `/.env`）
 
@@ -62,6 +133,7 @@ cp .env.example .env
 ```
 
 至少要改（必填）：
+
 - **数据库**：`MYSQL_ROOT_PASSWORD`、`DB_PASSWORD`
 - **管理员**：`ADMIN_PASSWORD`
 - **安全密钥**：`ENCRYPTION_KEY`（64 位 hex）
@@ -104,7 +176,7 @@ docker-compose -f docker-compose.prod.yml up -d
 - 默认端口：前端 `3000`，后端对外 `18080`
 - 修改：在 `.env` 里改 `FRONTEND_PORT` / `BACKEND_PORT`
 
-> 说明：预构建镜像在某些静态资源/图片路径场景可能与端口强绑定（历史兼容原因）。如果你需要彻底自定义端口并确保所有资源路径一致，建议用下面的“方式 B 本地构建”。
+> 说明：预构建镜像在某些静态资源/图片路径场景可能与端口强绑定（历史兼容原因）。如果你需要彻底自定义端口并确保所有资源路径一致，建议用下面的「方式 B 本地构建」。
 
 ### 方式 B：Docker 本地构建部署（可自定义）
 
@@ -118,6 +190,7 @@ docker-compose up -d --build
 ### 方式 C：传统部署（本地开发/手动安装）
 
 环境要求：
+
 - Go 1.24+
 - Node.js 20.9.0+
 - MySQL 8.0+
@@ -138,9 +211,11 @@ npm install
 npm run dev
 ```
 
+<a id="config"></a>
+
 ## 配置字典（根目录 `/.env`）
 
-> 下面表格以 `/.env.example` 为准，帮助你快速判断“必填/可选/什么时候需要填”。
+> 下面表格以 `/.env.example` 为准，帮助你快速判断「必填/可选/什么时候需要填」。
 
 | 变量 | 用途 | 是否必填 | 默认值（示例） | 示例 |
 |---|---|---|---|---|
@@ -183,18 +258,24 @@ npm run dev
 | `BACKEND_IMAGE` | 预构建后端镜像（prod compose） | 是（prod） | `537yaha/ai-cs-backend:latest` | `your/backend:tag` |
 | `FRONTEND_IMAGE` | 预构建前端镜像（prod compose） | 是（prod） | `537yaha/ai-cs-frontend:latest` | `your/frontend:tag` |
 
+<a id="rag"></a>
+
 ## 启用/关闭知识库（RAG）的推荐做法
 
 - **你暂时不想用知识库**：把 `.env` 里 `MILVUS_DISABLED=true`（或 `VECTOR_STORE_DISABLED=true`）
   - 应用仍可启动，AI 对话与人工客服不受影响
 - **你必须依赖知识库**（生产强约束）：把 `.env` 里 `MILVUS_REQUIRED=true`
-  - 此时如果 Milvus 不可用，会落库一条错误日志后退出，避免“半残服务上线”
+  - 此时如果 Milvus 不可用，会落库一条错误日志后退出，避免「半残服务上线」
+
+<a id="redis"></a>
 
 ## 多实例实时消息一致性（Redis）
 
 - 单实例可不配置 Redis，系统维持当前行为。
 - 多实例/多副本部署建议配置 `REDIS_URL`（或 `REDIS_ADDR` + `REDIS_PASSWORD` + `REDIS_DB`），用于 WebSocket 事件跨实例同步。
 - 可通过 `REDIS_WS_CHANNEL` 自定义事件频道（默认 `ai_cs:ws_events`）。
+
+<a id="embed"></a>
 
 ## 集成访客小窗到你的网站（iframe）
 
@@ -226,24 +307,48 @@ npm run dev
 </script>
 ```
 
+也可使用 `frontend/public/widget.js`（`AICSWidget.init({ ... })`），详见脚本内注释。
+
+<a id="docs"></a>
+
 ## 相关文档
 
 - **知识库 / 内部 Wiki 导入（项目总览一篇通）**：[doc/AI-CS-知识库-项目总览.md](doc/AI-CS-知识库-项目总览.md)
 
+<a id="faq"></a>
+
 ## 常见问题与排障（先看这里）
 
-- **提示音听不到**：浏览器通常需要“用户一次交互”才能解锁音频；请先点一下页面任意按钮/再打开喇叭开关测试
+- **提示音听不到**：浏览器通常需要「用户一次交互」才能解锁音频；请先点一下页面任意按钮/再打开喇叭开关测试
 - **向量库连不上导致启动失败**：检查 `.env` 的 `MILVUS_REQUIRED` 是否误开；不需要知识库时建议 `MILVUS_DISABLED=true`
 - **搜不到站点/分享卡片不正确**：设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，用于 canonical / OG / sitemap 生成
-          
+- **弹窗「初始化失败」/ 后端连不上 MySQL**：先 `curl http://<host>:<BACKEND_PORT>/health`，再 `docker logs ai-cs-backend --tail 50`；Docker 部署时 `DB_HOST` 应为 `mysql` 而非 `localhost`
+
+## Star History
+
+<a href="https://www.star-history.com/#2930134478/AI-CS&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=2930134478/AI-CS&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=2930134478/AI-CS&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=2930134478/AI-CS&type=Date" />
+  </picture>
+</a>
+
+## Friendly Links
+
+- [在线演示 · AI-CS Demo](https://demo.cscorp.top)
+- [ip2region · 离线 IP 地理位置库](https://github.com/lionsoul2014/ip2region)（本项目访客地域解析）
+- [Spec-Driven Develop · AI 开发工作流技能](https://github.com/zhu1090093659/spec_driven_develop)
+- 欢迎通过 [Issue](https://github.com/2930134478/AI-CS/issues) 推荐友链，维护者审核后加入本节
+
+<a id="contributing"></a>
+
 ## 贡献
 
-欢迎提交 Issue 和 Pull Request。
+欢迎提交 [Issue](https://github.com/2930134478/AI-CS/issues) 和 Pull Request。报 Bug 请附上部署方式、后端日志与 `.env` 关键项（密码打码）。
+
+<a id="license"></a>
 
 ## 许可证
 
 [MIT](LICENSE) © 2025 2930134478
-
----
-
-**最后更新**：2026-04-02（含 `SYSTEM_LOG_MIN_LEVEL` 说明）
