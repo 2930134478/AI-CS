@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/2930134478/AI-CS/backend/infra/geoip"
 	"github.com/2930134478/AI-CS/backend/models"
 	"github.com/2930134478/AI-CS/backend/repository"
 	"gorm.io/gorm"
@@ -103,14 +104,15 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 				VisitorID:        input.VisitorID,
 				Status:           "open",
 				Website:          input.Website,
-				Referrer:   input.Referrer,
-				Browser:    input.Browser,
-				OS:         input.OS,
-				Language:   input.Language,
-				IPAddress:  input.IPAddress,
-				LastSeenAt: &now,
-				ChatMode:   chatMode,
-				AIConfigID: aiConfigID,
+				Referrer:         input.Referrer,
+				Browser:          input.Browser,
+				OS:               input.OS,
+				Language:         input.Language,
+				IPAddress:        input.IPAddress,
+				Location:         geoip.Get().Lookup(input.IPAddress),
+				LastSeenAt:       &now,
+				ChatMode:         chatMode,
+				AIConfigID:       aiConfigID,
 			}
 			if err := s.conversations.Create(conv); err != nil {
 				return nil, err
@@ -159,6 +161,11 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 		}
 		if input.IPAddress != "" && conv.IPAddress == "" {
 			updates["ip_address"] = input.IPAddress
+			if conv.Location == "" {
+				if loc := geoip.Get().Lookup(input.IPAddress); loc != "" {
+					updates["location"] = loc
+				}
+			}
 		}
 
 		// 重要：如果用户选择了新的 ChatMode，更新对话模式

@@ -10,6 +10,7 @@ import (
 
 	"github.com/2930134478/AI-CS/backend/controller"
 	"github.com/2930134478/AI-CS/backend/infra"
+	"github.com/2930134478/AI-CS/backend/infra/geoip"
 	"github.com/2930134478/AI-CS/backend/infra/mcp"
 	infra_search "github.com/2930134478/AI-CS/backend/infra/search"
 	"github.com/2930134478/AI-CS/backend/middleware"
@@ -132,6 +133,9 @@ func main() {
 			log.Println("✅ .env 文件加载成功")
 		}
 	}
+
+	geoip.InitFromEnv()
+	defer geoip.Get().Close()
 
 	db, err := infra.NewDB()
 	if err != nil {
