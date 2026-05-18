@@ -313,7 +313,7 @@ npm run dev
 
 ## 相关文档
 
-- **知识库 / 内部 Wiki 导入（项目总览一篇通）**：[doc/AI-CS-知识库-项目总览.md](doc/AI-CS-知识库-项目总览.md)
+- 暂无
 
 <a id="faq"></a>
 
@@ -338,7 +338,6 @@ npm run dev
 
 - [在线演示 · AI-CS Demo](https://demo.cscorp.top)
 - [ip2region · 离线 IP 地理位置库](https://github.com/lionsoul2014/ip2region)（本项目访客地域解析）
-- [Spec-Driven Develop · AI 开发工作流技能](https://github.com/zhu1090093659/spec_driven_develop)
 - 欢迎通过 [Issue](https://github.com/2930134478/AI-CS/issues) 推荐友链，维护者审核后加入本节
 
 <a id="contributing"></a>
