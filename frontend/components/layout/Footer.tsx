@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Github, Mail, MessageSquare } from "lucide-react";
+import { Github, Mail, MessageSquare, Users } from "lucide-react";
 import { websiteConfig } from "@/lib/website-config";
 import { useI18n } from "@/lib/i18n/provider";
 
@@ -111,6 +111,26 @@ export function Footer() {
                   >
                     {websiteConfig.contact.email}
                   </a>
+                </li>
+              ) : null}
+              {websiteConfig.contact.qqGroupNumber ? (
+                <li className="flex items-center space-x-2 text-muted-foreground">
+                  <Users className="h-4 w-4 shrink-0" />
+                  {websiteConfig.contact.qqGroupJoinUrl ? (
+                    <a
+                      href={websiteConfig.contact.qqGroupJoinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={t("footer.qqGroupAria")}
+                      className="transition-colors hover:text-foreground"
+                    >
+                      {t("footer.qqGroup")}: {websiteConfig.contact.qqGroupNumber}
+                    </a>
+                  ) : (
+                    <span>
+                      {t("footer.qqGroup")}: {websiteConfig.contact.qqGroupNumber}
+                    </span>
+                  )}
                 </li>
               ) : null}
               <li className="flex items-center space-x-2 text-muted-foreground">

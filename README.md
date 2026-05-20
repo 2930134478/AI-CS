@@ -26,6 +26,7 @@
 - [相关文档](#docs)
 - [常见问题与排障](#faq)
 - [Star History](#star-history)
+- [交流与反馈](#community)
 - [Friendly Links](#friendly-links)
 - [贡献](#contributing)
 - [许可证](#license)
@@ -333,6 +334,13 @@ npm run dev
     <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=2930134478/AI-CS&type=Date" />
   </picture>
 </a>
+
+<a id="community"></a>
+
+## 交流与反馈
+
+- **Bug / 功能建议**：[GitHub Issues](https://github.com/2930134478/AI-CS/issues)（请附部署方式、后端日志；勿贴 API Key、数据库密码）
+- **QQ 交流群**：在 `frontend/lib/website-config.ts` 填写 `contact.qqGroupNumber`（可选 `contact.qqGroupJoinUrl` 加群链接）后，[官网 / Demo 页脚](https://demo.cscorp.top)「联系我们」会同步展示
 
 ## Friendly Links
 

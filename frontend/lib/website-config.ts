@@ -19,6 +19,10 @@ export const websiteConfig = {
   contact: {
     email: "contact@example.com", // 可选：邮箱地址
     wechat: "", // 可选：微信号或微信群链接
+    /** QQ 交流群号（纯数字或展示文案）；留空则页脚不显示 */
+    qqGroupNumber: "",
+    /** 可选：一键加群链接（如 https://qm.qq.com/q/xxxxx ），有则页脚可点击 */
+    qqGroupJoinUrl: "",
   },
   
   // 友情链接（用于互相引流）

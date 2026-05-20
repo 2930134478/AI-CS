@@ -26,6 +26,7 @@
 - [Documentation](#documentation)
 - [FAQ & Troubleshooting](#faq--troubleshooting)
 - [Star History](#star-history)
+- [Community](#community)
 - [Friendly Links](#friendly-links)
 - [Contributing](#contributing)
 - [License](#license)
@@ -169,6 +170,13 @@ Paste before `</body>`. Point iframe `src` to `https://your-domain/chat`. The pa
     <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=2930134478/AI-CS&type=Date" />
   </picture>
 </a>
+
+<a id="community"></a>
+
+## Community
+
+- **Bugs / feature requests**：[GitHub Issues](https://github.com/2930134478/AI-CS/issues) (include deployment method and logs; never post API keys or DB passwords)
+- **QQ group**：1106804464. It appears in the [demo site footer](https://demo.cscorp.top) under Contact.
 
 ## Friendly Links
 

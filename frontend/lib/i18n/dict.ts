@@ -103,6 +103,8 @@ export type I18nKey =
   | "footer.poweredBy"
   | "footer.allRightsReserved"
   | "footer.emailLabel"
+  | "footer.qqGroup"
+  | "footer.qqGroupAria"
   | "agent.page.dashboard"
   | "agent.page.internalChat"
   | "agent.page.knowledge"
@@ -648,6 +650,8 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "footer.poweredBy": "Powered by Next.js & Go |",
     "footer.allRightsReserved": "保留所有权利。",
     "footer.emailLabel": "邮箱",
+    "footer.qqGroup": "QQ 交流群",
+    "footer.qqGroupAria": "加入 QQ 交流群",
     "agent.page.dashboard": "对话",
     "agent.page.internalChat": "知识库测试",
     "agent.page.knowledge": "知识库",
@@ -1211,6 +1215,8 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "footer.poweredBy": "Powered by Next.js & Go |",
     "footer.allRightsReserved": "All rights reserved.",
     "footer.emailLabel": "Email",
+    "footer.qqGroup": "QQ group",
+    "footer.qqGroupAria": "Join QQ group",
     "agent.page.dashboard": "Chats",
     "agent.page.internalChat": "KB Test",
     "agent.page.knowledge": "Knowledge Base",
