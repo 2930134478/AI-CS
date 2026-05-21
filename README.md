@@ -340,7 +340,7 @@ npm run dev
 ## 交流与反馈
 
 - **Bug / 功能建议**：[GitHub Issues](https://github.com/2930134478/AI-CS/issues)（请附部署方式、后端日志；勿贴 API Key、数据库密码）
-- **QQ 交流群**：在 `frontend/lib/website-config.ts` 填写 `contact.qqGroupNumber`（可选 `contact.qqGroupJoinUrl` 加群链接）后，[官网 / Demo 页脚](https://demo.cscorp.top)「联系我们」会同步展示
+- **QQ 交流群**：1106804464，[官网 / Demo 页脚](https://demo.cscorp.top)「联系我们」会同步展示
 
 ## Friendly Links
 
