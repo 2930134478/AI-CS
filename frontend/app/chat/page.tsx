@@ -4,10 +4,11 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChatWidget } from "@/components/visitor/ChatWidget";
 import { FloatingButton } from "@/components/visitor/FloatingButton";
 import { isChatEmbedMode } from "@/lib/chat-embed";
+import { getOrCreateVisitorId } from "@/lib/visitor-id";
 
 /**
  * 访客聊天页面
- * - 独立打开：右下角浮动按钮 + 聊天小窗
+ * - 独立打开：默认展开聊天小窗（仍保留右下角浮动按钮）
  * - iframe / ?embed=1：直接铺满，供宿主站点一次点击打开 iframe 即可使用
  */
 export default function ChatPage() {
@@ -19,16 +20,15 @@ export default function ChatPage() {
     () => false
   );
 
-  // 初始化访客 ID（使用 localStorage 保持连续性）
   useEffect(() => {
-    let stored = window.localStorage.getItem("visitor_id");
-    if (!stored) {
-      stored = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
-      window.localStorage.setItem("visitor_id", stored);
-    }
-    const parsed = Number.parseInt(stored, 10);
-    setVisitorId(Number.isNaN(parsed) ? null : parsed);
+    setVisitorId(getOrCreateVisitorId());
   }, []);
+
+  useEffect(() => {
+    if (!embedded && visitorId !== null) {
+      setIsOpen(true);
+    }
+  }, [embedded, visitorId]);
 
   const handleToggle = () => {
     setIsOpen((prev) => !prev);

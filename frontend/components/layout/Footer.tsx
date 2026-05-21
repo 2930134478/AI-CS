@@ -5,10 +5,15 @@ import { Github, Mail, MessageSquare, Users } from "lucide-react";
 import { websiteConfig } from "@/lib/website-config";
 import { useI18n } from "@/lib/i18n/provider";
 
+interface FooterProps {
+  /** 首页打开右下角客服小窗；不传则回退为链到首页并带 openChat 参数 */
+  onOpenChat?: () => void;
+}
+
 /**
  * 官网底部页脚
  */
-export function Footer() {
+export function Footer({ onOpenChat }: FooterProps) {
   const { t } = useI18n();
 
   return (
@@ -145,10 +150,20 @@ export function Footer() {
                 </a>
               </li>
               <li className="flex items-center space-x-2 text-muted-foreground">
-                <MessageSquare className="h-4 w-4" />
-                <Link href="/chat" className="transition-colors hover:text-foreground">
-                  {t("footer.onlineChat")}
-                </Link>
+                <MessageSquare className="h-4 w-4 shrink-0" />
+                {onOpenChat ? (
+                  <button
+                    type="button"
+                    onClick={onOpenChat}
+                    className="text-left transition-colors hover:text-foreground"
+                  >
+                    {t("footer.onlineChat")}
+                  </button>
+                ) : (
+                  <Link href="/?openChat=1" className="transition-colors hover:text-foreground">
+                    {t("footer.onlineChat")}
+                  </Link>
+                )}
               </li>
             </ul>
           </div>

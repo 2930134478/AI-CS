@@ -28,6 +28,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { FadeIn, FadeInStagger, FadeInItem } from "@/components/ui/fade-in";
 import { websiteConfig } from "@/lib/website-config";
+import { getOrCreateVisitorId } from "@/lib/visitor-id";
 import { stats } from "@/lib/stats-config";
 import type { I18nKey } from "@/lib/i18n/dict";
 import { useI18n } from "@/lib/i18n/provider";
@@ -149,14 +150,19 @@ export function HomePageClient() {
   const [activeScreenshot, setActiveScreenshot] = useState(0);
 
   useEffect(() => {
-    let stored = window.localStorage.getItem("visitor_id");
-    if (!stored) {
-      stored = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
-      window.localStorage.setItem("visitor_id", stored);
-    }
-    const parsed = Number.parseInt(stored, 10);
-    setVisitorId(Number.isNaN(parsed) ? null : parsed);
+    setVisitorId(getOrCreateVisitorId());
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openChat") === "1") {
+      handleOpenChat();
+      params.delete("openChat");
+      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+      window.history.replaceState(null, "", next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅响应 URL 参数
+  }, [visitorId]);
 
   const handleToggleChat = () => setIsChatOpen((prev) => !prev);
 
@@ -469,7 +475,7 @@ export function HomePageClient() {
         </div>
       </section>
 
-      <Footer />
+      <Footer onOpenChat={handleOpenChat} />
 
       {visitorId !== null && (
         <>
