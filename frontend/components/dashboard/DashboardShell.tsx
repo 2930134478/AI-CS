@@ -6,8 +6,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/agent/hooks/useAuth";
 import { useConversations } from "@/features/agent/hooks/useConversations";
 import { useMessages } from "@/features/agent/hooks/useMessages";
-import { initInternalConversation } from "@/features/agent/services/conversationApi";
-import { closeConversation } from "@/features/agent/services/conversationApi";
+import {
+  initInternalConversation,
+  closeConversation,
+  fetchConversations,
+} from "@/features/agent/services/conversationApi";
 import { toast } from "@/hooks/useToast";
 import { useProfile } from "@/features/agent/hooks/useProfile";
 import { Profile } from "@/features/agent/types";
@@ -104,23 +107,55 @@ export function DashboardShell() {
     selectedConversationId,
     searchQuery,
     loading,
+    loadingMore,
     isInitialLoad,
+    hasMore,
+    totalUnread,
     setSearchQuery,
     selectConversation,
     updateConversation,
     refresh: refreshConversations,
+    loadMore: loadMoreConversations,
     hasConversation,
   } = useConversations({
     agentId: agent?.id ?? null,
     filter: conversationFilter,
     listType: isInternalChat ? "internal" : "visitor",
     status: conversationStatus,
+    enabled: isChatPage,
+    pollIntervalMs: isChatPage ? 15000 : 0,
   });
 
-  // 计算总未读消息数
-  const totalUnreadCount = useMemo(() => {
-    return conversations.reduce((sum, conv) => sum + (conv.unread_count ?? 0), 0);
-  }, [conversations]);
+  // 非会话页：轻量拉取未读数（不阻塞页面、不全量列表）
+  const [navUnreadCount, setNavUnreadCount] = useState(0);
+  useEffect(() => {
+    if (isChatPage || !agent?.id) {
+      return;
+    }
+    let cancelled = false;
+    const pullUnread = async () => {
+      try {
+        const result = await fetchConversations(agent.id, {
+          status: "open",
+          page: 1,
+          page_size: 1,
+        });
+        if (!cancelled) {
+          setNavUnreadCount(result.total_unread);
+        }
+      } catch {
+        /* 角标失败不影响设置页 */
+      }
+    };
+    void pullUnread();
+    const timer = setInterval(pullUnread, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isChatPage, agent?.id]);
+
+  const totalUnreadCount = isChatPage ? totalUnread : navUnreadCount;
 
   // 更新页面标题显示未读消息数
   usePageTitle(totalUnreadCount, "AI-CS");
@@ -286,7 +321,7 @@ export function DashboardShell() {
     }
   }, [agent?.id, refreshConversations, selectConversation]);
 
-  if (authLoading || (loading && isInitialLoad)) {
+  if (authLoading || (isChatPage && loading && isInitialLoad)) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background">
         <div className="text-lg text-muted-foreground">加载中...</div>
@@ -324,6 +359,9 @@ export function DashboardShell() {
         }}
         mode={isInternalChat ? "internal" : "visitor"}
         onNewClick={isInternalChat ? handleNewInternalConversation : undefined}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={loadMoreConversations}
       />
     </div>
   ) : (

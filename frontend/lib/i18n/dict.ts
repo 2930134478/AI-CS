@@ -243,6 +243,10 @@ export type I18nKey =
   | "agent.faqs.toast.createSuccess"
   | "agent.faqs.toast.updateSuccess"
   | "agent.faqs.toast.deleteSuccess"
+  | "agent.faqs.quickSearch.placeholder"
+  | "agent.faqs.quickSearch.searching"
+  | "agent.faqs.quickSearch.noResults"
+  | "agent.faqs.quickSearch.startTyping"
   | "agent.faqs.toast.emptyRequired"
   | "agent.faqs.card.keywords"
   | "agent.faqs.card.createdAt"
@@ -318,6 +322,48 @@ export type I18nKey =
   | "agent.settings.modelType.text"
   | "agent.settings.modelType.video"
   | "agent.settings.section.global"
+  | "agent.settings.autoClose.title"
+  | "agent.settings.autoClose.lead"
+  | "agent.settings.autoClose.daysLabel"
+  | "agent.settings.autoClose.daysHint"
+  | "agent.settings.autoClose.statusEffective"
+  | "agent.settings.autoClose.statusEnv"
+  | "agent.settings.autoClose.statusDb"
+  | "agent.settings.autoClose.statusEnvOnly"
+  | "agent.settings.autoClose.save"
+  | "agent.settings.autoClose.resetEnv"
+  | "agent.settings.autoClose.errorLoad"
+  | "agent.settings.autoClose.errorInvalid"
+  | "agent.settings.autoClose.toastSaved"
+  | "agent.settings.autoClose.toastReset"
+  | "agent.settings.offlineEmail.title"
+  | "agent.settings.offlineEmail.lead"
+  | "agent.settings.offlineEmail.enabled"
+  | "agent.settings.offlineEmail.delayLabel"
+  | "agent.settings.offlineEmail.delayHint"
+  | "agent.settings.offlineEmail.smtpHost"
+  | "agent.settings.offlineEmail.smtpPort"
+  | "agent.settings.offlineEmail.smtpUser"
+  | "agent.settings.offlineEmail.smtpPassword"
+  | "agent.settings.offlineEmail.smtpPasswordKeepEmpty"
+  | "agent.settings.offlineEmail.fromEmail"
+  | "agent.settings.offlineEmail.fromName"
+  | "agent.settings.offlineEmail.statusEffective"
+  | "agent.settings.offlineEmail.statusEnv"
+  | "agent.settings.offlineEmail.statusDb"
+  | "agent.settings.offlineEmail.statusEnvOnly"
+  | "agent.settings.offlineEmail.save"
+  | "agent.settings.offlineEmail.resetEnv"
+  | "agent.settings.offlineEmail.testTo"
+  | "agent.settings.offlineEmail.testSend"
+  | "agent.settings.offlineEmail.adminOnly"
+  | "agent.settings.offlineEmail.errorLoad"
+  | "agent.settings.offlineEmail.errorInvalidDelay"
+  | "agent.settings.offlineEmail.toastSaved"
+  | "agent.settings.offlineEmail.toastReset"
+  | "agent.settings.offlineEmail.toastTestSent"
+  | "agent.settings.offlineEmail.statusOn"
+  | "agent.settings.offlineEmail.statusOff"
   | "agent.settings.subtitle"
   | "agent.settings.title"
   | "agent.settings.toast.embeddingSaved"
@@ -532,7 +578,11 @@ export type I18nKey =
   | "common.irreversibleHint"
   | "chat.title"
   | "chat.mode.human"
-  | "chat.mode.ai";
+  | "chat.mode.ai"
+  | "chat.email.placeholder"
+  | "chat.email.optional"
+  | "chat.email.privacy"
+  | "chat.input.placeholder";
 
 export const DEFAULT_LANG: Lang = "zh-CN";
 export const LANG_STORAGE_KEY = "aics_lang";
@@ -791,6 +841,10 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.faqs.toast.createSuccess": "创建成功",
     "agent.faqs.toast.updateSuccess": "更新成功",
     "agent.faqs.toast.deleteSuccess": "删除成功",
+    "agent.faqs.quickSearch.placeholder": "输入关键词搜索 FAQ...",
+    "agent.faqs.quickSearch.searching": "搜索中...",
+    "agent.faqs.quickSearch.noResults": "未找到匹配的 FAQ",
+    "agent.faqs.quickSearch.startTyping": "输入关键词开始搜索",
     "agent.faqs.toast.emptyRequired": "问题和答案不能为空",
     "agent.faqs.card.keywords": "关键词",
     "agent.faqs.card.createdAt": "创建时间",
@@ -870,6 +924,50 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.settings.modelType.text": "文本",
     "agent.settings.modelType.video": "视频",
     "agent.settings.section.global": "全局设置",
+    "agent.settings.autoClose.title": "会话维护",
+    "agent.settings.autoClose.lead":
+      "超过指定天数未更新的「进行中」访客会话将自动标记为「已关闭」。仅改状态，不删除记录；可在会话列表「历史」中查看。填 0 表示禁用。",
+    "agent.settings.autoClose.daysLabel": "自动关闭天数",
+    "agent.settings.autoClose.daysHint": "按会话最后更新时间（updated_at）计算。默认 7 天；0 = 不自动关闭。",
+    "agent.settings.autoClose.statusEffective": "当前生效",
+    "agent.settings.autoClose.statusEnv": "环境变量默认",
+    "agent.settings.autoClose.statusDb": "已保存到数据库（覆盖 .env）",
+    "agent.settings.autoClose.statusEnvOnly": "使用 .env 默认值",
+    "agent.settings.autoClose.save": "保存会话维护设置",
+    "agent.settings.autoClose.resetEnv": "恢复为 .env 默认",
+    "agent.settings.autoClose.errorLoad": "加载会话维护配置失败",
+    "agent.settings.autoClose.errorInvalid": "请输入 0 或正整数",
+    "agent.settings.autoClose.toastSaved": "会话维护设置已保存，下次定时任务起生效",
+    "agent.settings.autoClose.toastReset": "已恢复为 .env 默认配置",
+    "agent.settings.offlineEmail.title": "离线邮件通知",
+    "agent.settings.offlineEmail.lead":
+      "访客离线且已留邮箱时，客服发送人工消息后延迟 N 秒推送邮件；访客重新上线则取消待发邮件。支持阿里云等云厂商 SMTP，也可在 .env 中配置默认值。",
+    "agent.settings.offlineEmail.enabled": "启用离线邮件通知",
+    "agent.settings.offlineEmail.delayLabel": "离线延迟（秒）",
+    "agent.settings.offlineEmail.delayHint": "客服发消息后等待的秒数，默认 60；访客在此期间上线则不发邮件。",
+    "agent.settings.offlineEmail.smtpHost": "SMTP 服务器",
+    "agent.settings.offlineEmail.smtpPort": "SMTP 端口",
+    "agent.settings.offlineEmail.smtpUser": "SMTP 用户名",
+    "agent.settings.offlineEmail.smtpPassword": "SMTP 密码 / 授权码",
+    "agent.settings.offlineEmail.smtpPasswordKeepEmpty": "留空则保留已保存的密码",
+    "agent.settings.offlineEmail.fromEmail": "发件人邮箱",
+    "agent.settings.offlineEmail.fromName": "发件人名称",
+    "agent.settings.offlineEmail.statusEffective": "当前生效",
+    "agent.settings.offlineEmail.statusEnv": "环境变量默认",
+    "agent.settings.offlineEmail.statusDb": "已保存到数据库（覆盖 .env）",
+    "agent.settings.offlineEmail.statusEnvOnly": "使用 .env 默认值",
+    "agent.settings.offlineEmail.save": "保存离线邮件设置",
+    "agent.settings.offlineEmail.resetEnv": "恢复为 .env 默认",
+    "agent.settings.offlineEmail.testTo": "测试收件邮箱",
+    "agent.settings.offlineEmail.testSend": "发送测试邮件",
+    "agent.settings.offlineEmail.adminOnly": "仅管理员可修改与测试",
+    "agent.settings.offlineEmail.errorLoad": "加载离线邮件配置失败",
+    "agent.settings.offlineEmail.errorInvalidDelay": "延迟秒数不能为负数",
+    "agent.settings.offlineEmail.toastSaved": "离线邮件设置已保存，立即生效",
+    "agent.settings.offlineEmail.toastReset": "已恢复为 .env 默认配置",
+    "agent.settings.offlineEmail.toastTestSent": "测试邮件已发送",
+    "agent.settings.offlineEmail.statusOn": "已启用",
+    "agent.settings.offlineEmail.statusOff": "未启用",
     "agent.settings.subtitle": "管理 AI 服务商配置",
     "agent.settings.title": "AI 配置管理",
     "agent.settings.toast.embeddingSaved": "保存成功，配置已立即生效。",
@@ -989,7 +1087,7 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.knowledge.dialog.docDeleteConfirm": "确定要删除文档 \"{{title}}\" 吗？",
     "agent.knowledge.dialog.importTitle": "导入文档",
     "agent.knowledge.dialog.importDesc":
-      "选择文件上传或输入 URL 批量导入。当前支持的文件格式：Markdown（.md、.markdown）；PDF、Word 解析功能开发中。",
+      "选择文件上传或输入 URL 批量导入。当前支持的文件格式：Markdown（.md、.markdown）、PDF（.pdf）、Word（.docx）；旧版 .doc 请先转为 .docx。",
     "agent.knowledge.field.name": "名称",
     "agent.knowledge.field.descOptional": "描述（可选）",
     "agent.knowledge.field.title": "标题",
@@ -1101,6 +1199,10 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "chat.title": "客服聊天",
     "chat.mode.human": "人工客服",
     "chat.mode.ai": "AI 客服",
+    "chat.email.placeholder": "留下邮箱，离线也能收消息",
+    "chat.email.optional": "选填",
+    "chat.email.privacy": "邮箱仅用于接收客服回复，不会用于营销",
+    "chat.input.placeholder": "输入消息",
   },
   en: {
     "nav.features": "Features",
@@ -1356,6 +1458,10 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.faqs.toast.createSuccess": "Created",
     "agent.faqs.toast.updateSuccess": "Updated",
     "agent.faqs.toast.deleteSuccess": "Deleted",
+    "agent.faqs.quickSearch.placeholder": "Type to search FAQs...",
+    "agent.faqs.quickSearch.searching": "Searching...",
+    "agent.faqs.quickSearch.noResults": "No matching FAQs found",
+    "agent.faqs.quickSearch.startTyping": "Type keywords to search",
     "agent.faqs.toast.emptyRequired": "Question and answer are required",
     "agent.faqs.card.keywords": "Keywords",
     "agent.faqs.card.createdAt": "Created",
@@ -1436,6 +1542,50 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.settings.modelType.text": "Text",
     "agent.settings.modelType.video": "Video",
     "agent.settings.section.global": "Global",
+    "agent.settings.autoClose.title": "Conversation maintenance",
+    "agent.settings.autoClose.lead":
+      "Open visitor conversations with no activity for N days are marked closed (not deleted). Find them under History in the chat list. Set 0 to disable.",
+    "agent.settings.autoClose.daysLabel": "Auto-close after (days)",
+    "agent.settings.autoClose.daysHint": "Based on conversation updated_at. Default 7; 0 = disabled.",
+    "agent.settings.autoClose.statusEffective": "Effective",
+    "agent.settings.autoClose.statusEnv": "Env default",
+    "agent.settings.autoClose.statusDb": "Saved in database (overrides .env)",
+    "agent.settings.autoClose.statusEnvOnly": "Using .env default",
+    "agent.settings.autoClose.save": "Save maintenance settings",
+    "agent.settings.autoClose.resetEnv": "Reset to .env default",
+    "agent.settings.autoClose.errorLoad": "Failed to load maintenance settings",
+    "agent.settings.autoClose.errorInvalid": "Enter 0 or a positive integer",
+    "agent.settings.autoClose.toastSaved": "Saved. Takes effect on the next scheduled run.",
+    "agent.settings.autoClose.toastReset": "Reset to .env default",
+    "agent.settings.offlineEmail.title": "Offline email notifications",
+    "agent.settings.offlineEmail.lead":
+      "When a visitor is offline but left an email, agent messages are emailed after a delay. Cancelled if the visitor comes back online. Use cloud SMTP (e.g. Aliyun) or .env defaults.",
+    "agent.settings.offlineEmail.enabled": "Enable offline email",
+    "agent.settings.offlineEmail.delayLabel": "Offline delay (seconds)",
+    "agent.settings.offlineEmail.delayHint": "Wait time after an agent message before sending email. Default 60. Skipped if visitor reconnects.",
+    "agent.settings.offlineEmail.smtpHost": "SMTP host",
+    "agent.settings.offlineEmail.smtpPort": "SMTP port",
+    "agent.settings.offlineEmail.smtpUser": "SMTP username",
+    "agent.settings.offlineEmail.smtpPassword": "SMTP password / app password",
+    "agent.settings.offlineEmail.smtpPasswordKeepEmpty": "Leave blank to keep saved password",
+    "agent.settings.offlineEmail.fromEmail": "From email",
+    "agent.settings.offlineEmail.fromName": "From name",
+    "agent.settings.offlineEmail.statusEffective": "Effective",
+    "agent.settings.offlineEmail.statusEnv": "Env default",
+    "agent.settings.offlineEmail.statusDb": "Saved in database (overrides .env)",
+    "agent.settings.offlineEmail.statusEnvOnly": "Using .env default",
+    "agent.settings.offlineEmail.save": "Save offline email settings",
+    "agent.settings.offlineEmail.resetEnv": "Reset to .env default",
+    "agent.settings.offlineEmail.testTo": "Test recipient",
+    "agent.settings.offlineEmail.testSend": "Send test email",
+    "agent.settings.offlineEmail.adminOnly": "Admin only: edit and test",
+    "agent.settings.offlineEmail.errorLoad": "Failed to load offline email settings",
+    "agent.settings.offlineEmail.errorInvalidDelay": "Delay cannot be negative",
+    "agent.settings.offlineEmail.toastSaved": "Offline email settings saved",
+    "agent.settings.offlineEmail.toastReset": "Reset to .env default",
+    "agent.settings.offlineEmail.toastTestSent": "Test email sent",
+    "agent.settings.offlineEmail.statusOn": "Enabled",
+    "agent.settings.offlineEmail.statusOff": "Disabled",
     "agent.settings.subtitle": "Manage AI provider settings",
     "agent.settings.title": "AI configuration",
     "agent.settings.toast.embeddingSaved": "Saved. Changes are live.",
@@ -1559,7 +1709,7 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "agent.knowledge.dialog.docDeleteConfirm": "Delete doc \"{{title}}\"?",
     "agent.knowledge.dialog.importTitle": "Import docs",
     "agent.knowledge.dialog.importDesc":
-      "Upload files or import by URL. Supported: Markdown (.md, .markdown). PDF/Word parsing is in progress.",
+      "Upload files or import by URL. Supported: Markdown (.md, .markdown), PDF (.pdf), Word (.docx). Legacy .doc files must be converted to .docx first.",
     "agent.knowledge.field.name": "Name",
     "agent.knowledge.field.descOptional": "Description (optional)",
     "agent.knowledge.field.title": "Title",
@@ -1673,6 +1823,10 @@ export const DICT: Record<Lang, Record<I18nKey, string>> = {
     "chat.title": "Chat",
     "chat.mode.human": "Human",
     "chat.mode.ai": "AI",
+    "chat.email.placeholder": "Leave your email to get replies when offline",
+    "chat.email.optional": "Optional",
+    "chat.email.privacy": "Email is only used for support replies, not marketing",
+    "chat.input.placeholder": "Type a message",
   },
 };
 

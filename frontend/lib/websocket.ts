@@ -14,6 +14,7 @@ export interface WSOptions<T = unknown> {
   isVisitor?: boolean; // 是否是访客（默认为 true）
   agentId?: number; // 客服ID（如果是客服连接，需要传递）
   wsToken?: string; // 客服 WS 令牌（登录后下发）
+  accessToken?: string; // 访客 WebSocket 令牌
   onMessage?: (message: WSMessage<T>) => void; // 收到消息时的回调
   onError?: (error: Event) => void; // 连接错误时的回调
   onClose?: () => void; // 连接关闭时的回调
@@ -26,6 +27,7 @@ export class WSClient<T = unknown> {
   private isVisitor: boolean;
   private agentId?: number; // 客服ID
   private wsToken?: string; // 客服 WS 令牌
+  private accessToken?: string; // 访客会话令牌
   private onMessage?: (message: WSMessage<T>) => void;
   private onError?: (error: Event) => void;
   private onClose?: () => void;
@@ -41,6 +43,7 @@ export class WSClient<T = unknown> {
     this.isVisitor = options.isVisitor !== undefined ? options.isVisitor : true;
     this.agentId = options.agentId;
     this.wsToken = options.wsToken;
+    this.accessToken = options.accessToken;
     this.onMessage = options.onMessage;
     this.onError = options.onError;
     this.onClose = options.onClose;
@@ -60,6 +63,9 @@ export class WSClient<T = unknown> {
     const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = typeof window !== 'undefined' ? window.location.host : '';
     let wsUrl = `${protocol}//${host}/ws?conversation_id=${this.conversationId}&is_visitor=${this.isVisitor}`;
+    if (this.isVisitor && this.accessToken) {
+      wsUrl += `&access_token=${encodeURIComponent(this.accessToken)}`;
+    }
     // 如果是客服连接，添加 agent_id 参数
     if (!this.isVisitor && this.agentId) {
       wsUrl += `&agent_id=${this.agentId}`;

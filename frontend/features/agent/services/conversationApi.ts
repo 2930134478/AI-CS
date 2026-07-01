@@ -7,28 +7,87 @@ import {
 export type ConversationListType = "visitor" | "internal";
 export type ConversationStatus = "open" | "closed";
 
+export interface ConversationListResponse {
+  items: ConversationSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  total_unread: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+
+function normalizeConversationItem(item: ConversationSummary): ConversationSummary {
+  return {
+    ...item,
+    unread_count: item.unread_count ?? 0,
+    has_participated: item.has_participated ?? false,
+  };
+}
+
+function parseConversationListPayload(data: unknown): ConversationListResponse {
+  if (Array.isArray(data)) {
+    const items = data.map((item) =>
+      normalizeConversationItem(item as ConversationSummary)
+    );
+    return {
+      items,
+      total: items.length,
+      page: 1,
+      page_size: items.length,
+      has_more: false,
+      total_unread: items.reduce((sum, c) => sum + (c.unread_count ?? 0), 0),
+    };
+  }
+  if (data && typeof data === "object") {
+    const raw = data as Record<string, unknown>;
+    const items = Array.isArray(raw.items)
+      ? raw.items.map((item) =>
+          normalizeConversationItem(item as ConversationSummary)
+        )
+      : [];
+    return {
+      items,
+      total: Number(raw.total ?? items.length),
+      page: Number(raw.page ?? 1),
+      page_size: Number(raw.page_size ?? items.length),
+      has_more: Boolean(raw.has_more),
+      total_unread: Number(raw.total_unread ?? 0),
+    };
+  }
+  return {
+    items: [],
+    total: 0,
+    page: 1,
+    page_size: DEFAULT_PAGE_SIZE,
+    has_more: false,
+    total_unread: 0,
+  };
+}
+
 export async function fetchConversations(
   userId?: number,
-  opts?: { type?: ConversationListType; status?: ConversationStatus }
-): Promise<ConversationSummary[]> {
+  opts?: {
+    type?: ConversationListType;
+    status?: ConversationStatus;
+    page?: number;
+    page_size?: number;
+  }
+): Promise<ConversationListResponse> {
   const params = new URLSearchParams();
   if (userId) params.set("user_id", String(userId));
   if (opts?.type) params.set("type", opts.type);
   if (opts?.status) params.set("status", opts.status);
+  params.set("page", String(opts?.page ?? 1));
+  params.set("page_size", String(opts?.page_size ?? DEFAULT_PAGE_SIZE));
   const url = `${apiUrl("/conversations")}?${params.toString()}`;
   const res = await fetch(url, { cache: "no-store", headers: getAgentHeaders() });
   if (!res.ok) {
     throw new Error("获取对话列表失败");
   }
   const data = await res.json();
-  if (!Array.isArray(data)) {
-    return [];
-  }
-  return data.map((item) => ({
-    ...item,
-    unread_count: item.unread_count ?? 0,
-    has_participated: item.has_participated ?? false,
-  }));
+  return parseConversationListPayload(data);
 }
 
 /** 创建一条内部对话（知识库测试），返回新对话 ID */
@@ -48,12 +107,19 @@ export async function initInternalConversation(userId: number): Promise<{ conver
 export async function searchConversations(
   query: string,
   userId?: number,
-  opts?: { status?: ConversationStatus }
+  opts?: { status?: ConversationStatus; type?: ConversationListType }
 ): Promise<ConversationSummary[]> {
   const status = opts?.status ?? "open";
-  const url = userId
-    ? `${apiUrl("/conversations/search")}?q=${encodeURIComponent(query)}&user_id=${userId}&status=${status}`
-    : `${apiUrl("/conversations/search")}?q=${encodeURIComponent(query)}&status=${status}`;
+  const listType = opts?.type ?? "visitor";
+  const params = new URLSearchParams({
+    q: query,
+    status,
+    type: listType,
+  });
+  if (userId) {
+    params.set("user_id", String(userId));
+  }
+  const url = `${apiUrl("/conversations/search")}?${params.toString()}`;
   const res = await fetch(url, {
     cache: "no-store",
     headers: getAgentHeaders(),
@@ -137,5 +203,49 @@ export async function updateConversationContact(
     phone: data.phone ?? "",
     notes: data.notes ?? "",
   };
+}
+
+export interface AutoCloseConversationDaysPolicy {
+  effective_days: number;
+  env_days: number;
+  persisted_in_database: boolean;
+}
+
+export async function fetchAutoCloseConversationDaysPolicy(): Promise<AutoCloseConversationDaysPolicy> {
+  const res = await fetch(apiUrl("/conversations/maintenance/auto-close-days"), {
+    cache: "no-store",
+    headers: getAgentHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error("获取会话维护配置失败");
+  }
+  return res.json();
+}
+
+export async function putAutoCloseConversationDaysPolicy(
+  inactiveDays: number
+): Promise<{ effective_days: number }> {
+  const res = await fetch(apiUrl("/conversations/maintenance/auto-close-days"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    body: JSON.stringify({ inactive_days: inactiveDays }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || "保存会话维护配置失败");
+  }
+  return res.json();
+}
+
+export async function deleteAutoCloseConversationDaysPolicy(): Promise<{ effective_days: number }> {
+  const res = await fetch(apiUrl("/conversations/maintenance/auto-close-days"), {
+    method: "DELETE",
+    headers: getAgentHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || "恢复默认配置失败");
+  }
+  return res.json();
 }
 

@@ -23,12 +23,12 @@ type User struct {
 
 type Conversation struct {
 	ID               uint      `json:"id" gorm:"primaryKey"`
-	ConversationType string    `json:"conversation_type" gorm:"type:varchar(20);default:'visitor'"` // visitor（访客对话）、internal（内部/知识库测试）
+	ConversationType string    `json:"conversation_type" gorm:"type:varchar(20);default:'visitor';index:idx_conv_list,priority:1"` // visitor（访客对话）、internal（内部/知识库测试）
 	VisitorID        uint      `json:"visitor_id"`
 	AgentID          uint      `json:"agent_id"`
-	Status           string    `json:"status"`
+	Status           string    `json:"status" gorm:"index:idx_conv_list,priority:2"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"index:idx_conv_list,priority:4"`
 	// 访客信息字段（自动收集）
 	Website   string `json:"website" gorm:"type:varchar(500)"`   // 网站（当前页面URL）
 	Referrer  string `json:"referrer" gorm:"type:varchar(500)"`  // 来源（referrer）
@@ -44,19 +44,21 @@ type Conversation struct {
 	// 在线状态
 	LastSeenAt *time.Time `json:"last_seen_at"` // 最后活跃时间
 	// AI 客服相关
-	ChatMode   string `json:"chat_mode" gorm:"type:varchar(20);default:'human'"` // 对话模式：human（人工客服）、ai（AI客服）
+	ChatMode   string `json:"chat_mode" gorm:"type:varchar(20);default:'human';index:idx_conv_list,priority:3"` // 对话模式：human（人工客服）、ai（AI客服）
 	AIConfigID *uint  `json:"ai_config_id"`                                      // AI 配置 ID（访客选择的模型配置）
+	// AccessToken 访客访问会话/消息的密钥；仅 init 时下发给对应访客，不在客服 API 中返回。
+	AccessToken string `json:"-" gorm:"type:varchar(64);index"`
 }
 
 type Message struct {
 	ID             uint       `json:"id" gorm:"primarykey"`
-	ConversationID uint       `json:"conversation_id"`
-	SenderID       uint       `json:"sender_id"`
-	SenderIsAgent  bool       `json:"sender_is_agent"`
+	ConversationID uint       `json:"conversation_id" gorm:"index:idx_msg_conv;index:idx_msg_conv_unread,priority:1;index:idx_msg_conv_sender,priority:1"`
+	SenderID       uint       `json:"sender_id" gorm:"index:idx_msg_conv_sender,priority:3"`
+	SenderIsAgent  bool       `json:"sender_is_agent" gorm:"index:idx_msg_conv_unread,priority:2;index:idx_msg_conv_sender,priority:2"`
 	Content        string     `json:"content" gorm:"type:text"`
 	MessageType    string     `json:"message_type" gorm:"type:varchar(20);default:'user_message'"` // 消息类型：user_message, system_message
 	ChatMode       string     `json:"chat_mode" gorm:"type:varchar(20);default:'human'"`           // 消息发送时的对话模式：human（人工客服）、ai（AI客服）
-	IsRead         bool       `json:"is_read"`
+	IsRead         bool       `json:"is_read" gorm:"index:idx_msg_conv_unread,priority:3"`
 	ReadAt         *time.Time `json:"read_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	// 文件相关字段（可选）

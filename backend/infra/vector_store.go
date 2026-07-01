@@ -53,6 +53,23 @@ func (vs *VectorStore) ensureCollectionLoaded(ctx context.Context) error {
 	return nil
 }
 
+// ensureChunkDBIDField 检查集合是否有 chunk_db_id 字段
+func (vs *VectorStore) ensureChunkDBIDField(ctx context.Context) error {
+	if err := vs.ensureCollectionLoaded(ctx); err != nil {
+		return err
+	}
+	collections, err := vs.client.DescribeCollection(ctx, vs.collection)
+	if err != nil {
+		return fmt.Errorf("获取集合信息失败: %w", err)
+	}
+	for _, field := range collections.Schema.Fields {
+		if field.Name == "chunk_db_id" {
+			return nil
+		}
+	}
+	return fmt.Errorf("缺少 chunk_db_id 字段")
+}
+
 // getCollectionDimension 获取集合的维度
 func (vs *VectorStore) getCollectionDimension(ctx context.Context) (int, error) {
 	// 确保集合已加载
@@ -266,6 +283,13 @@ func (vs *VectorStore) createCollectionWithName(ctx context.Context, collectionN
 					"max_length": "65535",
 				},
 			},
+			{
+				Name:     "chunk_db_id",
+				DataType: entity.FieldTypeVarChar,
+				TypeParams: map[string]string{
+					"max_length": "64",
+				},
+			},
 		},
 	}
 
@@ -328,6 +352,15 @@ func (vs *VectorStore) ensureCollection(ctx context.Context) error {
 		return vs.createCollectionWithName(ctx, vs.collection)
 	}
 
+	// 检查是否有 chunk_db_id 字段（分段向量化新增）
+	if err := vs.ensureChunkDBIDField(ctx); err != nil {
+		log.Printf("⚠️ 集合缺少 chunk_db_id 字段，重建集合: %v", err)
+		if dropErr := vs.client.DropCollection(ctx, vs.collection); dropErr != nil {
+			return fmt.Errorf("删除旧集合失败: %w", dropErr)
+		}
+		return vs.createCollectionWithName(ctx, vs.collection)
+	}
+
 	// 维度匹配，检查索引是否存在
 	if err := vs.ensureIndex(ctx); err != nil {
 		return fmt.Errorf("确保索引存在失败: %w", err)
@@ -371,7 +404,7 @@ func (vs *VectorStore) ensureIndex(ctx context.Context) error {
 }
 
 // UpsertVector 插入或更新单个向量
-func (vs *VectorStore) UpsertVector(ctx context.Context, documentID string, knowledgeBaseID string, content string, vector []float32) error {
+func (vs *VectorStore) UpsertVector(ctx context.Context, documentID string, knowledgeBaseID string, content string, chunkDBID string, vector []float32) error {
 	// 确保集合已加载
 	if err := vs.ensureCollectionLoaded(ctx); err != nil {
 		return err
@@ -381,6 +414,7 @@ func (vs *VectorStore) UpsertVector(ctx context.Context, documentID string, know
 		entity.NewColumnVarChar("document_id", []string{documentID}),
 		entity.NewColumnVarChar("knowledge_base_id", []string{knowledgeBaseID}),
 		entity.NewColumnVarChar("content", []string{content}),
+		entity.NewColumnVarChar("chunk_db_id", []string{chunkDBID}),
 		entity.NewColumnFloatVector("embedding", vs.dimension, [][]float32{vector}),
 	)
 	if err != nil {
@@ -390,13 +424,13 @@ func (vs *VectorStore) UpsertVector(ctx context.Context, documentID string, know
 }
 
 // UpsertVectors 批量插入或更新向量
-func (vs *VectorStore) UpsertVectors(ctx context.Context, documentIDs []string, knowledgeBaseIDs []string, contents []string, vectors [][]float32) error {
+func (vs *VectorStore) UpsertVectors(ctx context.Context, documentIDs []string, knowledgeBaseIDs []string, contents []string, vectors [][]float32, chunkDBIDs []string) error {
 	// 确保集合已加载
 	if err := vs.ensureCollectionLoaded(ctx); err != nil {
 		return err
 	}
 
-	if len(documentIDs) != len(knowledgeBaseIDs) || len(documentIDs) != len(contents) || len(documentIDs) != len(vectors) {
+	if len(documentIDs) != len(knowledgeBaseIDs) || len(documentIDs) != len(contents) || len(documentIDs) != len(vectors) || len(documentIDs) != len(chunkDBIDs) {
 		return fmt.Errorf("参数长度不匹配")
 	}
 
@@ -404,6 +438,7 @@ func (vs *VectorStore) UpsertVectors(ctx context.Context, documentIDs []string, 
 		entity.NewColumnVarChar("document_id", documentIDs),
 		entity.NewColumnVarChar("knowledge_base_id", knowledgeBaseIDs),
 		entity.NewColumnVarChar("content", contents),
+		entity.NewColumnVarChar("chunk_db_id", chunkDBIDs),
 		entity.NewColumnFloatVector("embedding", vs.dimension, vectors),
 	)
 	if err != nil {
@@ -532,6 +567,22 @@ func (vs *VectorStore) DeleteVector(ctx context.Context, documentID string) erro
 	err := vs.client.Delete(ctx, vs.collection, "", expr)
 	if err != nil {
 		return fmt.Errorf("删除向量失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteVectorByChunkID 按 chunk_db_id 删除单条向量
+func (vs *VectorStore) DeleteVectorByChunkID(ctx context.Context, chunkDBID string) error {
+	if err := vs.ensureCollectionLoaded(ctx); err != nil {
+		return err
+	}
+	if chunkDBID == "" {
+		return nil
+	}
+	expr := fmt.Sprintf("chunk_db_id == \"%s\"", chunkDBID)
+	err := vs.client.Delete(ctx, vs.collection, "", expr)
+	if err != nil {
+		return fmt.Errorf("按 chunk_db_id 删除向量失败: %w", err)
 	}
 	return nil
 }

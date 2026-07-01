@@ -12,4 +12,6 @@ type AppSetting struct {
 const (
 	// AppSettingKeySystemLogMinLevel 结构化日志最低落库级别（值：debug/info/warn/error/none）
 	AppSettingKeySystemLogMinLevel = "system_log_min_level"
+	// AppSettingKeyAutoCloseConversationDays 自动关闭长期未活跃 open 访客会话的天数（0=禁用）
+	AppSettingKeyAutoCloseConversationDays = "auto_close_conversation_days"
 )

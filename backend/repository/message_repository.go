@@ -46,6 +46,18 @@ func (r *MessageRepository) LatestByConversationID(conversationID uint) (*models
 	return &message, nil
 }
 
+// GetByID 根据 ID 获取单条消息
+func (r *MessageRepository) GetByID(id uint) (*models.Message, error) {
+	var message models.Message
+	if err := r.db.First(&message, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &message, nil
+}
+
 // CountUnreadBySender 统计指定发送方的未读消息数量。
 func (r *MessageRepository) CountUnreadBySender(conversationID uint, senderIsAgent bool) (int64, error) {
 	var count int64

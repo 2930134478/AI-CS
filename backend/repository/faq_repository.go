@@ -72,3 +72,19 @@ func (r *FAQRepository) Delete(id uint) error {
 	return r.db.Delete(&models.FAQ{}, id).Error
 }
 
+// QuickSearch 快速搜索 FAQ（OR 匹配），用于聊天输入框 / 触发。
+func (r *FAQRepository) QuickSearch(q string, limit int) ([]models.FAQ, error) {
+	var faqs []models.FAQ
+	query := r.db.Model(&models.FAQ{}).
+		Where("question LIKE ? OR answer LIKE ? OR keywords LIKE ?",
+			"%"+q+"%", "%"+q+"%", "%"+q+"%").
+		Order("created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Find(&faqs).Error; err != nil {
+		return nil, err
+	}
+	return faqs, nil
+}
+

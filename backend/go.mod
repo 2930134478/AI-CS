@@ -45,6 +45,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20260516030638-f4fcd5e900a9 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

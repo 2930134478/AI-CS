@@ -203,6 +203,23 @@ func (h *Hub) BroadcastToAllAgents(messageType string, data interface{}) {
 	}
 }
 
+// VisitorConnectionCount 返回指定对话当前访客 WebSocket 连接数
+func (h *Hub) VisitorConnectionCount(conversationID uint) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	clients, ok := h.conversations[conversationID]
+	if !ok {
+		return 0
+	}
+	count := 0
+	for client := range clients {
+		if client.isVisitor {
+			count++
+		}
+	}
+	return count
+}
+
 // GetOnlineAgentIDs 获取所有在线客服的用户ID列表（去重）
 // 返回一个 map，key 是 agentID，value 是 true（用于快速查找）
 func (h *Hub) GetOnlineAgentIDs() map[uint]bool {

@@ -102,6 +102,35 @@ export async function updateFAQ(
   return res.json();
 }
 
+export interface FAQQuickResult {
+  id: number;
+  question: string;
+  answer: string;
+  keywords: string;
+}
+
+/** FAQ 快速搜索（聊天输入框 `/` 触发） */
+export async function quickSearchFAQs(
+  q: string,
+  limit: number = 10
+): Promise<FAQQuickResult[]> {
+  const url = apiUrl(
+    `/faqs-search?q=${encodeURIComponent(q)}&limit=${limit}`
+  );
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: getAgentHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(
+      (error as { error?: string }).error || "FAQ 搜索失败"
+    );
+  }
+  const data = await res.json();
+  return data.faqs || [];
+}
+
 // 删除 FAQ
 export async function deleteFAQ(id: number): Promise<void> {
   const res = await fetch(apiUrl(`/faqs/${id}`), {

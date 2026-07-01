@@ -19,11 +19,17 @@ var (
 
 // MessageService 负责消息领域的业务处理。
 type MessageService struct {
-	db            *gorm.DB
-	conversations *repository.ConversationRepository
-	messages      *repository.MessageRepository
-	hub           BroadcastHub
-	aiService     *AIService // AI 服务（用于 AI 自动回复）
+	db               *gorm.DB
+	conversations    *repository.ConversationRepository
+	messages         *repository.MessageRepository
+	hub              BroadcastHub
+	aiService        *AIService // AI 服务（用于 AI 自动回复）
+	offlineEmailSvc  *OfflineEmailService
+}
+
+// SetOfflineEmailService 注入离线邮件服务（Hub 创建后调用）
+func (s *MessageService) SetOfflineEmailService(svc *OfflineEmailService) {
+	s.offlineEmailSvc = svc
 }
 
 // NewMessageService 创建 MessageService 实例。
@@ -130,6 +136,11 @@ func (s *MessageService) CreateMessage(input CreateMessageInput) (*models.Messag
 		}
 	} else {
 		log.Printf("⚠️ WebSocket Hub 为空，无法广播消息: 消息ID=%d, 对话ID=%d", message.ID, message.ConversationID)
+	}
+
+	// 人工访客会话：客服发消息且访客离线时，调度离线邮件
+	if input.SenderIsAgent && conv.ConversationType == "visitor" && conv.ChatMode == "human" && s.offlineEmailSvc != nil {
+		s.offlineEmailSvc.OnAgentMessage(message.ConversationID, message.ID)
 	}
 
 	// 3. 触发 AI 回复（文本/识图或生图，具体由 AI 配置的 model_type 决定）

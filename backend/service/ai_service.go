@@ -32,6 +32,7 @@ type AIService struct {
 	promptConfigSvc    *PromptConfigService     // 可选，提示词配置（为空则用代码内默认）
 	storageService     infra.StorageService     // 可选，用于多模态识图时读取消息附件
 	systemLogSvc       *SystemLogService        // 可选，结构化日志服务
+	faqRepo            *repository.FAQRepository // 可选，FAQ 优先匹配
 }
 
 // NewAIService 创建 AI 服务实例。webSearchProvider、storageService 可为 nil。
@@ -45,6 +46,7 @@ func NewAIService(
 	promptConfigSvc *PromptConfigService,
 	storageService infra.StorageService,
 	systemLogSvc *SystemLogService,
+	faqRepo *repository.FAQRepository,
 ) *AIService {
 	return &AIService{
 		aiConfigRepo:       aiConfigRepo,
@@ -57,6 +59,7 @@ func NewAIService(
 		promptConfigSvc:    promptConfigSvc,
 		storageService:     storageService,
 		systemLogSvc:       systemLogSvc,
+		faqRepo:            faqRepo,
 	}
 }
 
@@ -163,11 +166,35 @@ func (s *AIService) GenerateAIResponseWithOptions(conversationID uint, userMessa
 	}
 
 	var ragContext string
+	var faqHit bool
 	ragStartedAt := time.Now()
 	if useKB && s.retrievalService != nil {
-		ragContext, err = s.retrieveRAGContext(context.Background(), userMessage, conversation)
+		ragContext, faqHit, err = s.retrieveRAGContext(context.Background(), userMessage, conversation)
 		if err != nil {
 			log.Printf("⚠️ RAG 检索失败: %v", err)
+		}
+		// FAQ 精确命中：直接返回标准答案，跳过 LLM 调用
+		if faqHit && ragContext != "" {
+			if s.systemLogSvc != nil {
+				convID := conversationID
+				uID := userID
+				_ = s.systemLogSvc.Create(CreateSystemLogInput{
+					Level:          "info",
+					Category:       "rag",
+					Event:          "faq_direct_hit",
+					Source:         "backend",
+					ConversationID: &convID,
+					UserID:         &uID,
+					Message:        "FAQ 命中，直接返回",
+					Meta: map[string]interface{}{
+						"elapsed_ms": time.Since(ragStartedAt).Milliseconds(),
+					},
+				})
+			}
+			return &GenerateAIResponseResult{
+				Content:     ragContext,
+				SourcesUsed: "knowledge_base",
+			}, nil
 		}
 		if s.systemLogSvc != nil {
 			hit := strings.TrimSpace(ragContext) != ""
@@ -567,39 +594,65 @@ func (s *AIService) buildConversationHistory(conversationID uint) ([]MessageHist
 	return history, nil
 }
 
-// retrieveRAGContext 从知识库中检索相关文档内容
-// query: 用户查询文本
-// conversation: 对话信息（可能包含知识库 ID）
-// 返回: 检索到的文档内容（格式化后的字符串）
-func (s *AIService) retrieveRAGContext(ctx context.Context, query string, conversation *models.Conversation) (string, error) {
+// retrieveRAGContext 从知识库中检索相关文档内容。
+// 优先匹配 FAQ（关键词/问题精确匹配），命中后直接返回 FAQ 答案并标记 isFAQ=true，由调用方跳过 LLM。
+// 返回: (检索到的文档内容, 是否来自FAQ, 错误)
+func (s *AIService) retrieveRAGContext(ctx context.Context, query string, conversation *models.Conversation) (string, bool, error) {
+	// FAQ 优先匹配：命中直接返回答案，跳过向量检索和 LLM
+	if s.faqRepo != nil {
+		if answer, hit := s.matchFAQ(query); hit {
+			return answer, true, nil
+		}
+	}
+
 	// 确定知识库 ID（可以从对话中获取，或为空表示搜索所有知识库）
 	// TODO: 后续在 Conversation 模型增加 KnowledgeBaseID 字段
 	var knowledgeBaseID *uint
 	// knowledgeBaseID = conversation.KnowledgeBaseID // 暂时注释，等模型字段添加后启用
 
 	// 执行 RAG 检索（Top-K = 5，返回最相关的 5 个文档片段）
-	// 使用重排序优化检索结果
 	topK := 5
 	results, err := s.retrievalService.RetrieveWithRerank(ctx, query, topK, knowledgeBaseID)
 	if err != nil {
-		return "", fmt.Errorf("RAG 检索失败: %w", err)
+		return "", false, fmt.Errorf("RAG 检索失败: %w", err)
 	}
 
 	if len(results) == 0 {
-		// 没有检索到相关文档
-		return "", nil
+		return "", false, nil
 	}
 
-	// 格式化检索结果
+	// 格式化检索结果（已由 RetrievalService 做 score 阈值过滤）
 	var contextParts []string
 	for i, result := range results {
-		// 只使用相似度较高的结果（Score 越小表示相似度越高）
-		// 如果使用余弦相似度，通常阈值在 0.7-0.9 之间
-		// 这里我们暂时不过滤，让所有结果都参与
 		contextParts = append(contextParts, fmt.Sprintf("文档片段 %d:\n%s", i+1, result.Content))
 	}
 
-	return strings.Join(contextParts, "\n\n"), nil
+	return strings.Join(contextParts, "\n\n"), false, nil
+}
+
+// matchFAQ 尝试将用户查询与 FAQ 条目做关键词/子串匹配。
+// 返回 FAQ 答案和是否命中。命中时跳过 LLM，直接返回标准答案。
+func (s *AIService) matchFAQ(query string) (answer string, hit bool) {
+	faqs, err := s.faqRepo.List(nil)
+	if err != nil || len(faqs) == 0 {
+		return "", false
+	}
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	for _, faq := range faqs {
+		faqQuestion := strings.ToLower(strings.TrimSpace(faq.Question))
+		if strings.Contains(queryLower, faqQuestion) || strings.Contains(faqQuestion, queryLower) {
+			return faq.Answer, true
+		}
+		if faq.Keywords != "" {
+			for _, kw := range strings.Split(faq.Keywords, ",") {
+				kw = strings.ToLower(strings.TrimSpace(kw))
+				if kw != "" && strings.Contains(queryLower, kw) {
+					return faq.Answer, true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 // buildRAGPrompt 构建包含 RAG 上下文的 Prompt

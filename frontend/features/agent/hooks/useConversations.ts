@@ -27,6 +27,9 @@ const sortByUpdatedAtDesc = (list: ConversationSummary[]) =>
 
 import type { ConversationFilter } from "@/components/dashboard/ConversationHeader";
 
+const PAGE_SIZE = 50;
+const POLL_INTERVAL_MS = 15000;
+
 interface UseConversationsOptions {
   agentId?: number | null;
   filter?: ConversationFilter;
@@ -34,10 +37,21 @@ interface UseConversationsOptions {
   listType?: ConversationListType;
   /** 会话状态：open（进行中）/ closed（历史） */
   status?: ConversationStatus;
+  /** 为 false 时不加载列表、不轮询（非会话页使用） */
+  enabled?: boolean;
+  /** 轮询间隔毫秒；0 表示不轮询 */
+  pollIntervalMs?: number;
 }
 
 export function useConversations(options?: UseConversationsOptions) {
-  const { agentId, filter = "all", listType = "visitor", status = "open" } = options || {};
+  const {
+    agentId,
+    filter = "all",
+    listType = "visitor",
+    status = "open",
+    enabled = true,
+    pollIntervalMs = POLL_INTERVAL_MS,
+  } = options || {};
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<
     ConversationSummary[]
@@ -46,85 +60,166 @@ export function useConversations(options?: UseConversationsOptions) {
     number | null
   >(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [loading, setLoading] = useState(enabled);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(enabled);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalUnread, setTotalUnread] = useState(0);
+  const pageRef = useRef(1);
+  const prevListTypeRef = useRef(listType);
 
   const searchRef = useRef("");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsToken = getAgentWSToken() ?? undefined;
 
-  // 根据 filter 过滤会话
   const applyFilter = useCallback(
-    (conversations: ConversationSummary[]): ConversationSummary[] => {
+    (list: ConversationSummary[]): ConversationSummary[] => {
       if (!agentId) {
-        return conversations;
+        return list;
       }
 
       switch (filter) {
         case "mine":
-          // 只显示当前用户参与过的会话（has_participated === true）
-          // 即当前用户在该会话中发送过消息的会话
-          return conversations.filter((conv) => conv.has_participated === true);
+          return list.filter((conv) => conv.has_participated === true);
         case "others":
-          // 显示除了当前用户参与过的其他人的会话（has_participated !== true）
-          return conversations.filter((conv) => conv.has_participated !== true);
+          return list.filter((conv) => conv.has_participated !== true);
         case "all":
         default:
-          return conversations;
+          return list;
       }
     },
     [agentId, filter]
   );
 
-  const loadConversations = useCallback(async () => {
-    setLoading(true);
-    try {
-      // 内部对话（知识库测试）必须带 user_id，后端否则返回 400；未登录或 agentId 未就绪时不请求
-      if (listType === "internal" && !agentId) {
-        setConversations([]);
-        setFilteredConversations([]);
-        setSelectedConversationId(null);
+  const mergeConversationPages = useCallback(
+    (
+      prev: ConversationSummary[],
+      nextItems: ConversationSummary[],
+      replace: boolean
+    ) => {
+      if (replace) {
+        return nextItems;
+      }
+      const map = new Map<number, ConversationSummary>();
+      for (const item of prev) {
+        map.set(item.id, item);
+      }
+      for (const item of nextItems) {
+        map.set(item.id, item);
+      }
+      return sortByUpdatedAtDesc(Array.from(map.values()));
+    },
+    []
+  );
+
+  const loadConversations = useCallback(
+    async (opts?: { append?: boolean }) => {
+      if (!enabled) {
         return;
       }
-      const data = await fetchConversations(
-        agentId ?? undefined,
-        listType === "internal" ? { type: "internal", status } : { status }
-      );
-      setConversations(data);
-      const filtered = listType === "internal" ? data : applyFilter(data);
-      if (!searchRef.current.trim()) {
-        setFilteredConversations(filtered);
+      const append = opts?.append ?? false;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        pageRef.current = 1;
       }
-      setSelectedConversationId((prev) => {
-        if (prev) {
-          return prev;
+
+      try {
+        if (listType === "internal" && !agentId) {
+          setConversations([]);
+          setFilteredConversations([]);
+          setSelectedConversationId(null);
+          setHasMore(false);
+          setTotalUnread(0);
+          return;
         }
-        return filtered.length > 0 ? filtered[0].id : null;
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
+
+        const page = append ? pageRef.current + 1 : 1;
+        const result = await fetchConversations(
+          agentId ?? undefined,
+          listType === "internal"
+            ? { type: "internal", status, page, page_size: PAGE_SIZE }
+            : { status, page, page_size: PAGE_SIZE }
+        );
+
+        pageRef.current = page;
+        setHasMore(result.has_more);
+        setTotalUnread(result.total_unread);
+
+        setConversations((prev) => {
+          const merged = mergeConversationPages(prev, result.items, !append);
+          if (!searchRef.current.trim()) {
+            const filtered =
+              listType === "internal" ? merged : applyFilter(merged);
+            const sorted = sortByUpdatedAtDesc(filtered);
+            setFilteredConversations(sorted);
+            if (!append) {
+              setSelectedConversationId((prevSelected) => {
+                if (prevSelected && sorted.some((c) => c.id === prevSelected)) {
+                  return prevSelected;
+                }
+                return sorted.length > 0 ? sorted[0].id : null;
+              });
+            }
+          }
+          return merged;
+        });
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (append) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+          setIsInitialLoad(false);
+        }
+      }
+    },
+    [enabled, applyFilter, agentId, listType, status, mergeConversationPages]
+  );
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!enabled || loading || loadingMore || !hasMore || searchRef.current.trim()) {
+      return;
+    }
+    await loadConversations({ append: true });
+  }, [enabled, loading, loadingMore, hasMore, loadConversations]);
+
+  useEffect(() => {
+    if (!enabled) {
       setLoading(false);
       setIsInitialLoad(false);
+      return;
     }
-  }, [applyFilter, agentId, filter, listType, status]);
+    void loadConversations();
+  }, [enabled, loadConversations]);
+
+  // 切换 listType（访客对话 ↔ 知识库测试）时立即清空，避免串台
+  useEffect(() => {
+    if (prevListTypeRef.current !== listType) {
+      prevListTypeRef.current = listType;
+      setConversations([]);
+      setFilteredConversations([]);
+      setSelectedConversationId(null);
+      setHasMore(false);
+      setTotalUnread(0);
+      pageRef.current = 1;
+      searchRef.current = "";
+      setSearchQuery("");
+    }
+  }, [listType]);
 
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
-
-  // 兜底定时刷新：防止 WebSocket 漏事件/无会话时无法建立全局 WS 导致列表长期不更新。
-  useEffect(() => {
-    if (!agentId) {
+    if (!enabled || !agentId || pollIntervalMs <= 0) {
       return;
     }
     const interval = setInterval(() => {
       void loadConversations();
-    }, 15000);
+    }, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [agentId, loadConversations]);
+  }, [enabled, agentId, pollIntervalMs, loadConversations]);
 
-  // 当 filter / listType 改变时，重新应用过滤（不重新加载数据）
   useEffect(() => {
     if (isInitialLoad) {
       return;
@@ -134,7 +229,7 @@ export function useConversations(options?: UseConversationsOptions) {
   }, [filter, listType, conversations, isInitialLoad, applyFilter]);
 
   useEffect(() => {
-    if (isInitialLoad) {
+    if (!enabled || isInitialLoad) {
       return;
     }
     const handler = setTimeout(async () => {
@@ -146,13 +241,22 @@ export function useConversations(options?: UseConversationsOptions) {
         return;
       }
       if (listType === "internal") {
-        setFilteredConversations(sortByUpdatedAtDesc(conversations.filter((c) => (c.last_message?.content ?? "").toLowerCase().includes(query.toLowerCase()))));
+        setFilteredConversations(
+          sortByUpdatedAtDesc(
+            conversations.filter((c) =>
+              (c.last_message?.content ?? "").toLowerCase().includes(query.toLowerCase())
+            )
+          )
+        );
         setLoading(false);
         return;
       }
       try {
         setLoading(true);
-        const data = await searchConversations(query, agentId ?? undefined, { status });
+        const data = await searchConversations(query, agentId ?? undefined, {
+          status,
+          type: listType,
+        });
         const filtered = applyFilter(data);
         setFilteredConversations(sortByUpdatedAtDesc(filtered));
       } catch (error) {
@@ -164,7 +268,7 @@ export function useConversations(options?: UseConversationsOptions) {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, conversations, isInitialLoad, applyFilter, agentId, listType, status]);
+  }, [enabled, searchQuery, conversations, isInitialLoad, applyFilter, agentId, listType, status]);
 
   const selectConversation = useCallback((conversationId: number | null) => {
     setSelectedConversationId((prev) =>
@@ -207,13 +311,16 @@ export function useConversations(options?: UseConversationsOptions) {
     []
   );
 
-  const setAllConversations = useCallback((data: ConversationSummary[]) => {
-    setConversations(data);
-    if (!searchRef.current.trim()) {
-      const filtered = applyFilter(data);
-      setFilteredConversations(filtered);
-    }
-  }, [applyFilter]);
+  const setAllConversations = useCallback(
+    (data: ConversationSummary[]) => {
+      setConversations(data);
+      if (!searchRef.current.trim()) {
+        const filtered = applyFilter(data);
+        setFilteredConversations(filtered);
+      }
+    },
+    [applyFilter]
+  );
 
   const hasConversation = useCallback(
     (conversationId: number) => {
@@ -223,33 +330,28 @@ export function useConversations(options?: UseConversationsOptions) {
   );
 
   const scheduleRefreshConversations = useCallback(() => {
+    if (!enabled) {
+      return;
+    }
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
     }
     refreshTimerRef.current = setTimeout(() => {
       void loadConversations();
     }, 500);
-  }, [loadConversations]);
+  }, [enabled, loadConversations]);
 
-  // 建立全局 WebSocket 连接以接收 visitor_status_update 等全局事件
-  // 使用第一个对话的 ID（如果存在），否则不建立连接
   const globalConversationId = conversations.length > 0 ? conversations[0].id : null;
 
-  // 处理全局 WebSocket 事件：访客在线状态 + 新消息摘要
   const handleGlobalWebSocketMessage = useCallback(
     (event: WSMessage<ChatWebSocketPayload>) => {
       if (event.type === "visitor_status_update" && event.data) {
         const payload = event.data as VisitorStatusUpdatePayload;
-        if (payload?.conversation_id) {
-          if (payload.is_online === true) {
-            // 在线：更新为当前时间（实时更新在线状态）
-            updateConversation(payload.conversation_id, (conv) => ({
-              ...conv,
-              last_seen_at: new Date().toISOString(),
-            }));
-          }
-          // 离线时，last_seen_at 会在后端更新，这里不需要特殊处理
-          // 因为对话列表会定期刷新，或者通过其他方式更新
+        if (payload?.conversation_id && payload.is_online === true) {
+          updateConversation(payload.conversation_id, (conv) => ({
+            ...conv,
+            last_seen_at: new Date().toISOString(),
+          }));
         }
       } else if (event.type === "new_message" && event.data) {
         const message = event.data as MessageItem;
@@ -258,7 +360,6 @@ export function useConversations(options?: UseConversationsOptions) {
         }
         const isConversationExists = hasConversation(message.conversation_id);
         if (!isConversationExists) {
-          // 新会话（当前列表里还没有）时，延迟刷新把它拉进来
           scheduleRefreshConversations();
           return;
         }
@@ -287,6 +388,9 @@ export function useConversations(options?: UseConversationsOptions) {
             created_at: message.created_at,
           },
         }));
+        if (isVisitorMessage && message.conversation_id !== selectedConversationId) {
+          setTotalUnread((n) => n + 1);
+        }
       }
     },
     [
@@ -305,33 +409,32 @@ export function useConversations(options?: UseConversationsOptions) {
     };
   }, []);
 
-  // 建立全局 WebSocket 连接（用于接收全局事件）
   useWebSocket<ChatWebSocketPayload>({
     conversationId: globalConversationId,
-    enabled: Boolean(globalConversationId && agentId),
+    enabled: Boolean(enabled && globalConversationId && agentId),
     isVisitor: false,
     agentId: agentId ?? undefined,
     wsToken,
     onMessage: handleGlobalWebSocketMessage,
-    onError: (error) => {
-      // 静默处理错误，避免影响用户体验
-    },
-    onClose: () => {
-      // 静默处理关闭，避免影响用户体验
-    },
+    onError: () => {},
+    onClose: () => {},
   });
 
-  const contextValue = useMemo(
+  return useMemo(
     () => ({
       conversations,
       filteredConversations,
       selectedConversationId,
       searchQuery,
       loading,
+      loadingMore,
       isInitialLoad,
+      hasMore,
+      totalUnread,
       setSearchQuery,
       selectConversation,
-      refresh: loadConversations,
+      refresh: () => loadConversations(),
+      loadMore: loadMoreConversations,
       updateConversation,
       setAllConversations,
       hasConversation,
@@ -342,16 +445,16 @@ export function useConversations(options?: UseConversationsOptions) {
       selectedConversationId,
       searchQuery,
       loading,
+      loadingMore,
       isInitialLoad,
+      hasMore,
+      totalUnread,
       selectConversation,
       loadConversations,
+      loadMoreConversations,
       updateConversation,
       setAllConversations,
-      setSearchQuery,
       hasConversation,
     ]
   );
-
-  return contextValue;
 }
-

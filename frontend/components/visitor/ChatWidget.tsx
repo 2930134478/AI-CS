@@ -21,6 +21,7 @@ import {
   UploadFileResult,
 } from "@/features/agent/services/messageApi";
 import { initVisitorConversation } from "@/features/visitor/services/conversationApi";
+import { getVisitorAccessToken } from "@/lib/visitor-session";
 import { postWidgetOpen } from "@/features/visitor/services/analyticsApi";
 import { fetchOnlineAgents } from "@/features/visitor/services/visitorApi";
 import {
@@ -119,6 +120,7 @@ export function ChatWidget({
 
   // ===== 状态管理 =====
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [conversationStatus, setConversationStatus] = useState<string>("open");
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -144,6 +146,7 @@ export function ChatWidget({
   const [widgetConfig, setWidgetConfig] = useState<VisitorWidgetConfig | null>(null);
   const typingSeqRef = useRef(0);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const initRef = useRef(false);
 
   // 声音通知开关（访客端）
   const { enabled: soundEnabled, toggle: toggleSound } = useSoundNotification(true);
@@ -278,6 +281,7 @@ export function ChatWidget({
         if (result.conversation_id) {
           setConversationId(result.conversation_id);
           setConversationStatus(result.status);
+          setAccessToken(result.access_token || null);
           setChatMode(mode);
         }
       } catch (error) {
@@ -290,12 +294,28 @@ export function ChatWidget({
     []
   );
 
-  // 初始化默认对话（人工模式）
+  // 初始化默认对话（人工模式）；initRef 防止 Strict Mode 双次 mount 创建两个会话
   useEffect(() => {
-    if (visitorId !== null && !conversationId && !initializing && isOpen) {
+    if (
+      visitorId !== null &&
+      !conversationId &&
+      !initializing &&
+      isOpen &&
+      !initRef.current
+    ) {
+      initRef.current = true;
       initializeConversation(visitorId, "human");
     }
   }, [visitorId, conversationId, initializing, isOpen, initializeConversation]);
+
+  useEffect(() => {
+    if (conversationId && !accessToken) {
+      const stored = getVisitorAccessToken(conversationId);
+      if (stored) {
+        setAccessToken(stored);
+      }
+    }
+  }, [conversationId, accessToken]);
 
   // 处理模式切换
   const handleModeSwitch = useCallback(
@@ -329,7 +349,8 @@ export function ChatWidget({
       }
       const result = await markMessagesRead(
         targetConversationId,
-        targetReaderIsAgent
+        targetReaderIsAgent,
+        accessToken ?? undefined
       );
       if (!result || result.message_ids.length === 0) {
         return;
@@ -347,7 +368,7 @@ export function ChatWidget({
         )
       );
     },
-    [conversationId]
+    [conversationId, accessToken]
   );
 
   // 拉取历史消息（AI 模式时包含 AI 对话记录，人工模式时仅人工消息）
@@ -358,7 +379,7 @@ export function ChatWidget({
     setLoadingMessages(true);
     try {
       const includeAIMessages = chatMode === "ai";
-      const data = await fetchMessages(conversationId, includeAIMessages);
+      const data = await fetchMessages(conversationId, includeAIMessages, accessToken ?? undefined);
       const normalizedMessages = data.map((msg) => ({
         ...msg,
         is_read: msg.is_read ?? false,
@@ -370,7 +391,7 @@ export function ChatWidget({
     } finally {
       setLoadingMessages(false);
     }
-  }, [conversationId, chatMode, shouldHideForVisitor, isMessageInCurrentMode]);
+  }, [conversationId, accessToken, chatMode, shouldHideForVisitor, isMessageInCurrentMode]);
 
   useEffect(() => {
     if (isOpen && conversationId) {
@@ -578,8 +599,9 @@ export function ChatWidget({
 
   const { send: sendWebSocketEvent } = useWebSocket<ChatWebSocketPayload>({
     conversationId,
-    enabled: Boolean(conversationId) && isOpen,
+    enabled: Boolean(conversationId && accessToken) && isOpen,
     isVisitor: true,
+    accessToken: accessToken ?? undefined,
     onMessage: handleWebSocketMessage,
     onError: (error) => {
       console.error("WebSocket 连接错误（访客端）:", error);
@@ -685,6 +707,7 @@ export function ChatWidget({
           conversationId,
           content: messageContent,
           senderIsAgent: false,
+          accessToken: accessToken ?? undefined,
           fileUrl: fileInfo?.file_url,
           fileType: fileInfo?.file_type as "image" | "document" | undefined,
           fileName: fileInfo?.file_name,
@@ -709,7 +732,7 @@ export function ChatWidget({
         setSending(false);
       }
     },
-    [conversationId, input, sending, visitorId, chatMode, needWebSearch, sendTypingStop, widgetConfig]
+    [conversationId, accessToken, input, sending, visitorId, chatMode, needWebSearch, sendTypingStop, widgetConfig]
   );
 
   // 如果不打开，不渲染内容
@@ -940,6 +963,8 @@ export function ChatWidget({
           onSubmit={handleSendMessage}
           sending={sending}
           conversationId={conversationId ?? undefined}
+          accessToken={accessToken ?? undefined}
+          visitorId={visitorId}
           toolsSlot={
             chatMode === "ai" && (widgetConfig?.web_search_enabled ?? false) ? (
               <button

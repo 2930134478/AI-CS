@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const timeFormat = "2006-01-02T15:04:05Z07:00"
@@ -76,4 +79,70 @@ func requirePermission(c *gin.Context, userSvc *service.UserService, perm string
 		return false
 	}
 	return true
+}
+
+const conversationAccessTokenHeader = "X-Conversation-Token"
+
+// getConversationAccessToken 从 Header 或 Query 读取访客会话令牌。
+func getConversationAccessToken(c *gin.Context) string {
+	if token := strings.TrimSpace(c.GetHeader(conversationAccessTokenHeader)); token != "" {
+		return token
+	}
+	return strings.TrimSpace(c.Query("access_token"))
+}
+
+// authorizeConversationAccess 校验对会话的访问权限（客服或持 token 的访客）。
+// 失败时已写入 HTTP 响应；成功返回会话详情。
+func authorizeConversationAccess(
+	c *gin.Context,
+	convSvc *service.ConversationService,
+	userSvc *service.UserService,
+	conversationID uint,
+) (*service.ConversationDetail, bool) {
+	userID := getUserIDFromHeader(c)
+	accessToken := getConversationAccessToken(c)
+
+	detail, err := convSvc.GetConversationDetail(conversationID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(404, gin.H{"error": "会话不存在"})
+		} else {
+			c.JSON(500, gin.H{"error": "查询失败"})
+		}
+		return nil, false
+	}
+
+	if detail.ConversationType == "internal" {
+		if userID == 0 || detail.AgentID != userID {
+			c.JSON(403, gin.H{"error": "无权限访问内部会话"})
+			return nil, false
+		}
+		if userSvc != nil {
+			if err := userSvc.CheckPermission(userID, string(service.PermKBTest)); err != nil {
+				c.JSON(403, gin.H{"error": err.Error()})
+				return nil, false
+			}
+		}
+		return detail, true
+	}
+
+	if userID > 0 {
+		if userSvc != nil {
+			if err := userSvc.CheckPermission(userID, string(service.PermChat)); err != nil {
+				c.JSON(403, gin.H{"error": err.Error()})
+				return nil, false
+			}
+		}
+		return detail, true
+	}
+
+	if err := convSvc.ValidateVisitorAccessToken(conversationID, accessToken); err != nil {
+		if errors.Is(err, service.ErrConversationNotFound) {
+			c.JSON(404, gin.H{"error": "会话不存在"})
+		} else {
+			c.JSON(403, gin.H{"error": "无权限访问该会话"})
+		}
+		return nil, false
+	}
+	return detail, true
 }

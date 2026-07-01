@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -99,6 +100,17 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 	} else {
 		// 访客消息的 sender_id 统一由服务端置 0，避免前端注入。
 		req.SenderID = 0
+		if userID == 0 {
+			token := getConversationAccessToken(c)
+			if err := mc.conversationService.ValidateVisitorAccessToken(req.ConversationID, token); err != nil {
+				if errors.Is(err, service.ErrConversationNotFound) {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "会话不存在"})
+				} else {
+					c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+				}
+				return
+			}
+		}
 	}
 
 	// 验证：必须有内容或文件
@@ -155,30 +167,9 @@ func (mc *MessageController) ListMessages(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "会话ID不合法"})
 		return
 	}
-	if mc.userService != nil {
-		userID := getUserIDFromHeader(c)
-		detail, detailErr := mc.conversationService.GetConversationDetail(uint(conversationID), userID)
-		if detailErr != nil && userID > 0 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
-			return
-		}
-		if detail != nil {
-			if detail.ConversationType == "internal" {
-				if userID == 0 || detail.AgentID != userID {
-					c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问内部会话"})
-					return
-				}
-				if err := mc.userService.CheckPermission(userID, string(service.PermKBTest)); err != nil {
-					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-					return
-				}
-			} else if userID > 0 {
-				if err := mc.userService.CheckPermission(userID, string(service.PermChat)); err != nil {
-					c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-					return
-				}
-			}
-		}
+
+	if _, ok := authorizeConversationAccess(c, mc.conversationService, mc.userService, uint(conversationID)); !ok {
+		return
 	}
 
 	// 解析 include_ai_messages 参数（默认 false）
@@ -205,37 +196,16 @@ func (mc *MessageController) MarkMessagesRead(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
 	}
-	if mc.userService != nil {
+
+	if _, ok := authorizeConversationAccess(c, mc.conversationService, mc.userService, req.ConversationID); !ok {
+		return
+	}
+
+	if req.ReaderIsAgent {
 		userID := getUserIDFromHeader(c)
-		detail, detailErr := mc.conversationService.GetConversationDetail(req.ConversationID, userID)
-		if detailErr != nil && userID > 0 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+		if userID == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
 			return
-		}
-		if detail != nil {
-			if detail.ConversationType == "internal" {
-				if userID == 0 || detail.AgentID != userID {
-					c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问内部会话"})
-					return
-				}
-			}
-			if req.ReaderIsAgent {
-				if userID == 0 {
-					c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
-					return
-				}
-				if detail.ConversationType == "internal" {
-					if err := mc.userService.CheckPermission(userID, string(service.PermKBTest)); err != nil {
-						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-						return
-					}
-				} else {
-					if err := mc.userService.CheckPermission(userID, string(service.PermChat)); err != nil {
-						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-						return
-					}
-				}
-			}
 		}
 	}
 
@@ -275,21 +245,25 @@ func (mc *MessageController) UploadFile(c *gin.Context) {
 		return
 	}
 
-	// 如果是访客上传（没有用户ID，但有对话ID），验证对话是否存在且未关闭
+	// 如果是访客上传（没有用户ID，但有对话ID），校验 access_token
 	if userID == 0 && conversationIDStr != "" {
 		convID, err := strconv.ParseUint(conversationIDStr, 10, 64)
 		if err != nil || convID == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "对话ID不合法"})
 			return
 		}
-		// 验证对话是否存在且未关闭
-		conv, err := mc.conversationService.GetConversationDetail(uint(convID), 0)
-		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "对话不存在或已关闭"})
+		token := getConversationAccessToken(c)
+		if err := mc.conversationService.ValidateVisitorAccessToken(uint(convID), token); err != nil {
+			if errors.Is(err, service.ErrConversationNotFound) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "对话不存在或已关闭"})
+			} else {
+				c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该会话"})
+			}
 			return
 		}
-		if conv.Status == "closed" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "对话已关闭"})
+		conv, err := mc.conversationService.GetConversationDetail(uint(convID), 0)
+		if err != nil || conv.Status == "closed" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "对话不存在或已关闭"})
 			return
 		}
 	}

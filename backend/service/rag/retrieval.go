@@ -19,6 +19,7 @@ type RetrievalService struct {
 	cache              *Cache
 	reranker           *SimpleReranker
 	metrics            *Metrics
+	minScore           float32 // 相似度阈值，默认 0.22（分段检索分数通常低于整篇文档）
 }
 
 // NewRetrievalService 创建 RAG 检索服务实例（仅已发布文档且所属知识库已开启 RAG 的参与检索）
@@ -31,6 +32,14 @@ func NewRetrievalService(vectorStoreService *VectorStoreService, embeddingProvid
 		cache:              NewCache(),
 		reranker:           NewSimpleReranker(),
 		metrics:            NewMetrics(),
+		minScore:           0.22,
+	}
+}
+
+// SetMinScore 设置 RAG 相似度阈值（IP/余弦，分段场景建议 0.2~0.35）
+func (s *RetrievalService) SetMinScore(score float32) {
+	if score >= 0 && score <= 1 {
+		s.minScore = score
 	}
 }
 
@@ -93,8 +102,11 @@ func (s *RetrievalService) Retrieve(ctx context.Context, query string, topK int,
 		// 仅保留「已发布」的文档参与 RAG；未在 documents 表中的条目（如 FAQ）视为可展示
 		results = s.filterByPublished(ctx, results, topK)
 
-		// 缓存过滤后的结果
-		if s.cache != nil {
+		// 相似度阈值过滤：Milvus 使用 IP（归一化嵌入时等同余弦相似度）
+		results = s.filterByScore(results, s.minScore)
+
+		// 缓存过滤后的结果（空结果不缓存，避免误伤后续查询）
+		if s.cache != nil && len(results) > 0 {
 			s.cache.Set(query, topK, knowledgeBaseID, results)
 		}
 	}
@@ -197,6 +209,21 @@ func (s *RetrievalService) filterByPublished(ctx context.Context, results []Sear
 		filtered = append(filtered, r)
 		if len(filtered) >= topK {
 			break
+		}
+	}
+	return filtered
+}
+
+// filterByScore 按相似度阈值过滤结果。
+// Milvus 使用 IP 度量；归一化嵌入时分数等同余弦相似度。分段后 chunk 分数普遍低于整篇文档，阈值不宜过高。
+func (s *RetrievalService) filterByScore(results []SearchResult, minScore float32) []SearchResult {
+	if len(results) == 0 {
+		return results
+	}
+	filtered := make([]SearchResult, 0, len(results))
+	for _, r := range results {
+		if r.Score >= minScore {
+			filtered = append(filtered, r)
 		}
 	}
 	return filtered

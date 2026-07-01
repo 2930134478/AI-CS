@@ -8,6 +8,7 @@ import (
 	"github.com/2930134478/AI-CS/backend/infra/geoip"
 	"github.com/2930134478/AI-CS/backend/models"
 	"github.com/2930134478/AI-CS/backend/repository"
+	"github.com/2930134478/AI-CS/backend/utils"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,7 @@ type ConversationService struct {
 	aiConfigRepo  *repository.AIConfigRepository // 用于验证 AI 配置
 	userRepo      *repository.UserRepository     // 用于查询用户设置
 	systemLogSvc  *SystemLogService              // 可选，结构化日志
+	appSettings   *repository.AppSettingRepository // 平台级会话维护等配置
 }
 
 // CloseConversation 客服主动关闭会话（visitor/internal 通用）。
@@ -51,6 +53,7 @@ func NewConversationService(
 	aiConfigRepo *repository.AIConfigRepository,
 	userRepo *repository.UserRepository,
 	systemLogSvc *SystemLogService,
+	appSettings *repository.AppSettingRepository,
 ) *ConversationService {
 	return &ConversationService{
 		conversations: conversations,
@@ -58,6 +61,7 @@ func NewConversationService(
 		aiConfigRepo:  aiConfigRepo,
 		userRepo:      userRepo,
 		systemLogSvc:  systemLogSvc,
+		appSettings:   appSettings,
 	}
 }
 
@@ -99,10 +103,16 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 				aiConfigID = input.AIConfigID
 			}
 
+			accessToken, err := utils.GenerateConversationAccessToken()
+			if err != nil {
+				return nil, err
+			}
+
 			conv = &models.Conversation{
 				ConversationType: "visitor",
 				VisitorID:        input.VisitorID,
 				Status:           "open",
+				AccessToken:      accessToken,
 				Website:          input.Website,
 				Referrer:         input.Referrer,
 				Browser:          input.Browser,
@@ -248,6 +258,11 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 		}
 	}
 
+	conv, err = s.EnsureConversationAccessToken(conv)
+	if err != nil {
+		return nil, err
+	}
+
 	if isNewConversation {
 		now := time.Now()
 		chatMode := input.ChatMode
@@ -296,6 +311,7 @@ func (s *ConversationService) InitConversation(input InitConversationInput) (*In
 	return &InitConversationResult{
 		ConversationID: conv.ID,
 		Status:         conv.Status,
+		AccessToken:    conv.AccessToken,
 	}, nil
 }
 
@@ -379,52 +395,13 @@ func (s *ConversationService) buildSummary(conv models.Conversation, userID uint
 	return summary, nil
 }
 
-// ListConversations 返回当前活跃会话的摘要信息。
-// userID: 当前登录的客服ID（可选，如果为0则使用默认过滤规则）
-// 过滤规则：
-// 1. 默认不显示 ChatMode == "ai" 的对话
-// 2. 如果 userID > 0 且该用户的 ReceiveAIConversations == false，则不显示 AI 对话
-// 3. 只显示 ChatMode == "human" 且存在访客消息的对话（访客切换到人工并发送消息后）
+// ListConversations 返回当前活跃会话的摘要信息（兼容旧调用，等价于第一页分页）。
 func (s *ConversationService) ListConversations(userID uint, status string) ([]ConversationSummary, error) {
-	// 默认展示进行中（open）；历史使用 status=closed
-	if status == "" {
-		status = "open"
-	}
-	conversations, err := s.conversations.ListByTypeAndStatus("visitor", status)
+	result, err := s.ListConversationsPaginated(userID, status, 1, maxConversationPageSize)
 	if err != nil {
 		return nil, err
 	}
-
-	result := make([]ConversationSummary, 0, len(conversations))
-	for _, conv := range conversations {
-		// 过滤规则 1: 默认不显示 AI 对话
-		// 只有在会话页面手动开启"显示 AI 对话"时才显示
-		if conv.ChatMode == "ai" {
-			continue
-		}
-
-		// 过滤规则 2: 如果是人工对话，检查是否有访客发送的消息
-		// 只有当访客切换到人工并发送消息后，才显示在列表中
-		if conv.ChatMode == "human" {
-			hasVisitorMessage, err := s.messages.HasVisitorMessageInHumanMode(conv.ID)
-			if err != nil {
-				// 如果查询失败，为了安全起见，不显示该对话
-				continue
-			}
-			if !hasVisitorMessage {
-				// 没有访客消息，不显示（访客只是切换了模式，但还没发送消息）
-				continue
-			}
-		}
-
-		// 通过过滤，添加到结果列表
-		summary, err := s.buildSummary(conv, userID)
-		if err != nil {
-			continue // 如果构建摘要失败，跳过该对话
-		}
-		result = append(result, summary)
-	}
-	return result, nil
+	return result.Items, nil
 }
 
 // GetConversationDetail 获取指定会话的详细信息。内部对话仅创建者（agent_id）可查看。
@@ -472,7 +449,8 @@ func (s *ConversationService) GetConversationDetail(id uint, userID uint) (*Conv
 
 // SearchConversations 根据关键字检索会话摘要。
 // userID: 当前登录的客服ID（可选，用于检查参与状态）
-func (s *ConversationService) SearchConversations(query string, userID uint, status string) ([]ConversationSummary, error) {
+// conversationType: visitor | internal，空表示不过滤
+func (s *ConversationService) SearchConversations(query string, userID uint, status string, conversationType string) ([]ConversationSummary, error) {
 	pattern := "%" + query + "%"
 
 	idSet := map[uint]struct{}{}
@@ -508,13 +486,16 @@ func (s *ConversationService) SearchConversations(query string, userID uint, sta
 	}
 
 	result := make([]ConversationSummary, 0, len(conversations))
-	for _, conv := range conversations {
-		if status != "" && status != "all" && conv.Status != status {
+	summaries, err := s.buildSummariesBatch(conversations, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, summary := range summaries {
+		if conversationType != "" && summary.ConversationType != conversationType {
 			continue
 		}
-		summary, err := s.buildSummary(conv, userID)
-		if err != nil {
-			return nil, err
+		if status != "" && status != "all" && summary.Status != status {
+			continue
 		}
 		result = append(result, summary)
 	}
@@ -574,25 +555,11 @@ func (s *ConversationService) InitInternalConversation(agentID uint) (*InitConve
 	}, nil
 }
 
-// ListInternalConversations 返回当前客服的全部内部对话（知识库测试用）。
+// ListInternalConversations 返回当前客服的内部对话（第一页，兼容旧调用）。
 func (s *ConversationService) ListInternalConversations(agentID uint, status string) ([]ConversationSummary, error) {
-	if agentID == 0 {
-		return []ConversationSummary{}, nil
-	}
-	if status == "" {
-		status = "open"
-	}
-	conversations, err := s.conversations.ListInternalByAgentIDAndStatus(agentID, status)
+	result, err := s.ListInternalConversationsPaginated(agentID, status, 1, maxConversationPageSize)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]ConversationSummary, 0, len(conversations))
-	for _, conv := range conversations {
-		summary, err := s.buildSummary(conv, agentID)
-		if err != nil {
-			continue
-		}
-		result = append(result, summary)
-	}
-	return result, nil
+	return result.Items, nil
 }

@@ -23,6 +23,9 @@ interface ConversationSidebarProps {
   /** 内部对话（知识库测试）模式：显示「新建内部对话」按钮，隐藏筛选 */
   mode?: "visitor" | "internal";
   onNewClick?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function ConversationSidebar({
@@ -37,6 +40,9 @@ export function ConversationSidebar({
   onStatusChange,
   mode = "visitor",
   onNewClick,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: ConversationSidebarProps) {
   const { t } = useI18n();
   return (
@@ -67,6 +73,9 @@ export function ConversationSidebar({
         selectedConversationId={selectedConversationId}
         onSelect={onSelectConversation}
         searchQuery={searchQuery}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={onLoadMore}
       />
     </div>
   );

@@ -1,14 +1,18 @@
 package websocket
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/2930134478/AI-CS/backend/repository"
+	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/2930134478/AI-CS/backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"gorm.io/gorm"
 )
 
 var upgrader = websocket.Upgrader{
@@ -21,7 +25,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // HandleWebSocket 处理 WebSocket 连接
-func HandleWebSocket(hub *Hub, userRepo *repository.UserRepository) gin.HandlerFunc {
+func HandleWebSocket(hub *Hub, userRepo *repository.UserRepository, conversationService *service.ConversationService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 从查询参数获取对话ID
 		conversationIDStr := c.Query("conversation_id")
@@ -69,6 +73,19 @@ func HandleWebSocket(hub *Hub, userRepo *repository.UserRepository) gin.HandlerF
 					c.JSON(http.StatusForbidden, gin.H{"error": "仅客服账号允许建立该连接"})
 					return
 				}
+			}
+		} else if conversationService != nil {
+			accessToken := strings.TrimSpace(c.Query("access_token"))
+			if accessToken == "" {
+				accessToken = strings.TrimSpace(c.GetHeader("X-Conversation-Token"))
+			}
+			if err := conversationService.ValidateVisitorAccessToken(uint(conversationID), accessToken); err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在"})
+				} else {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "access_token 无效或缺失"})
+				}
+				return
 			}
 		}
 

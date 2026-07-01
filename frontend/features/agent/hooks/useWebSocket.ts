@@ -9,6 +9,7 @@ interface UseWebSocketOptions<T> {
   isVisitor?: boolean; // 是否是访客（默认为 true）
   agentId?: number; // 客服ID（如果是客服连接，需要传递）
   wsToken?: string; // 客服 WS 令牌（登录后下发）
+  accessToken?: string; // 访客会话令牌
   onMessage: (payload: WSMessage<T>) => void;
   onError?: (error: Event) => void;
   onClose?: () => void;
@@ -20,6 +21,7 @@ export function useWebSocket<T>({
   isVisitor = true, // 默认是访客
   agentId,
   wsToken,
+  accessToken,
   onMessage,
   onError,
   onClose,
@@ -49,12 +51,18 @@ export function useWebSocket<T>({
       clientRef.current = null;
       return;
     }
+    if (isVisitor && !accessToken) {
+      clientRef.current?.disconnect();
+      clientRef.current = null;
+      return;
+    }
 
     const client = new WSClient<T>({
       conversationId,
       isVisitor,
       agentId,
       wsToken,
+      accessToken,
       // 使用 ref 的 current 值，这样即使回调函数变化也不会导致重新连接
       onMessage: (payload) => onMessageRef.current(payload),
       onError: onErrorRef.current
@@ -74,7 +82,7 @@ export function useWebSocket<T>({
     };
     // 只依赖 conversationId、enabled、isVisitor 和 agentId，不依赖回调函数
     // 回调函数通过 useRef 存储，不会导致重新连接
-  }, [conversationId, enabled, isVisitor, agentId, wsToken]);
+  }, [conversationId, enabled, isVisitor, agentId, wsToken, accessToken]);
 
   const send = useCallback((type: string, data?: unknown): boolean => {
     return clientRef.current?.send(type, data) ?? false;

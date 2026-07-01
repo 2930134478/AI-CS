@@ -94,7 +94,7 @@ export async function fetchDocument(id: number): Promise<Document> {
 export async function createDocument(data: CreateDocumentRequest): Promise<Document> {
   const res = await fetch(apiUrl("/documents"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(data),
   });
 

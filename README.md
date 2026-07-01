@@ -70,13 +70,20 @@
   - 右下角聊天小窗，可嵌入任意网站（iframe 方式）
   - 支持 AI 模式 / 人工模式切换、消息提示音、文件上传
   - 可选「本回合联网搜索」开关（是否对访客展示可在后台控制）
+  - **访客邮箱采集**：首次在消息框按键时展开邮箱行（可选填）；填完或发首条消息后自动收起，便于离线触达
+  - **会话安全**：每个访客会话持有随机 `access_token`，读/发消息与 WebSocket 须携带令牌，防止仅凭会话 ID 越权访问
 - **客服侧（工作台）**
-  - 会话列表、实时消息（WebSocket）、未读角标提示
+  - 会话列表 **分页加载**、实时消息（WebSocket）、未读角标提示；大批量 open 会话下更流畅
+  - **自动关闭**长期未活跃的 open 访客会话（**设置 → 会话维护** 或 `.env` 可配天数）
   - 访客 **IP 与大致地理位置**（离线 [ip2region](https://github.com/lionsoul2014/ip2region)，客服工作台访客详情展示）
   - 支持「实时共享草稿输入」（双方未发送内容可实时可见）
-  - 多模型管理（文本/绘画等）与对话配置
+  - 多模型管理（文本/绘画等）与对话配置；**OpenAI 兼容** Chat Completions 接口，填对 URL + 模型名 + Key 即可接入多数中转/官方服务
   - **提示词配置**（Prompt 管理）
   - **知识库管理 + RAG**（向量检索，可按需启用；向量库不可用时可不影响启动）
+    - **PDF / DOCX 导入**、**文档分段（Chunk）** 与逐段向量化
+    - **FAQ 优先**：命中 FAQ 直接返回答案；聊天输入 `/` 快捷搜索 FAQ
+    - 知识库测试窗口（内部会话），回复可标记 `sources_used`（知识库 / 大模型 / 联网）
+  - **离线邮件通知**：访客离线且已留邮箱时，客服发人工消息后延迟 SMTP 推送（设置页可配，访客上线自动取消、同会话合并）
   - **日志中心**：结构化日志落库，支持按级别/分类/事件/trace_id/关键字筛选排障
   - **数据报表**：按日/区间查看访客打开小窗、会话与消息、AI 回复与失败率、知识库命中率、转人工等指标
 - **官网与 SEO（面向获客）**
@@ -162,6 +169,8 @@ docker-compose -f docker-compose.prod.yml up -d
 - **客服登录**：[localhost:3000/agent/login](http://localhost:3000/agent/login)
   - 用户名：`admin`（或 `.env` 中 `ADMIN_USERNAME`）
   - 密码：`.env` 中 `ADMIN_PASSWORD`
+
+> **生产部署提示**：前端生产镜像走同域 **`/api/*`**，需外层 **Nginx/Caddy** 将 `/api` 反向代理到后端，并转发 `X-User-Id`、`X-Conversation-Token` 等自定义请求头。本地 `npm run dev` 时由 Next.js rewrites 自动代理。
 
 #### 演示站管理员安全策略
 
@@ -249,6 +258,13 @@ npm run dev
 | `MILVUS_DISABLED` | 禁用向量库（不连接） | 否 | `false` | `true` |
 | `VECTOR_STORE_DISABLED` | 同上（兼容开关） | 否 | `false` | `true` |
 | `MILVUS_REQUIRED` | 强依赖向量库（失败即退出） | 否 | `false` | `true` |
+| `RAG_MIN_SCORE` | RAG 向量检索最低相似度（0~1） | 否 | `0.22` | 分段场景可试 `0.2`~`0.35` |
+| `AUTO_CLOSE_CONVERSATION_DAYS` | 自动关闭 N 天未活跃 open 会话（0=关闭） | 否 | `7` | 也可在 **设置 → 会话维护** 配置 |
+| `OFFLINE_EMAIL_ENABLED` | 访客离线邮件推送总开关 | 否 | `false` | `true` |
+| `OFFLINE_EMAIL_DELAY_SECONDS` | 离线邮件延迟秒数 | 否 | `60` | `30` |
+| `SMTP_HOST` / `SMTP_PORT` | 离线邮件 SMTP 地址与端口 | 可选 | 空 / `465` | 优先在 **设置页** 配置 |
+| `SMTP_USER` / `SMTP_PASSWORD` | SMTP 账号与密码 | 可选 | 空 | 云厂商 SMTP |
+| `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | 发件人邮箱与显示名 | 可选 | 空 | `noreply@example.com` |
 | `SERPER_MCP_URL` | 联网搜索 MCP 地址 | 可选（启用联网） | 空 | `http://host:3000/sse` |
 | `SERPER_API_KEY` | 联网搜索 API Key | 可选（启用联网） | 空 | `xxxxx` |
 | `NEXT_PUBLIC_SITE_URL` | 站点对外绝对地址（用于 SEO） | 否 | 空（默认 demo 域名） | `https://www.example.com` |
@@ -263,10 +279,25 @@ npm run dev
 
 ## 启用/关闭知识库（RAG）的推荐做法
 
+### 两套独立配置（不要混用）
+
+| 用途 | 配置位置 | 接口 |
+|------|----------|------|
+| **AI 对话**（大模型回复） | 设置 → **AI 配置** | OpenAI 兼容 **Chat Completions**（如 `…/v1/chat/completions`） |
+| **向量化 / RAG 检索** | 设置 → **知识库向量模型** | OpenAI 兼容 **Embeddings**（如 `…/v1/embeddings`） |
+
+### 开关 Milvus
+
 - **你暂时不想用知识库**：把 `.env` 里 `MILVUS_DISABLED=true`（或 `VECTOR_STORE_DISABLED=true`）
   - 应用仍可启动，AI 对话与人工客服不受影响
 - **你必须依赖知识库**（生产强约束）：把 `.env` 里 `MILVUS_REQUIRED=true`
   - 此时如果 Milvus 不可用，会落库一条错误日志后退出，避免「半残服务上线」
+
+### 分段（Chunk）与检索调优
+
+- 长文档建议先 **分段** 再向量化；Milvus 集合含 `chunk_db_id` 字段，schema 变更后可能需要 **重新向量化**。
+- 分段后相似度分数通常低于整篇文档；若出现「搜不到」，可调低 `.env` 中的 **`RAG_MIN_SCORE`**（默认 `0.22`）。
+- FAQ 条目会 **优先于** 向量检索直接返回答案。
 
 <a id="redis"></a>
 
@@ -314,7 +345,10 @@ npm run dev
 
 ## 相关文档
 
-- 暂无
+- [2026-06-11 批次更新说明](doc/更新说明-2026-06-11.md)（新功能与部署要点）
+- [开发日志 / CHANGELOG](doc/CHANGELOG.md)
+- [功能测试清单（2026-06-11 批次）](doc/功能测试清单-2026-06-11.md)
+- [API 文档](doc/API文档.md)
 
 <a id="faq"></a>
 
@@ -322,8 +356,12 @@ npm run dev
 
 - **提示音听不到**：浏览器通常需要「用户一次交互」才能解锁音频；请先点一下页面任意按钮/再打开喇叭开关测试
 - **向量库连不上导致启动失败**：检查 `.env` 的 `MILVUS_REQUIRED` 是否误开；不需要知识库时建议 `MILVUS_DISABLED=true`
+- **知识库 / RAG 搜不到内容**：确认 Milvus 已启动、文档已 **分段并向量化**；分段场景可尝试调低 `RAG_MIN_SCORE`（默认 `0.22`）
+- **Docker 创建文档报「请提供 X-User-Id」**：需使用含最新修复的前端镜像；并确认 Nginx 转发了 `X-User-Id` 请求头
+- **API 401/403（访客）**：访客接口须带 `X-Conversation-Token`；客服接口须先登录并带 `X-User-Id`
 - **搜不到站点/分享卡片不正确**：设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，用于 canonical / OG / sitemap 生成
 - **弹窗「初始化失败」/ 后端连不上 MySQL**：先 `curl http://<host>:<BACKEND_PORT>/health`，再 `docker logs ai-cs-backend --tail 50`；Docker 部署时 `DB_HOST` 应为 `mysql` 而非 `localhost`
+- **离线邮件没收到**：仅 **人工客服消息** 触发（AI 自动回复不触发）；访客须已留邮箱且 WebSocket 离线；SMTP 可在 **设置 → 离线邮件通知** 配置并发送测试信
 
 ## Star History
 

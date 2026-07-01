@@ -86,6 +86,7 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"conversation_id": result.ConversationID,
 		"status":          result.Status,
+		"access_token":    result.AccessToken,
 	})
 }
 
@@ -126,11 +127,15 @@ func (cc *ConversationController) GetPublicAIModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"models": models})
 }
 
-// UpdateContactInfo 用于更新访客的联系信息。
+// UpdateContactInfo 用于更新访客的联系信息（访客持 access_token，客服持 X-User-Id）。
 func (cc *ConversationController) UpdateContactInfo(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "会话ID不合法"})
+		return
+	}
+
+	if _, ok := authorizeConversationAccess(c, cc.conversationService, cc.users, uint(id)); !ok {
 		return
 	}
 
@@ -201,7 +206,20 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 
 	conversationType := c.DefaultQuery("type", "visitor")
 	status := c.DefaultQuery("status", "open")
-	var conversations []service.ConversationSummary
+	page := 1
+	pageSize := 50
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil {
+			page = parsed
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if parsed, err := strconv.Atoi(ps); err == nil {
+			pageSize = parsed
+		}
+	}
+
+	var listResult *service.ConversationListResult
 	var err error
 	if conversationType == "internal" {
 		if !requirePermission(c, cc.users, string(service.PermKBTest)) {
@@ -211,15 +229,27 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "内部对话列表需要 user_id"})
 			return
 		}
-		conversations, err = cc.conversationService.ListInternalConversations(userID, status)
+		listResult, err = cc.conversationService.ListInternalConversationsPaginated(userID, status, page, pageSize)
 	} else {
-		conversations, err = cc.conversationService.ListConversations(userID, status)
+		listResult, err = cc.conversationService.ListConversationsPaginated(userID, status, page, pageSize)
 	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询对话列表失败"})
 		return
 	}
 
+	items := formatConversationListItems(listResult.Items)
+	c.JSON(http.StatusOK, gin.H{
+		"items":        items,
+		"total":        listResult.Total,
+		"page":         listResult.Page,
+		"page_size":    listResult.PageSize,
+		"has_more":     listResult.HasMore,
+		"total_unread": listResult.TotalUnread,
+	})
+}
+
+func formatConversationListItems(conversations []service.ConversationSummary) []gin.H {
 	items := make([]gin.H, 0, len(conversations))
 	for _, conv := range conversations {
 		item := gin.H{
@@ -234,12 +264,9 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 			"unread_count":      conv.UnreadCount,
 			"has_participated":  conv.HasParticipated,
 		}
-
-		// 添加 last_seen_at 字段（用于判断在线状态）
 		if lastSeen := formatTimePointer(conv.LastSeenAt); lastSeen != "" {
 			item["last_seen_at"] = lastSeen
 		}
-
 		if conv.LastMessage != nil {
 			item["last_message"] = gin.H{
 				"id":              conv.LastMessage.ID,
@@ -253,8 +280,7 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 		}
 		items = append(items, item)
 	}
-
-	c.JSON(http.StatusOK, items)
+	return items
 }
 
 // GetConversationDetail 返回会话的详细信息。
@@ -265,22 +291,8 @@ func (cc *ConversationController) GetConversationDetail(c *gin.Context) {
 		return
 	}
 
-	// 从查询参数获取 user_id（可选，用于检查参与状态）
-	var userID uint
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		// 使用 strconv 解析查询参数（不是路径参数）
-		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			userID = uint(parsed)
-		}
-	}
-
-	detail, err := cc.conversationService.GetConversationDetail(uint(id), userID)
-	if err != nil {
-		if err == service.ErrConversationNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "会话不存在"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
-		}
+	detail, ok := authorizeConversationAccess(c, cc.conversationService, cc.users, uint(id))
+	if !ok {
 		return
 	}
 
@@ -329,6 +341,7 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 		return
 	}
 	status := c.DefaultQuery("status", "open")
+	convType := c.DefaultQuery("type", "visitor")
 
 	// 从查询参数获取 user_id（可选，用于检查参与状态）
 	var userID uint
@@ -339,7 +352,7 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 		}
 	}
 
-	conversations, err := cc.conversationService.SearchConversations(query, userID, status)
+	conversations, err := cc.conversationService.SearchConversations(query, userID, status, convType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "搜索失败"})
 		return
@@ -378,4 +391,54 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, items)
+}
+
+type putAutoCloseDaysBody struct {
+	InactiveDays int `json:"inactive_days"`
+}
+
+// GetAutoCloseConversationDaysPolicy 读取自动关闭 stale 会话策略。
+func (cc *ConversationController) GetAutoCloseConversationDaysPolicy(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermSettings)) {
+		return
+	}
+	policy := cc.conversationService.GetAutoCloseConversationDaysPolicy()
+	c.JSON(http.StatusOK, policy)
+}
+
+// PutAutoCloseConversationDaysPolicy 写入自动关闭 stale 会话天数（0=禁用）。
+func (cc *ConversationController) PutAutoCloseConversationDaysPolicy(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermSettings)) {
+		return
+	}
+	var body putAutoCloseDaysBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体无效"})
+		return
+	}
+	if err := cc.conversationService.SetAutoCloseConversationDaysPolicy(body.InactiveDays); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	policy := cc.conversationService.GetAutoCloseConversationDaysPolicy()
+	c.JSON(http.StatusOK, gin.H{
+		"ok":             true,
+		"effective_days": policy.EffectiveDays,
+	})
+}
+
+// DeleteAutoCloseConversationDaysPolicy 删除数据库覆盖，恢复为 .env。
+func (cc *ConversationController) DeleteAutoCloseConversationDaysPolicy(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermSettings)) {
+		return
+	}
+	if err := cc.conversationService.ClearAutoCloseConversationDaysPolicy(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	policy := cc.conversationService.GetAutoCloseConversationDaysPolicy()
+	c.JSON(http.StatusOK, gin.H{
+		"ok":             true,
+		"effective_days": policy.EffectiveDays,
+	})
 }

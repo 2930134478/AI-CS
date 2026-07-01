@@ -1,4 +1,5 @@
 import { apiUrl, getAgentHeaders } from "@/lib/config";
+import { getVisitorConversationHeaders } from "@/lib/visitor-session";
 import { MessageItem } from "../types";
 import { reportFrontendLog } from "./systemLogApi";
 
@@ -51,6 +52,7 @@ interface SendMessagePayload {
   content: string;
   senderId?: number;
   senderIsAgent?: boolean;
+  accessToken?: string;
   fileUrl?: string;
   fileType?: "image" | "document";
   fileName?: string;
@@ -73,12 +75,17 @@ export interface UploadFileResult {
 
 export async function fetchMessages(
   conversationId: number,
-  includeAIMessages: boolean = false
+  includeAIMessages: boolean = false,
+  accessToken?: string
 ): Promise<MessageItem[]> {
   const res = await fetch(
     `${apiUrl("/messages")}?conversation_id=${conversationId}&include_ai_messages=${includeAIMessages}`,
     {
       cache: "no-store",
+      headers: {
+        ...getAgentHeaders(),
+        ...getVisitorConversationHeaders(conversationId, accessToken),
+      },
     }
   );
   if (!res.ok) {
@@ -102,7 +109,8 @@ export async function fetchMessages(
 // 上传文件
 export async function uploadFile(
   file: File,
-  conversationId?: number
+  conversationId?: number,
+  accessToken?: string
 ): Promise<UploadFileResult> {
   const formData = new FormData();
   formData.append("file", file);
@@ -112,6 +120,10 @@ export async function uploadFile(
 
   const res = await fetch(apiUrl("/messages/upload"), {
     method: "POST",
+    headers:
+      conversationId != null
+        ? getVisitorConversationHeaders(conversationId, accessToken)
+        : getAgentHeaders(),
     body: formData,
   });
 
@@ -141,6 +153,7 @@ export async function sendMessage({
   content,
   senderId,
   senderIsAgent = true,
+  accessToken,
   fileUrl,
   fileType,
   fileName,
@@ -172,7 +185,13 @@ export async function sendMessage({
 
   const res = await fetch(apiUrl("/messages"), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAgentHeaders(),
+      ...(senderIsAgent
+        ? {}
+        : getVisitorConversationHeaders(conversationId, accessToken)),
+    },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -207,11 +226,18 @@ export interface MarkMessagesReadResult {
 
 export async function markMessagesRead(
   conversationId: number,
-  readerIsAgent: boolean
+  readerIsAgent: boolean,
+  accessToken?: string
 ): Promise<MarkMessagesReadResult | null> {
   const res = await fetch(apiUrl("/messages/read"), {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAgentHeaders(),
+      ...(readerIsAgent
+        ? {}
+        : getVisitorConversationHeaders(conversationId, accessToken)),
+    },
     body: JSON.stringify({
       conversation_id: conversationId,
       reader_is_agent: readerIsAgent,

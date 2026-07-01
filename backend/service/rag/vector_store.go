@@ -30,19 +30,19 @@ func (s *VectorStoreService) IsAvailable() bool {
 }
 
 // UpsertVector 插入或更新单个向量
-func (s *VectorStoreService) UpsertVector(ctx context.Context, documentID string, knowledgeBaseID string, content string, vector []float32) error {
+func (s *VectorStoreService) UpsertVector(ctx context.Context, documentID string, knowledgeBaseID string, content string, chunkDBID string, vector []float32) error {
 	if s.vectorStore == nil {
 		return ErrVectorStoreUnavailable
 	}
-	return s.vectorStore.UpsertVector(ctx, documentID, knowledgeBaseID, content, vector)
+	return s.vectorStore.UpsertVector(ctx, documentID, knowledgeBaseID, content, chunkDBID, vector)
 }
 
 // UpsertVectors 批量插入或更新向量
-func (s *VectorStoreService) UpsertVectors(ctx context.Context, documentIDs []string, knowledgeBaseIDs []string, contents []string, vectors [][]float32) error {
+func (s *VectorStoreService) UpsertVectors(ctx context.Context, documentIDs []string, knowledgeBaseIDs []string, contents []string, vectors [][]float32, chunkDBIDs []string) error {
 	if s.vectorStore == nil {
 		return ErrVectorStoreUnavailable
 	}
-	return s.vectorStore.UpsertVectors(ctx, documentIDs, knowledgeBaseIDs, contents, vectors)
+	return s.vectorStore.UpsertVectors(ctx, documentIDs, knowledgeBaseIDs, contents, vectors, chunkDBIDs)
 }
 
 // SearchVectors 搜索相似向量
@@ -55,7 +55,6 @@ func (s *VectorStoreService) SearchVectors(ctx context.Context, queryVector []fl
 		return nil, fmt.Errorf("向量检索失败: %w", err)
 	}
 
-	// 转换结果
 	searchResults := make([]SearchResult, len(results))
 	for i, r := range results {
 		searchResults[i] = SearchResult{
@@ -83,6 +82,14 @@ func (s *VectorStoreService) DeleteVectors(ctx context.Context, documentIDs []st
 		return nil
 	}
 	return s.vectorStore.DeleteVectors(ctx, documentIDs)
+}
+
+// DeleteVectorByChunkID 按 chunk_db_id 删除单条向量
+func (s *VectorStoreService) DeleteVectorByChunkID(ctx context.Context, chunkDBID string) error {
+	if s.vectorStore == nil {
+		return nil
+	}
+	return s.vectorStore.DeleteVectorByChunkID(ctx, chunkDBID)
 }
 
 // ConvertDocumentID 将 uint 转换为 string

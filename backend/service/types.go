@@ -25,6 +25,7 @@ type InitConversationInput struct {
 type InitConversationResult struct {
 	ConversationID uint
 	Status         string
+	AccessToken    string
 }
 
 // UpdateConversationContactInput 更新访客联系信息时需要的参数。
@@ -35,7 +36,16 @@ type UpdateConversationContactInput struct {
 	Notes          *string
 }
 
-// ConversationSummary 用于会话列表展示的概要信息。
+// ConversationListResult 分页会话列表。
+type ConversationListResult struct {
+	Items       []ConversationSummary
+	Total       int64
+	Page        int
+	PageSize    int
+	HasMore     bool
+	TotalUnread int64
+}
+
 type ConversationSummary struct {
 	ID               uint
 	ConversationType string // visitor | internal

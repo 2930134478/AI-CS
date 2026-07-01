@@ -278,6 +278,22 @@ func (s *FAQService) DeleteFAQ(id uint) error {
 	return s.faqs.Delete(id)
 }
 
+// QuickSearch 快速搜索 FAQ（用于聊天输入框），OR 宽松匹配。
+func (s *FAQService) QuickSearch(q string, limit int) ([]FAQSummary, error) {
+	if strings.TrimSpace(q) == "" {
+		return []FAQSummary{}, nil
+	}
+	faqs, err := s.faqs.QuickSearch(q, limit)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]FAQSummary, 0, len(faqs))
+	for _, faq := range faqs {
+		summaries = append(summaries, *s.toSummary(&faq))
+	}
+	return summaries, nil
+}
+
 // parseKeywords 解析关键词查询字符串。
 // 输入格式：关键词之间用 % 分隔，例如 "openai%api%调用"
 // 返回：关键词数组

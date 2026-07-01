@@ -7,6 +7,8 @@ import { uploadFile, UploadFileResult } from "@/features/agent/services/messageA
 import { X, Paperclip, Image as ImageIcon } from "lucide-react";
 import { toast } from "@/hooks/useToast";
 import { useI18n } from "@/lib/i18n/provider";
+import type { FAQQuickResult } from "@/features/agent/services/faqApi";
+import { FAQSearchDropdown } from "./FAQSearchDropdown";
 
 interface MessageInputProps {
   value: string;
@@ -39,6 +41,39 @@ export function MessageInput({
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   // 上传中状态
   const [uploading, setUploading] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
+
+  const closeFAQ = useCallback(() => {
+    setFaqOpen(false);
+  }, []);
+
+  const handleFAQSelect = useCallback(
+    (faq: FAQQuickResult) => {
+      onChange(faq.answer);
+      setFaqOpen(false);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    },
+    [onChange]
+  );
+
+  const handleInputChange = useCallback(
+    (newValue: string) => {
+      if (newValue === "/" && value === "") {
+        setFaqOpen(true);
+        return;
+      }
+      if (faqOpen && newValue === "") {
+        setFaqOpen(false);
+      }
+      onChange(newValue);
+    },
+    [value, onChange, faqOpen]
+  );
+
+  const handleFAQClose = useCallback(() => {
+    setFaqOpen(false);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
 
   // 当发送状态从 true 变为 false 时（发送完成），自动聚焦到输入框
   useEffect(() => {
@@ -209,10 +244,16 @@ export function MessageInput({
 
   return (
     <div
-      className="bg-gradient-to-t from-background to-muted/30 flex-shrink-0 border-t border-border/50"
+      className="bg-gradient-to-t from-background to-muted/30 flex-shrink-0 border-t border-border/50 relative"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <FAQSearchDropdown
+        open={faqOpen}
+        onClose={handleFAQClose}
+        onSelect={handleFAQSelect}
+      />
+
       {/* 文件预览区域 */}
       {filePreview && (
         <div className="px-4 pt-3 pb-2 flex items-start gap-2">
@@ -287,7 +328,7 @@ export function MessageInput({
               : t("agent.input.placeholder")
           }
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => handleInputChange(event.target.value)}
           className="flex-1 border-border/50 focus:border-primary/50 focus:ring-primary/20"
           disabled={sending || uploading}
         />

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/gin-gonic/gin"
@@ -137,6 +138,26 @@ func (f *FAQController) UpdateFAQ(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, faq)
+}
+
+// QuickSearch 快速搜索 FAQ（客服聊天输入框 `/` 触发）。
+// GET /faqs-search?q=关键词&limit=10
+func (f *FAQController) QuickSearch(c *gin.Context) {
+	if !requirePermission(c, f.users, string(service.PermChat)) {
+		return
+	}
+	q := strings.TrimSpace(c.Query("q"))
+	limit := 10
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 50 {
+		limit = l
+	}
+	faqs, err := f.faqService.QuickSearch(q, limit)
+	if err != nil {
+		log.Printf("FAQ 快速搜索失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "FAQ 搜索失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"faqs": faqs})
 }
 
 // DeleteFAQ 删除 FAQ 记录。

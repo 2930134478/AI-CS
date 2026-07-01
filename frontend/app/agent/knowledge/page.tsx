@@ -60,15 +60,19 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Scissors,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/useToast";
+import DocumentDetailPage from "./[docId]/page";
 
 export default function KnowledgePage(props: any = {}) {
   const { embedded = false } = props;
   const router = useRouter();
   const { agent } = useAuth();
   const { t, lang } = useI18n();
+
+  const [chunkingDocId, setChunkingDocId] = useState<number | null>(null);
 
   const tr = (key: I18nKey, vars?: Record<string, string>) => {
     let s = t(key);
@@ -826,6 +830,15 @@ export default function KnowledgePage(props: any = {}) {
                               {t("agent.common.edit")}
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => setChunkingDocId(doc.id)}
+                            >
+                              <Scissors className="mr-1 h-4 w-4 shrink-0" />
+                              分段
+                            </Button>
+                            <Button
                               variant="destructive"
                               size="sm"
                               className="shrink-0"
@@ -1264,12 +1277,41 @@ export default function KnowledgePage(props: any = {}) {
   );
 
   if (embedded) {
+    if (chunkingDocId) {
+      return (
+        <>
+          <DocumentDetailPage
+            embedded
+            docId={chunkingDocId}
+            onBack={() => setChunkingDocId(null)}
+          />
+          {dialogs}
+        </>
+      );
+    }
     return (
       <>
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {headerContent}
           {mainContent}
         </div>
+        {dialogs}
+      </>
+    );
+  }
+
+  if (chunkingDocId) {
+    return (
+      <>
+        <ResponsiveLayout
+          main={
+            <DocumentDetailPage
+              embedded
+              docId={chunkingDocId}
+              onBack={() => setChunkingDocId(null)}
+            />
+          }
+        />
         {dialogs}
       </>
     );

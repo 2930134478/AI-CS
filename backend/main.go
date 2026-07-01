@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,7 +144,7 @@ func main() {
 	}
 
 	//根据结构体定义自动创建更新表
-	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.EmbeddingConfig{}, &models.PromptConfig{}, &models.WidgetOpenEvent{}, &models.SystemLog{}, &models.AppSetting{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Conversation{}, &models.Message{}, &models.AIConfig{}, &models.FAQ{}, &models.KnowledgeBase{}, &models.Document{}, &models.DocumentChunk{}, &models.EmbeddingConfig{}, &models.EmailNotificationConfig{}, &models.OfflineEmailJob{}, &models.PromptConfig{}, &models.WidgetOpenEvent{}, &models.SystemLog{}, &models.AppSetting{}); err != nil {
 		log.Fatalf("自动创建表失败： %v", err)
 	}
 
@@ -154,7 +155,10 @@ func main() {
 	faqRepo := repository.NewFAQRepository(db)
 	kbRepo := repository.NewKnowledgeBaseRepository(db)
 	docRepo := repository.NewDocumentRepository(db)
+	chunkRepo := repository.NewDocumentChunkRepository(db)
 	embeddingConfigRepo := repository.NewEmbeddingConfigRepository(db)
+	emailNotificationConfigRepo := repository.NewEmailNotificationConfigRepository(db)
+	offlineEmailJobRepo := repository.NewOfflineEmailJobRepository(db)
 	promptConfigRepo := repository.NewPromptConfigRepository(db)
 	systemLogRepo := repository.NewSystemLogRepository(db)
 	appSettingRepo := repository.NewAppSettingRepository(db)
@@ -335,6 +339,12 @@ func main() {
 	documentEmbeddingService := rag.NewDocumentEmbeddingService(vectorStoreService, embeddingProvider)
 	retrievalService := rag.NewRetrievalService(vectorStoreService, embeddingProvider, docRepo, kbRepo)
 	retrievalService.EnableCache(5 * time.Minute)
+	if v := os.Getenv("RAG_MIN_SCORE"); v != "" {
+		if score, err := strconv.ParseFloat(v, 32); err == nil {
+			retrievalService.SetMinScore(float32(score))
+			log.Printf("ℹ️ RAG 相似度阈值: %.2f（来自 RAG_MIN_SCORE）", score)
+		}
+	}
 	healthChecker := rag.NewHealthChecker(embeddingProvider, vectorStoreService)
 
 	// 联网搜索（可选）：优先通过 MCP 调用 Serper（SERPER_MCP_URL），否则使用 Serper HTTP API（SERPER_API_KEY）
@@ -357,18 +367,22 @@ func main() {
 
 	// 初始化服务层
 	authService := service.NewAuthService(userRepo)
-	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo, systemLogService)
+	conversationService := service.NewConversationService(conversationRepo, messageRepo, aiConfigRepo, userRepo, systemLogService, appSettingRepo)
+	conversationService.StartStaleConversationCleanup()
 	profileService := service.NewProfileService(userRepo, storageService)
 	aiConfigService := service.NewAIConfigService(aiConfigRepo, userRepo)
-	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService, webSearchProvider, embeddingConfigService, promptConfigService, storageService, systemLogService)
+	aiService := service.NewAIService(aiConfigRepo, messageRepo, conversationRepo, retrievalService, webSearchProvider, embeddingConfigService, promptConfigService, storageService, systemLogService, faqRepo)
 	userService := service.NewUserService(userRepo, aiConfigRepo)                                              // 用户管理服务
 	faqService := service.NewFAQService(faqRepo, retrievalService, documentEmbeddingService)                   // FAQ 管理服务
 	documentService := service.NewDocumentService(docRepo, kbRepo, documentEmbeddingService, retrievalService) // 文档管理服务
 	knowledgeBaseService := service.NewKnowledgeBaseService(kbRepo, docRepo)                                   // 知识库管理服务
 	importService := service.NewImportService(docRepo, kbRepo, documentService, documentEmbeddingService)      // 导入服务
+	chunkService := service.NewChunkService(docRepo, kbRepo, chunkRepo, documentEmbeddingService, vectorStoreService) // 分段服务
+	emailNotificationConfigService := service.NewEmailNotificationConfigService(emailNotificationConfigRepo, userRepo)
 
-	// 声明 Hub 变量（用于在回调函数中访问）
+	// 声明 Hub / 离线邮件变量（Hub 创建后完成注入）
 	var wsHub *websocket.Hub
+	var offlineEmailSvc *service.OfflineEmailService
 
 	// 创建 WebSocket Hub，设置回调函数来处理客户端连接/断开事件
 	// 使用闭包来访问 conversationService、messageService、userRepo 和 wsHub
@@ -377,6 +391,9 @@ func main() {
 			if err := conversationService.UpdateVisitorOnlineStatus(conversationID, true); err != nil {
 				log.Printf("更新访客在线状态失败: %v", err)
 				return
+			}
+			if offlineEmailSvc != nil {
+				offlineEmailSvc.CancelPending(conversationID)
 			}
 			// 广播状态更新到所有客服端（不管连接到哪个对话）
 			wsHub.BroadcastToAllAgents("visitor_status_update", map[string]interface{}{
@@ -485,7 +502,17 @@ func main() {
 	wsHub = websocket.NewHub(onConnect, onDisconnect, wsBus)
 	go wsHub.Run() // 启动 Hub（在后台运行）
 
+	offlineEmailSvc = service.NewOfflineEmailService(
+		emailNotificationConfigService,
+		offlineEmailJobRepo,
+		conversationRepo,
+		messageRepo,
+		wsHub,
+	)
+	go offlineEmailSvc.StartWorker(context.Background())
+
 	messageService := service.NewMessageService(db, conversationRepo, messageRepo, wsHub, aiService)
+	messageService.SetOfflineEmailService(offlineEmailSvc)
 	visitorService := service.NewVisitorService(userRepo, wsHub)
 
 	// 初始化控制器
@@ -501,6 +528,8 @@ func main() {
 	promptConfigController := controller.NewPromptConfigController(promptConfigService, userService)
 	knowledgeBaseController := controller.NewKnowledgeBaseController(knowledgeBaseService, embeddingConfigService, userService)
 	importController := controller.NewImportController(importService, embeddingConfigService, userService) // 导入控制器
+	chunkController := controller.NewDocumentChunkController(chunkService, userService)                   // 分段控制器
+	emailNotificationController := controller.NewEmailNotificationConfigController(emailNotificationConfigService, offlineEmailSvc, userService)
 	visitorController := controller.NewVisitorController(visitorService, embeddingConfigService)
 	healthController := controller.NewHealthController(healthChecker, retrievalService) // 健康检查控制器
 
@@ -524,12 +553,14 @@ func main() {
 			Document:        documentController,
 			KnowledgeBase:   knowledgeBaseController,
 			Import:          importController, // 导入控制器
+			DocumentChunk:   chunkController,  // 分段控制器
+			EmailNotification: emailNotificationController,
 			Visitor:         visitorController,
 			Health:          healthController, // 健康检查控制器
 			Analytics:       analyticsController,
 			SystemLog:       systemLogController,
 		},
-		websocket.HandleWebSocket(wsHub, userRepo),
+		websocket.HandleWebSocket(wsHub, userRepo, conversationService),
 	)
 
 	// 配置静态文件服务（用于访问上传的头像等文件）

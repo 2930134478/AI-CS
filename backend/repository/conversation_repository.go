@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"time"
 
 	"github.com/2930134478/AI-CS/backend/models"
 	"gorm.io/gorm"
@@ -138,7 +139,42 @@ func (r *ConversationRepository) SearchByIDOrVisitorLike(pattern string) ([]mode
 	return conversations, nil
 }
 
-// AssignAgent 为会话分配客服。
+// CloseStaleOpenVisitorConversations 关闭长期未更新的 open 访客会话。
+func (r *ConversationRepository) CloseStaleOpenVisitorConversations(olderThan time.Time) (int64, error) {
+	result := r.db.Model(&models.Conversation{}).
+		Where("conversation_type = ? AND status = ? AND updated_at < ?", "visitor", "open", olderThan).
+		Update("status", "closed")
+	return result.RowsAffected, result.Error
+}
+
+// ListVisitorForAgentList 分页查询客服列表可见的访客会话（排除 AI 模式，且需有访客侧消息）。
+func (r *ConversationRepository) ListVisitorForAgentList(status string, offset, limit int) ([]models.Conversation, int64, error) {
+	q := r.db.Model(&models.Conversation{}).
+		Where("conversation_type = ? AND chat_mode != ?", "visitor", "ai").
+		Where("EXISTS (SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id AND messages.sender_is_agent = ?)", false)
+
+	switch status {
+	case "open":
+		q = q.Where("status = ?", "open")
+	case "closed":
+		q = q.Where("status = ?", "closed")
+	case "", "all":
+	default:
+		return nil, 0, errors.New("invalid status")
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var conversations []models.Conversation
+	if err := q.Order("updated_at desc").Offset(offset).Limit(limit).Find(&conversations).Error; err != nil {
+		return nil, 0, err
+	}
+	return conversations, total, nil
+}
+
 func (r *ConversationRepository) AssignAgent(conversationID uint, agentID uint) error {
 	result := r.db.Model(&models.Conversation{}).
 		Where("id = ?", conversationID).

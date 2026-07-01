@@ -21,6 +21,19 @@ import {
   type EmbeddingConfig,
   type UpdateEmbeddingConfigRequest,
 } from "@/features/agent/services/embeddingConfigApi";
+import {
+  deleteAutoCloseConversationDaysPolicy,
+  fetchAutoCloseConversationDaysPolicy,
+  putAutoCloseConversationDaysPolicy,
+  type AutoCloseConversationDaysPolicy,
+} from "@/features/agent/services/conversationApi";
+import {
+  fetchEmailNotificationConfig,
+  resetEmailNotificationConfig,
+  sendEmailNotificationTest,
+  updateEmailNotificationConfig,
+  type EmailNotificationConfig,
+} from "@/features/agent/services/emailNotificationApi";
 import { useProfile } from "@/features/agent/hooks/useProfile";
 import { apiUrl } from "@/lib/config";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -76,6 +89,32 @@ export default function SettingsPage(props: any = {}) {
   const [embeddingSubmitting, setEmbeddingSubmitting] = useState(false);
   const [embeddingError, setEmbeddingError] = useState("");
 
+  // 会话维护：自动关闭长期未活跃 open 访客会话（平台级）
+  const [autoClosePolicy, setAutoClosePolicy] = useState<AutoCloseConversationDaysPolicy | null>(null);
+  const [autoCloseDaysDraft, setAutoCloseDaysDraft] = useState("7");
+  const [autoCloseLoading, setAutoCloseLoading] = useState(false);
+  const [autoCloseSubmitting, setAutoCloseSubmitting] = useState(false);
+  const [autoCloseError, setAutoCloseError] = useState("");
+
+  // 离线邮件通知（平台级，仅管理员可修改）
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<EmailNotificationConfig | null>(null);
+  const [emailForm, setEmailForm] = useState({
+    enabled: false,
+    smtp_host: "",
+    smtp_port: "465",
+    smtp_user: "",
+    smtp_password: "",
+    from_email: "",
+    from_name: "",
+    offline_delay_seconds: "60",
+  });
+  const [emailTestTo, setEmailTestTo] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
   // 检查登录状态
   useEffect(() => {
     const storedUserId = localStorage.getItem("agent_user_id");
@@ -84,6 +123,7 @@ export default function SettingsPage(props: any = {}) {
       return;
     }
     setUserId(Number.parseInt(storedUserId, 10));
+    setIsAdmin(localStorage.getItem("agent_role") === "admin");
   }, [router]);
 
   // 加载个人资料（用于获取和更新 AI 对话接收设置）
@@ -146,6 +186,157 @@ export default function SettingsPage(props: any = {}) {
       loadEmbeddingConfig();
     }
   }, [userId]);
+
+  const loadAutoClosePolicy = async () => {
+    if (!userId) return;
+    try {
+      setAutoCloseLoading(true);
+      setAutoCloseError("");
+      const policy = await fetchAutoCloseConversationDaysPolicy();
+      setAutoClosePolicy(policy);
+      setAutoCloseDaysDraft(String(policy.effective_days));
+    } catch (e) {
+      console.error("加载会话维护配置失败:", e);
+      setAutoCloseError(t("agent.settings.autoClose.errorLoad"));
+    } finally {
+      setAutoCloseLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
+      void loadAutoClosePolicy();
+    }
+  }, [userId]);
+
+  const loadEmailConfig = async () => {
+    if (!userId) return;
+    try {
+      setEmailLoading(true);
+      setEmailError("");
+      const data = await fetchEmailNotificationConfig(userId);
+      setEmailConfig(data);
+      setEmailForm({
+        enabled: data.enabled,
+        smtp_host: data.smtp_host || "",
+        smtp_port: String(data.smtp_port || 465),
+        smtp_user: data.smtp_user || "",
+        smtp_password: "",
+        from_email: data.from_email || "",
+        from_name: data.from_name || "",
+        offline_delay_seconds: String(data.offline_delay_seconds ?? 60),
+      });
+    } catch (e) {
+      console.error("加载离线邮件配置失败:", e);
+      setEmailError(t("agent.settings.offlineEmail.errorLoad"));
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
+      void loadEmailConfig();
+    }
+  }, [userId]);
+
+  const handleSaveEmailConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId || !isAdmin) return;
+    const delay = Number.parseInt(emailForm.offline_delay_seconds, 10);
+    const port = Number.parseInt(emailForm.smtp_port, 10);
+    if (Number.isNaN(delay) || delay < 0) {
+      setEmailError(t("agent.settings.offlineEmail.errorInvalidDelay"));
+      return;
+    }
+    setEmailSubmitting(true);
+    setEmailError("");
+    try {
+      await updateEmailNotificationConfig(userId, {
+        enabled: emailForm.enabled,
+        smtp_host: emailForm.smtp_host || undefined,
+        smtp_port: Number.isNaN(port) ? undefined : port,
+        smtp_user: emailForm.smtp_user || undefined,
+        from_email: emailForm.from_email || undefined,
+        from_name: emailForm.from_name || undefined,
+        offline_delay_seconds: delay,
+        ...(emailForm.smtp_password ? { smtp_password: emailForm.smtp_password } : {}),
+      });
+      await loadEmailConfig();
+      toast.success(t("agent.settings.offlineEmail.toastSaved"));
+    } catch (err) {
+      setEmailError((err as Error).message);
+    } finally {
+      setEmailSubmitting(false);
+    }
+  };
+
+  const handleResetEmailConfig = async () => {
+    if (!userId || !isAdmin) return;
+    setEmailSubmitting(true);
+    setEmailError("");
+    try {
+      await resetEmailNotificationConfig(userId);
+      await loadEmailConfig();
+      toast.success(t("agent.settings.offlineEmail.toastReset"));
+    } catch (err) {
+      setEmailError((err as Error).message);
+    } finally {
+      setEmailSubmitting(false);
+    }
+  };
+
+  const handleSendEmailTest = async () => {
+    if (!userId || !isAdmin) return;
+    const to = emailTestTo.trim();
+    if (!to) return;
+    setEmailTesting(true);
+    setEmailError("");
+    try {
+      await sendEmailNotificationTest(userId, to);
+      toast.success(t("agent.settings.offlineEmail.toastTestSent"));
+    } catch (err) {
+      setEmailError((err as Error).message);
+    } finally {
+      setEmailTesting(false);
+    }
+  };
+
+  const handleSaveAutoClosePolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+    const parsed = Number.parseInt(autoCloseDaysDraft, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setAutoCloseError(t("agent.settings.autoClose.errorInvalid"));
+      return;
+    }
+    setAutoCloseSubmitting(true);
+    setAutoCloseError("");
+    try {
+      await putAutoCloseConversationDaysPolicy(parsed);
+      await loadAutoClosePolicy();
+      toast.success(t("agent.settings.autoClose.toastSaved"));
+    } catch (err) {
+      setAutoCloseError((err as Error).message);
+    } finally {
+      setAutoCloseSubmitting(false);
+    }
+  };
+
+  const handleResetAutoClosePolicy = async () => {
+    if (!userId) return;
+    setAutoCloseSubmitting(true);
+    setAutoCloseError("");
+    try {
+      await deleteAutoCloseConversationDaysPolicy();
+      await loadAutoClosePolicy();
+      toast.success(t("agent.settings.autoClose.toastReset"));
+    } catch (err) {
+      setAutoCloseError((err as Error).message);
+    } finally {
+      setAutoCloseSubmitting(false);
+    }
+  };
 
   // 保存知识库向量配置（仅管理员；保存后立即生效，无需重启）
   const handleSaveEmbeddingConfig = async (e: React.FormEvent) => {
@@ -345,6 +536,271 @@ export default function SettingsPage(props: any = {}) {
               <p className="text-xs text-muted-foreground mt-2">
                 {t("agent.settings.global.noReceiveAiHint")}
               </p>
+            </CardContent>
+          </Card>
+
+          {/* 会话维护：自动关闭长期未活跃 open 访客会话 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("agent.settings.autoClose.title")}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("agent.settings.autoClose.lead")}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {autoCloseLoading ? (
+                <div className="text-center py-6 text-muted-foreground">{t("common.loading")}</div>
+              ) : (
+                <form onSubmit={handleSaveAutoClosePolicy} className="space-y-4">
+                  {autoCloseError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {autoCloseError}
+                    </div>
+                  )}
+                  <div>
+                    <Label className="block text-sm font-medium mb-1">
+                      {t("agent.settings.autoClose.daysLabel")}
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={autoCloseDaysDraft}
+                      onChange={(e) => setAutoCloseDaysDraft(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {t("agent.settings.autoClose.daysHint")}
+                    </p>
+                  </div>
+                  {autoClosePolicy ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("agent.settings.autoClose.statusEffective")}: {autoClosePolicy.effective_days}
+                      {" · "}
+                      {t("agent.settings.autoClose.statusEnv")}: {autoClosePolicy.env_days}
+                      {" · "}
+                      {autoClosePolicy.persisted_in_database
+                        ? t("agent.settings.autoClose.statusDb")
+                        : t("agent.settings.autoClose.statusEnvOnly")}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={autoCloseSubmitting}>
+                      {autoCloseSubmitting ? t("common.saving") : t("agent.settings.autoClose.save")}
+                    </Button>
+                    {autoClosePolicy?.persisted_in_database ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={autoCloseSubmitting}
+                        onClick={() => void handleResetAutoClosePolicy()}
+                      >
+                        {t("agent.settings.autoClose.resetEnv")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 离线邮件通知 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("agent.settings.offlineEmail.title")}</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("agent.settings.offlineEmail.lead")}
+              </p>
+              {!isAdmin ? (
+                <p className="text-xs text-amber-600 mt-2">
+                  {t("agent.settings.offlineEmail.adminOnly")}
+                </p>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {emailLoading ? (
+                <div className="text-center py-6 text-muted-foreground">{t("common.loading")}</div>
+              ) : (
+                <form onSubmit={handleSaveEmailConfig} className="space-y-4">
+                  {emailError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {emailError}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="offline_email_enabled"
+                      checked={emailForm.enabled}
+                      disabled={!isAdmin}
+                      onCheckedChange={(checked) =>
+                        setEmailForm({ ...emailForm, enabled: checked === true })
+                      }
+                    />
+                    <Label htmlFor="offline_email_enabled" className="text-sm cursor-pointer">
+                      {t("agent.settings.offlineEmail.enabled")}
+                    </Label>
+                  </div>
+                  <div>
+                    <Label className="block text-sm font-medium mb-1">
+                      {t("agent.settings.offlineEmail.delayLabel")}
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={emailForm.offline_delay_seconds}
+                      disabled={!isAdmin}
+                      onChange={(e) =>
+                        setEmailForm({ ...emailForm, offline_delay_seconds: e.target.value })
+                      }
+                      className="max-w-xs"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {t("agent.settings.offlineEmail.delayHint")}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.smtpHost")}
+                      </Label>
+                      <Input
+                        value={emailForm.smtp_host}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, smtp_host: e.target.value })
+                        }
+                        placeholder="smtp.example.com"
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.smtpPort")}
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={emailForm.smtp_port}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, smtp_port: e.target.value })
+                        }
+                        placeholder="465"
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.smtpUser")}
+                      </Label>
+                      <Input
+                        value={emailForm.smtp_user}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, smtp_user: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.smtpPassword")}
+                      </Label>
+                      <Input
+                        type="password"
+                        value={emailForm.smtp_password}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, smtp_password: e.target.value })
+                        }
+                        placeholder={
+                          emailConfig?.smtp_password_masked
+                            ? t("agent.settings.offlineEmail.smtpPasswordKeepEmpty")
+                            : undefined
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.fromEmail")}
+                      </Label>
+                      <Input
+                        type="email"
+                        value={emailForm.from_email}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, from_email: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">
+                        {t("agent.settings.offlineEmail.fromName")}
+                      </Label>
+                      <Input
+                        value={emailForm.from_name}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setEmailForm({ ...emailForm, from_name: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  {emailConfig ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("agent.settings.offlineEmail.statusEffective")}:{" "}
+                      {emailConfig.effective_enabled
+                        ? t("agent.settings.offlineEmail.statusOn")
+                        : t("agent.settings.offlineEmail.statusOff")}
+                      {" · "}
+                      {t("agent.settings.offlineEmail.delayLabel")}:{" "}
+                      {emailConfig.effective_delay_seconds}s
+                      {" · "}
+                      {t("agent.settings.offlineEmail.statusEnv")}:{" "}
+                      {emailConfig.env_enabled ? "on" : "off"},{" "}
+                      {emailConfig.env_delay_seconds}s
+                      {" · "}
+                      {emailConfig.persisted_in_database
+                        ? t("agent.settings.offlineEmail.statusDb")
+                        : t("agent.settings.offlineEmail.statusEnvOnly")}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={!isAdmin || emailSubmitting}>
+                      {emailSubmitting
+                        ? t("common.saving")
+                        : t("agent.settings.offlineEmail.save")}
+                    </Button>
+                    {isAdmin && emailConfig?.persisted_in_database ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={emailSubmitting}
+                        onClick={() => void handleResetEmailConfig()}
+                      >
+                        {t("agent.settings.offlineEmail.resetEnv")}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {isAdmin ? (
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                      <Input
+                        type="email"
+                        value={emailTestTo}
+                        onChange={(e) => setEmailTestTo(e.target.value)}
+                        placeholder={t("agent.settings.offlineEmail.testTo")}
+                        className="sm:max-w-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={emailTesting || !emailTestTo.trim()}
+                        onClick={() => void handleSendEmailTest()}
+                      >
+                        {emailTesting
+                          ? t("common.saving")
+                          : t("agent.settings.offlineEmail.testSend")}
+                      </Button>
+                    </div>
+                  ) : null}
+                </form>
+              )}
             </CardContent>
           </Card>
 

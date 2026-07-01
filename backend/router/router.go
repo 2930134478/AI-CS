@@ -14,11 +14,13 @@ type ControllerSet struct {
 	Profile          *controller.ProfileController
 	AIConfig         *controller.AIConfigController
 	EmbeddingConfig  *controller.EmbeddingConfigController
+	EmailNotification *controller.EmailNotificationConfigController
 	PromptConfig     *controller.PromptConfigController
 	FAQ              *controller.FAQController
 	Document         *controller.DocumentController
 	KnowledgeBase    *controller.KnowledgeBaseController
 	Import           *controller.ImportController
+	DocumentChunk    *controller.DocumentChunkController
 	Visitor          *controller.VisitorController
 	Health           *controller.HealthController
 	Analytics        *controller.AnalyticsController
@@ -41,6 +43,9 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 		routes.PUT("/conversations/:id/contact", controllers.Conversation.UpdateContactInfo)
 		routes.GET("/conversations/search", controllers.Conversation.SearchConversations)
 		routes.GET("/conversations/ai-models", controllers.Conversation.GetPublicAIModels) // 获取开放的模型列表（供访客选择）
+		routes.GET("/conversations/maintenance/auto-close-days", controllers.Conversation.GetAutoCloseConversationDaysPolicy)
+		routes.PUT("/conversations/maintenance/auto-close-days", controllers.Conversation.PutAutoCloseConversationDaysPolicy)
+		routes.DELETE("/conversations/maintenance/auto-close-days", controllers.Conversation.DeleteAutoCloseConversationDaysPolicy)
 
 		// Message
 		routes.POST("/messages", controllers.Message.CreateMessage)
@@ -74,12 +79,19 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 		routes.GET("/agent/embedding-config", controllers.EmbeddingConfig.Get)
 		routes.PUT("/agent/embedding-config", controllers.EmbeddingConfig.Update)
 
+		// Email Notification（离线邮件通知，平台级）
+		routes.GET("/agent/email-notification-config", controllers.EmailNotification.Get)
+		routes.PUT("/agent/email-notification-config", controllers.EmailNotification.Update)
+		routes.DELETE("/agent/email-notification-config", controllers.EmailNotification.Reset)
+		routes.POST("/agent/email-notification-config/test", controllers.EmailNotification.SendTest)
+
 		// Prompt Config（提示词配置，平台级，仅管理员可更新）
 		routes.GET("/agent/prompts", controllers.PromptConfig.Get)
 		routes.PUT("/agent/prompts", controllers.PromptConfig.Update)
 
 		// FAQ（事件管理/常见问题）
 		routes.GET("/faqs", controllers.FAQ.ListFAQs)         // 获取 FAQ 列表（支持关键词搜索）
+		routes.GET("/faqs-search", controllers.FAQ.QuickSearch) // FAQ 快速搜索（聊天 / 触发）
 		routes.GET("/faqs/:id", controllers.FAQ.GetFAQ)       // 获取 FAQ 详情
 		routes.POST("/faqs", controllers.FAQ.CreateFAQ)       // 创建 FAQ
 		routes.PUT("/faqs/:id", controllers.FAQ.UpdateFAQ)    // 更新 FAQ
@@ -96,6 +108,10 @@ func RegisterRoutes(r *gin.Engine, controllers ControllerSet, wsHandler gin.Hand
 		routes.PUT("/documents/:id/status", controllers.Document.UpdateDocumentStatus)     // 更新文档状态
 		routes.POST("/documents/:id/publish", controllers.Document.PublishDocument)        // 发布文档
 		routes.POST("/documents/:id/unpublish", controllers.Document.UnpublishDocument)    // 取消发布文档
+		routes.POST("/documents/:id/chunks", controllers.DocumentChunk.ExecuteChunking)       // 执行分段
+		routes.GET("/documents/:id/chunks", controllers.DocumentChunk.GetChunks)              // 获取分段列表
+		routes.PUT("/documents/:id/chunks/:chunkId", controllers.DocumentChunk.UpdateChunk)   // 更新单个分段
+		routes.DELETE("/documents/:id/chunks", controllers.DocumentChunk.DeleteChunks)        // 删除所有分段
 
 		// KnowledgeBase（知识库管理）
 		routes.GET("/knowledge-bases", controllers.KnowledgeBase.ListKnowledgeBases)                               // 获取知识库列表

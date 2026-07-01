@@ -64,12 +64,17 @@
   - Bottom-right chat window via iframe or `widget.js`
   - AI / human mode, sound notifications, file uploads
   - Optional per-turn web search (visibility configurable in admin)
+  - **Email capture** — expands on first keystroke (optional); auto-hides after submit or first message
+  - **Session security** — per-session `access_token` required for visitor API / WebSocket (IDOR fix)
 - **Agent dashboard**
-  - Conversation list, WebSocket messaging, unread badges
+  - **Paginated** conversation list, WebSocket messaging, unread badges
+  - Auto-close stale open visitor sessions (settings or `.env`)
   - Visitor **IP & approximate region** ([ip2region](https://github.com/lionsoul2014/ip2region), offline)
   - Live typing draft sync between visitor and agent
-  - Multi-model setup (text / image), prompts, knowledge base + RAG
-  - Log center, analytics (widget opens, messages, AI success rate, etc.)
+  - Multi-model setup (text / image); **OpenAI-compatible** Chat Completions APIs
+  - Prompts, knowledge base + RAG: **PDF/DOCX import**, **document chunks**, **FAQ-first** answers, `/` FAQ search
+  - **Offline email** — SMTP notify when visitor is offline and left email (human messages only; settings UI)
+  - Log center, analytics (widget opens, messages, AI success rate, KB hit rate, etc.)
 - **Marketing site & SEO** — metadata, OG, sitemap, robots.txt
 - **Optional web search** — Serper (API or MCP) or provider-native search
 
@@ -139,8 +144,10 @@ Required for most deployments: database credentials, `ADMIN_PASSWORD`, `ENCRYPTI
 
 ## Knowledge Base (RAG)
 
+- **Two configs**: AI chat (Settings → AI config, Chat Completions) vs embeddings (Settings → vector model, `/v1/embeddings`).
 - Disable Milvus: `MILVUS_DISABLED=true` — app still runs; RAG off  
 - Strict dependency: `MILVUS_REQUIRED=true` — exit if Milvus is unavailable  
+- Document **chunking** + tune **`RAG_MIN_SCORE`** (default `0.22`) if search returns empty after chunking.
 
 ## Multi-Instance WebSocket (Redis)
 
@@ -152,14 +159,20 @@ Paste before `</body>`. Point iframe `src` to `https://your-domain/chat`. The pa
 
 ## Documentation
 
-- None
+- [2026-06-11 release notes (Chinese)](doc/更新说明-2026-06-11.md)
+- [CHANGELOG](doc/CHANGELOG.md)
+- [Test checklist (Chinese)](doc/功能测试清单-2026-06-11.md)
+- Full details: [Chinese README](./README.md)
 
 ## FAQ & Troubleshooting
 
 - **No sound** — browser needs a user gesture before audio  
 - **Milvus startup failure** — check `MILVUS_REQUIRED`; use `MILVUS_DISABLED=true` if you do not need RAG  
+- **RAG returns nothing** — re-chunk/re-embed documents; lower `RAG_MIN_SCORE` (default `0.22`)  
+- **Docker: missing X-User-Id** — rebuild frontend; ensure reverse proxy forwards `X-User-Id`  
 - **SEO / OG wrong** — set `NEXT_PUBLIC_SITE_URL`  
 - **“Init failed” / MySQL** — `curl :18080/health`, `docker logs ai-cs-backend`; in Docker use `DB_HOST=mysql`  
+- **Offline email** — human agent messages only; visitor must be offline with email saved; configure SMTP in settings  
 
 ## Star History
 
