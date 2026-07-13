@@ -25,10 +25,12 @@ type updateProfileRequest struct {
 
 // GetProfile 获取当前用户的个人资料。
 func (p *ProfileController) GetProfile(c *gin.Context) {
-	// 从路径参数获取用户ID（后续可以改为从JWT token获取）
 	userID, err := parseUintParam(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
+		return
+	}
+	if !requireSelfUserID(c, uint(userID)) {
 		return
 	}
 
@@ -43,10 +45,12 @@ func (p *ProfileController) GetProfile(c *gin.Context) {
 
 // UpdateProfile 更新当前用户的个人资料。
 func (p *ProfileController) UpdateProfile(c *gin.Context) {
-	// 从路径参数获取用户ID（后续可以改为从JWT token获取）
 	userID, err := parseUintParam(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
+		return
+	}
+	if !requireSelfUserID(c, uint(userID)) {
 		return
 	}
 
@@ -72,10 +76,12 @@ func (p *ProfileController) UpdateProfile(c *gin.Context) {
 
 // UploadAvatar 上传用户头像。
 func (p *ProfileController) UploadAvatar(c *gin.Context) {
-	// 从路径参数获取用户ID（后续可以改为从JWT token获取）
 	userID, err := parseUintParam(c, "user_id")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
+		return
+	}
+	if !requireSelfUserID(c, uint(userID)) {
 		return
 	}
 

@@ -1,11 +1,12 @@
 // 客服个人资料 API 服务
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 import { Profile } from "../types";
 
 // 获取个人资料
 export async function fetchProfile(userId: number): Promise<Profile | null> {
   const res = await fetch(apiUrl(`/agent/profile/${userId}`), {
     cache: "no-store",
+    headers: getAgentHeaders(),
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
@@ -38,7 +39,7 @@ export async function updateProfile(
 ): Promise<Profile> {
   const res = await fetch(apiUrl(`/agent/profile/${userId}`), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -69,6 +70,7 @@ export async function uploadAvatar(
 
   const res = await fetch(apiUrl(`/agent/avatar/${userId}`), {
     method: "POST",
+    headers: getAgentHeaders(),
     body: formData,
   });
   if (!res.ok) {

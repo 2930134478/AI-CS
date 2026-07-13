@@ -117,7 +117,7 @@ export default function UsersPage(props: any = {}) {
     }
     setLoading(true);
     try {
-      const data = await fetchUsers(agent.id);
+      const data = await fetchUsers();
       setUsers(data);
     } catch (error) {
       console.error("加载用户列表失败:", error);
@@ -169,7 +169,7 @@ export default function UsersPage(props: any = {}) {
     }
     setSubmitting(true);
     try {
-      await createUser(createForm, agent.id);
+      await createUser(createForm);
       setCreateDialogOpen(false);
       await loadUsers();
       toast.success(t("agent.users.toast.createSuccess"));
@@ -204,7 +204,7 @@ export default function UsersPage(props: any = {}) {
     }
     setSubmitting(true);
     try {
-      await updateUser(selectedUser.id, editForm, agent.id);
+      await updateUser(selectedUser.id, editForm);
       setEditDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();
@@ -250,8 +250,7 @@ export default function UsersPage(props: any = {}) {
     try {
       await updateUserPassword(
         selectedUser.id,
-        isCurrentUser ? passwordForm : { new_password: passwordForm.new_password },
-        agent.id
+        isCurrentUser ? passwordForm : { new_password: passwordForm.new_password }
       );
       setPasswordDialogOpen(false);
       setSelectedUser(null);
@@ -281,7 +280,7 @@ export default function UsersPage(props: any = {}) {
     }
     setSubmitting(true);
     try {
-      const result = await deleteUser(selectedUser.id, agent.id);
+      const result = await deleteUser(selectedUser.id);
       setDeleteDialogOpen(false);
       setSelectedUser(null);
       await loadUsers();

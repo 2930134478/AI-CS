@@ -56,7 +56,7 @@ func (a *AuthController) Login(c *gin.Context) {
 		"role":     user.Role,
 		"ws_token": wsToken,
 		"ws_token_exp": wsTokenExp,
-		// permissions 用于前端侧边栏显示（后端强校验以 X-User-Id 为准）
+		// permissions 用于前端侧边栏显示（后端强校验以 Bearer ws_token 为准）
 		"permissions": func() []string {
 			if user.Role == "admin" {
 				return service.AllPermissionKeys()

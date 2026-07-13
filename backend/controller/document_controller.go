@@ -28,7 +28,8 @@ func NewDocumentController(documentService *service.DocumentService, embeddingCo
 func (c *DocumentController) checkKBAccess(ctx *gin.Context) bool {
 	userID := getUserIDFromHeader(ctx)
 	if userID == 0 {
-		return true
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
+		return false
 	}
 	if err := c.embeddingConfigService.CheckKnowledgeBaseAccess(userID); err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

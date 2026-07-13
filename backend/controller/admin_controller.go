@@ -23,27 +23,15 @@ func NewAdminController(authService *service.AuthService, userService *service.U
 	}
 }
 
-// checkAdminPermission 检查当前用户是否是管理员。
-// 暂时从 query 参数获取 current_user_id，后续可以改为从 JWT token 获取。
+// checkAdminPermission 检查当前登录用户是否是管理员（基于 Bearer ws_token）。
 func (a *AdminController) checkAdminPermission(c *gin.Context) (uint, bool) {
-	userIDStr := c.Query("current_user_id")
-	if userIDStr == "" {
-		// 也可以从请求头获取
-		userIDStr = c.GetHeader("X-Current-User-ID")
-	}
-	if userIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供当前用户ID"})
+	userID := getUserIDFromHeader(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
 		return 0, false
 	}
 
-	userID, err := strconv.ParseUint(userIDStr, 10, 64)
-	if err != nil || userID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID不合法"})
-		return 0, false
-	}
-
-	// 检查用户是否是管理员
-	user, err := a.userService.GetUser(uint(userID))
+	user, err := a.userService.GetUser(userID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return 0, false
@@ -54,7 +42,7 @@ func (a *AdminController) checkAdminPermission(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 
-	return uint(userID), true
+	return userID, true
 }
 
 type createAgentRequest struct {
@@ -64,8 +52,11 @@ type createAgentRequest struct {
 	Permissions []string `json:"permissions"`
 }
 
-// CreateAgent 处理创建客服或管理员账号的请求。
+// CreateAgent 处理创建客服或管理员账号的请求（需管理员权限）。
 func (a *AdminController) CreateAgent(c *gin.Context) {
+	if _, ok := a.checkAdminPermission(c); !ok {
+		return
+	}
 	var req createAgentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

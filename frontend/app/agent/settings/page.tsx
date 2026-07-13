@@ -162,7 +162,7 @@ export default function SettingsPage(props: any = {}) {
     if (!userId) return;
     try {
       setEmbeddingLoading(true);
-      const data = await fetchEmbeddingConfig(userId);
+      const data = await fetchEmbeddingConfig();
       setEmbeddingConfig(data);
       setEmbeddingForm({
         embedding_type: data.embedding_type || "openai",
@@ -356,7 +356,7 @@ export default function SettingsPage(props: any = {}) {
       if (embeddingForm.api_key) {
         data.api_key = embeddingForm.api_key;
       }
-      await updateEmbeddingConfig(userId, data);
+      await updateEmbeddingConfig(data);
       await loadEmbeddingConfig();
       toast.success(t("agent.settings.toast.embeddingSaved"));
     } catch (err) {

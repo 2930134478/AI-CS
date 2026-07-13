@@ -90,22 +90,17 @@ func (cc *ConversationController) InitConversation(c *gin.Context) {
 	})
 }
 
-// InitInternalConversation 为当前客服创建一条新的内部对话（知识库测试）。需要 query user_id。
+// InitInternalConversation 为当前客服创建一条新的内部对话（知识库测试）。
 func (cc *ConversationController) InitInternalConversation(c *gin.Context) {
 	if !requirePermission(c, cc.users, string(service.PermKBTest)) {
 		return
 	}
-	userIDStr := c.Query("user_id")
-	if userIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "需要 user_id"})
+	userID := getUserIDFromHeader(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
 		return
 	}
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
-	if err != nil || userID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
-		return
-	}
-	result, err := cc.conversationService.InitInternalConversation(uint(userID))
+	result, err := cc.conversationService.InitInternalConversation(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -127,7 +122,7 @@ func (cc *ConversationController) GetPublicAIModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"models": models})
 }
 
-// UpdateContactInfo 用于更新访客的联系信息（访客持 access_token，客服持 X-User-Id）。
+// UpdateContactInfo 用于更新访客的联系信息（访客持 access_token，客服持登录令牌）。
 func (cc *ConversationController) UpdateContactInfo(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
@@ -197,11 +192,10 @@ func (cc *ConversationController) CloseConversation(c *gin.Context) {
 
 // ListConversations 返回当前活跃会话的列表。type=internal 时返回该客服的内部对话（知识库测试）。
 func (cc *ConversationController) ListConversations(c *gin.Context) {
-	var userID uint
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			userID = uint(parsed)
-		}
+	userID := getUserIDFromHeader(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
+		return
 	}
 
 	conversationType := c.DefaultQuery("type", "visitor")
@@ -225,12 +219,11 @@ func (cc *ConversationController) ListConversations(c *gin.Context) {
 		if !requirePermission(c, cc.users, string(service.PermKBTest)) {
 			return
 		}
-		if userID == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "内部对话列表需要 user_id"})
-			return
-		}
 		listResult, err = cc.conversationService.ListInternalConversationsPaginated(userID, status, page, pageSize)
 	} else {
+		if !requirePermission(c, cc.users, string(service.PermChat)) {
+			return
+		}
 		listResult, err = cc.conversationService.ListConversationsPaginated(userID, status, page, pageSize)
 	}
 	if err != nil {
@@ -335,6 +328,9 @@ func (cc *ConversationController) GetConversationDetail(c *gin.Context) {
 
 // SearchConversations 根据关键字进行会话的模糊搜索。
 func (cc *ConversationController) SearchConversations(c *gin.Context) {
+	if !requirePermission(c, cc.users, string(service.PermChat)) {
+		return
+	}
 	query := c.Query("q")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "搜索关键词不能为空"})
@@ -342,15 +338,7 @@ func (cc *ConversationController) SearchConversations(c *gin.Context) {
 	}
 	status := c.DefaultQuery("status", "open")
 	convType := c.DefaultQuery("type", "visitor")
-
-	// 从查询参数获取 user_id（可选，用于检查参与状态）
-	var userID uint
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		// 使用 strconv 解析查询参数（不是路径参数）
-		if parsed, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
-			userID = uint(parsed)
-		}
-	}
+	userID := getUserIDFromHeader(c)
 
 	conversations, err := cc.conversationService.SearchConversations(query, userID, status, convType)
 	if err != nil {

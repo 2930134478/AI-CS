@@ -33,7 +33,7 @@ func (c *ImportController) checkKBAccess(ctx *gin.Context) bool {
 	userID := getUserIDFromHeader(ctx)
 	if userID == 0 {
 		// ⚠️ 修复：改为拒绝访问，而不是允许
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
 		return false
 	}
 	if err := c.embeddingConfigService.CheckKnowledgeBaseAccess(userID); err != nil {

@@ -65,10 +65,10 @@ func (mc *MessageController) CreateMessage(c *gin.Context) {
 	userID := getUserIDFromHeader(c)
 	// 兼容 demo 自测场景：已登录客服也允许按访客身份发送消息（sender_is_agent=false）。
 	// 访客消息 sender_id 仍由服务端强制置 0，避免前端注入身份。
-	// 客服消息必须绑定当前登录用户（X-User-Id），并以服务端用户 ID 为准，避免伪造 sender_id。
+	// 客服消息必须绑定当前登录用户（Bearer ws_token），并以服务端用户 ID 为准。
 	if req.SenderIsAgent {
 		if userID == 0 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请登录"})
 			return
 		}
 		req.SenderID = userID
@@ -204,7 +204,7 @@ func (mc *MessageController) MarkMessagesRead(c *gin.Context) {
 	if req.ReaderIsAgent {
 		userID := getUserIDFromHeader(c)
 		if userID == 0 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "未授权访问，请登录"})
 			return
 		}
 	}
@@ -230,18 +230,18 @@ func (mc *MessageController) MarkMessagesRead(c *gin.Context) {
 //   - conversation_id: 对话ID（可选，用于组织目录）
 //
 // 认证方式：
-//   - 方式1：提供 X-User-Id 请求头（客服上传）
+//   - 方式1：Bearer ws_token（客服上传）
 //   - 方式2：提供 conversation_id 参数（访客上传，会验证对话是否存在且未关闭）
 func (mc *MessageController) UploadFile(c *gin.Context) {
 	// ⚠️ 认证检查：必须满足以下条件之一
-	// 1. 提供 X-User-Id 请求头（客服）
+	// 1. Bearer ws_token（客服）
 	// 2. 提供 conversation_id 参数（访客）
 	userID := getUserIDFromHeader(c)
 	conversationIDStr := c.PostForm("conversation_id")
 
 	// 如果既没有用户ID，也没有对话ID，拒绝访问
 	if userID == 0 && conversationIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头或 conversation_id 参数"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录或提供 conversation_id 参数"})
 		return
 	}
 

@@ -45,7 +45,7 @@ func (s *UserService) EffectivePermissions(user *models.User) []string {
 // CheckPermission 校验用户是否拥有指定权限（用于控制器强校验）。
 func (s *UserService) CheckPermission(userID uint, perm string) error {
 	if userID == 0 {
-		return errors.New("未授权访问，请提供 X-User-Id 请求头")
+		return errors.New("未授权访问，请登录")
 	}
 	u, err := s.users.GetByID(userID)
 	if err != nil || u == nil {

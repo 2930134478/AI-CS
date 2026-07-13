@@ -9,11 +9,13 @@ export function apiUrl(path: string): string {
   return `${API_BASE_URL}${API_PREFIX}${p}`;
 }
 
-/** 知识库/文档/导入等接口需带当前用户 ID，供后端校验「是否开放知识库」开关 */
+import { getAgentWSToken } from "@/utils/storage";
+
+/** 客服 API 请求头：携带 login 返回的 ws_token（Bearer），不可伪造用户身份 */
 export function getAgentHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
-  const id = window.localStorage.getItem("agent_user_id");
-  if (!id) return {};
-  return { "X-User-Id": id };
+  const token = getAgentWSToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 }
 

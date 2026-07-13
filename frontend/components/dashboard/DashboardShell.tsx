@@ -312,7 +312,7 @@ export function DashboardShell() {
   const handleNewInternalConversation = useCallback(async () => {
     if (!agent?.id) return;
     try {
-      const { conversation_id } = await initInternalConversation(agent.id);
+      const { conversation_id } = await initInternalConversation();
       refreshConversations();
       selectConversation(conversation_id);
     } catch (e) {

@@ -8,7 +8,7 @@ import (
 )
 
 // PermissionKey 定义客服端菜单/功能的权限键（单级开关：有/无）。
-// 说明：目前系统没有真正的登录态（JWT/Session），所以权限校验依赖 X-User-Id。
+// 说明：权限校验基于 login 返回的 ws_token（Bearer），由 AgentAuth 中间件解析 user_id。
 type PermissionKey string
 
 const (

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/2930134478/AI-CS/backend/middleware"
 	"github.com/2930134478/AI-CS/backend/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -28,18 +29,23 @@ func parseUintQuery(c *gin.Context, name string) (uint64, error) {
 	return strconv.ParseUint(value, 10, 64)
 }
 
-// getUserIDFromHeader 从请求头 X-User-Id 读取当前用户 ID（用于知识库开关校验）
-// 若未设置则返回 0（调用方可按需放行或拒绝）
+// getUserIDFromHeader 返回经登录令牌校验的客服用户 ID（不可伪造 X-User-Id）。
 func getUserIDFromHeader(c *gin.Context) uint {
-	value := c.GetHeader("X-User-Id")
-	if value == "" {
-		return 0
+	return middleware.GetAuthenticatedUserID(c)
+}
+
+// requireSelfUserID 校验路径中的 user_id 与当前登录用户一致。
+func requireSelfUserID(c *gin.Context, pathUserID uint) bool {
+	authID := getUserIDFromHeader(c)
+	if authID == 0 {
+		c.JSON(403, gin.H{"error": "未授权访问，请登录"})
+		return false
 	}
-	id, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return 0
+	if authID != pathUserID {
+		c.JSON(403, gin.H{"error": "无权访问其他用户的资料"})
+		return false
 	}
-	return uint(id)
+	return true
 }
 
 // formatTimeValue 按统一格式输出时间字符串。
@@ -65,16 +71,18 @@ func getTraceID(c *gin.Context) string {
 	return ""
 }
 
-// requirePermission 统一的权限校验（基于 X-User-Id）。
-// 返回 true 表示允许继续；false 表示已输出错误响应。
+// requirePermission 统一的权限校验（基于登录令牌解析出的 user_id）。
 func requirePermission(c *gin.Context, userSvc *service.UserService, perm string) bool {
 	if userSvc == nil {
 		c.JSON(500, gin.H{"error": "权限服务未初始化"})
 		return false
 	}
 	userID := getUserIDFromHeader(c)
+	if userID == 0 {
+		c.JSON(401, gin.H{"error": "未授权访问，请登录"})
+		return false
+	}
 	if err := userSvc.CheckPermission(userID, perm); err != nil {
-		// 未授权/无权限统一 403（避免泄露过多信息）
 		c.JSON(403, gin.H{"error": err.Error()})
 		return false
 	}

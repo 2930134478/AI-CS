@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, getAgentHeaders } from "@/lib/config";
 
 // 用户摘要信息（列表）
 export interface UserSummary {
@@ -40,21 +40,17 @@ export interface UpdatePasswordRequest {
 }
 
 // 获取所有用户列表
-export async function fetchUsers(
-  currentUserId: number
-): Promise<UserSummary[]> {
-  const res = await fetch(
-    `${apiUrl("/admin/users")}?current_user_id=${currentUserId}`,
-    {
-      cache: "no-store",
-    }
-  );
+export async function fetchUsers(): Promise<UserSummary[]> {
+  const res = await fetch(apiUrl("/admin/users"), {
+    cache: "no-store",
+    headers: getAgentHeaders(),
+  });
   if (!res.ok) {
     if (res.status === 403) {
       throw new Error("权限不足，只有管理员才能查看用户列表");
     }
     if (res.status === 401) {
-      throw new Error("未提供当前用户ID");
+      throw new Error("未授权访问，请重新登录");
     }
     throw new Error("获取用户列表失败");
   }
@@ -66,16 +62,11 @@ export async function fetchUsers(
 }
 
 // 获取用户详情
-export async function fetchUser(
-  id: number,
-  currentUserId: number
-): Promise<UserSummary> {
-  const res = await fetch(
-    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
-    {
-      cache: "no-store",
-    }
-  );
+export async function fetchUser(id: number): Promise<UserSummary> {
+  const res = await fetch(apiUrl(`/admin/users/${id}`), {
+    cache: "no-store",
+    headers: getAgentHeaders(),
+  });
   if (!res.ok) {
     if (res.status === 403) {
       throw new Error("权限不足，只有管理员才能查看用户详情");
@@ -90,18 +81,12 @@ export async function fetchUser(
 }
 
 // 创建新用户
-export async function createUser(
-  data: CreateUserRequest,
-  currentUserId: number
-): Promise<UserSummary> {
-  const res = await fetch(
-    `${apiUrl("/admin/users")}?current_user_id=${currentUserId}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }
-  );
+export async function createUser(data: CreateUserRequest): Promise<UserSummary> {
+  const res = await fetch(apiUrl("/admin/users"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    body: JSON.stringify(data),
+  });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     if (res.status === 403) {
@@ -116,17 +101,13 @@ export async function createUser(
 // 更新用户信息
 export async function updateUser(
   id: number,
-  data: UpdateUserRequest,
-  currentUserId: number
+  data: UpdateUserRequest
 ): Promise<UserSummary> {
-  const res = await fetch(
-    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }
-  );
+  const res = await fetch(apiUrl(`/admin/users/${id}`), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    body: JSON.stringify(data),
+  });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     if (res.status === 403) {
@@ -143,15 +124,12 @@ export async function updateUser(
 
 // 删除用户
 export async function deleteUser(
-  id: number,
-  currentUserId: number
+  id: number
 ): Promise<{ transferredAIConfigs: number }> {
-  const res = await fetch(
-    `${apiUrl(`/admin/users/${id}`)}?current_user_id=${currentUserId}`,
-    {
-      method: "DELETE",
-    }
-  );
+  const res = await fetch(apiUrl(`/admin/users/${id}`), {
+    method: "DELETE",
+    headers: getAgentHeaders(),
+  });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     if (res.status === 403) {
@@ -174,17 +152,13 @@ export async function deleteUser(
 // 更新用户密码
 export async function updateUserPassword(
   id: number,
-  data: UpdatePasswordRequest,
-  currentUserId: number
+  data: UpdatePasswordRequest
 ): Promise<void> {
-  const res = await fetch(
-    `${apiUrl(`/admin/users/${id}/password`)}?current_user_id=${currentUserId}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }
-  );
+  const res = await fetch(apiUrl(`/admin/users/${id}/password`), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAgentHeaders() },
+    body: JSON.stringify(data),
+  });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     if (res.status === 403) {
@@ -196,4 +170,3 @@ export async function updateUserPassword(
     throw new Error(error.error || "更新密码失败");
   }
 }
-

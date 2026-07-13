@@ -25,11 +25,12 @@ func NewKnowledgeBaseController(knowledgeBaseService *service.KnowledgeBaseServi
 	}
 }
 
-// checkKBAccess 校验当前用户是否允许使用知识库（请求头须带 X-User-Id；未带则放行以兼容旧前端）
+// checkKBAccess 校验当前用户是否允许使用知识库。
 func (c *KnowledgeBaseController) checkKBAccess(ctx *gin.Context) bool {
 	userID := getUserIDFromHeader(ctx)
 	if userID == 0 {
-		return true
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请登录"})
+		return false
 	}
 	if err := c.embeddingConfigService.CheckKnowledgeBaseAccess(userID); err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

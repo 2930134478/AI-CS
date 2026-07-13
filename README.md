@@ -170,7 +170,7 @@ docker-compose -f docker-compose.prod.yml up -d
   - 用户名：`admin`（或 `.env` 中 `ADMIN_USERNAME`）
   - 密码：`.env` 中 `ADMIN_PASSWORD`
 
-> **生产部署提示**：前端生产镜像走同域 **`/api/*`**，需外层 **Nginx/Caddy** 将 `/api` 反向代理到后端，并转发 `X-User-Id`、`X-Conversation-Token` 等自定义请求头。本地 `npm run dev` 时由 Next.js rewrites 自动代理。
+> **生产部署提示**：前端生产镜像走同域 **`/api/*`**，需外层 **Nginx/Caddy** 将 `/api` 反向代理到后端，并转发 `Authorization`、`X-Conversation-Token` 等自定义请求头。本地 `npm run dev` 时由 Next.js rewrites 自动代理。
 
 #### 演示站管理员安全策略
 
@@ -357,8 +357,8 @@ npm run dev
 - **提示音听不到**：浏览器通常需要「用户一次交互」才能解锁音频；请先点一下页面任意按钮/再打开喇叭开关测试
 - **向量库连不上导致启动失败**：检查 `.env` 的 `MILVUS_REQUIRED` 是否误开；不需要知识库时建议 `MILVUS_DISABLED=true`
 - **知识库 / RAG 搜不到内容**：确认 Milvus 已启动、文档已 **分段并向量化**；分段场景可尝试调低 `RAG_MIN_SCORE`（默认 `0.22`）
-- **Docker 创建文档报「请提供 X-User-Id」**：需使用含最新修复的前端镜像；并确认 Nginx 转发了 `X-User-Id` 请求头
-- **API 401/403（访客）**：访客接口须带 `X-Conversation-Token`；客服接口须先登录并带 `X-User-Id`
+- **Docker 客服 API 401**：需使用含 Bearer 鉴权修复的前端镜像；Nginx 须转发 `Authorization` 请求头
+- **API 401/403（访客）**：访客接口须带 `X-Conversation-Token`；客服接口须先登录（前端自动带 `Authorization: Bearer <ws_token>`）
 - **搜不到站点/分享卡片不正确**：设置 `NEXT_PUBLIC_SITE_URL=https://你的域名`，用于 canonical / OG / sitemap 生成
 - **弹窗「初始化失败」/ 后端连不上 MySQL**：先 `curl http://<host>:<BACKEND_PORT>/health`，再 `docker logs ai-cs-backend --tail 50`；Docker 部署时 `DB_HOST` 应为 `mysql` 而非 `localhost`
 - **离线邮件没收到**：仅 **人工客服消息** 触发（AI 自动回复不触发）；访客须已留邮箱且 WebSocket 离线；SMTP 可在 **设置 → 离线邮件通知** 配置并发送测试信

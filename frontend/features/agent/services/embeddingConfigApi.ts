@@ -31,9 +31,9 @@ export interface UpdateEmbeddingConfigRequest {
   web_search_source?: "vendor" | "custom";
 }
 
-/** 获取当前知识库向量配置（需传 user_id 以通过代理） */
-export async function fetchEmbeddingConfig(userId: number): Promise<EmbeddingConfig> {
-  const res = await fetch(`${apiUrl("/agent/embedding-config")}?user_id=${userId}`, {
+/** 获取当前知识库向量配置 */
+export async function fetchEmbeddingConfig(): Promise<EmbeddingConfig> {
+  const res = await fetch(apiUrl("/agent/embedding-config"), {
     cache: "no-store",
     headers: getAgentHeaders(),
   });
@@ -45,13 +45,12 @@ export async function fetchEmbeddingConfig(userId: number): Promise<EmbeddingCon
 
 /** 更新知识库向量配置（仅管理员）；修改后需重启后端生效 */
 export async function updateEmbeddingConfig(
-  userId: number,
   data: UpdateEmbeddingConfigRequest
 ): Promise<EmbeddingConfig> {
   const res = await fetch(apiUrl("/agent/embedding-config"), {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
-    body: JSON.stringify({ user_id: userId, ...data }),
+    body: JSON.stringify(data),
   });
   if (!res.ok) {
     const err = await res.json();

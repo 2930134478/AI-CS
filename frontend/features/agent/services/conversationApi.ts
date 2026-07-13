@@ -91,8 +91,8 @@ export async function fetchConversations(
 }
 
 /** 创建一条内部对话（知识库测试），返回新对话 ID */
-export async function initInternalConversation(userId: number): Promise<{ conversation_id: number }> {
-  const res = await fetch(`${apiUrl("/conversations/internal")}?user_id=${userId}`, {
+export async function initInternalConversation(): Promise<{ conversation_id: number }> {
+  const res = await fetch(apiUrl("/conversations/internal"), {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAgentHeaders() },
   });

@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -64,11 +63,9 @@ func StructuredHTTPLogger(logSvc *service.SystemLogService) gin.HandlerFunc {
 			return
 		}
 		var userID *uint
-		if v := c.GetHeader("X-User-Id"); v != "" {
-			if id, err := strconv.ParseUint(v, 10, 64); err == nil && id > 0 {
-				t := uint(id)
-				userID = &t
-			}
+		if uid := GetAuthenticatedUserID(c); uid > 0 {
+			t := uid
+			userID = &t
 		}
 		traceID := ""
 		if v, ok := c.Get("trace_id"); ok {
@@ -99,30 +96,12 @@ func CORS() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-User-Id", "X-Trace-Id"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Agent-Token", "X-Conversation-Token", "X-Trace-Id"},
 		AllowCredentials: false,
 	})
 }
 
-// RequireAuth 认证中间件：要求请求头中包含有效的 X-User-Id
+// RequireAuth 已废弃，请使用 middleware.AgentAuth。
 func RequireAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userIDStr := c.GetHeader("X-User-Id")
-		if userIDStr == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问，请提供 X-User-Id 请求头"})
-			c.Abort()
-			return
-		}
-
-		userID, err := strconv.ParseUint(userIDStr, 10, 64)
-		if err != nil || userID == 0 {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户ID不合法"})
-			c.Abort()
-			return
-		}
-
-		// 将用户ID存储到上下文中，供后续使用
-		c.Set("user_id", uint(userID))
-		c.Next()
-	}
+	return AgentAuth()
 }

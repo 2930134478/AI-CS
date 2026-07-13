@@ -19,14 +19,9 @@ func NewEmbeddingConfigController(s *service.EmbeddingConfigService, users *serv
 }
 
 // Get 获取当前配置（API Key 脱敏）
-// GET /agent/embedding-config?user_id=1
+// GET /agent/embedding-config
 func (e *EmbeddingConfigController) Get(c *gin.Context) {
 	if !requirePermission(c, e.users, string(service.PermSettings)) {
-		return
-	}
-	_, err := parseUintQuery(c, "user_id")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id 不合法"})
 		return
 	}
 	result, err := e.service.GetForAPI()
@@ -45,7 +40,6 @@ func (e *EmbeddingConfigController) Update(c *gin.Context) {
 		return
 	}
 	var req struct {
-		UserID                  uint   `json:"user_id" binding:"required"`
 		EmbeddingType           *string `json:"embedding_type"`
 		APIURL                  *string `json:"api_url"`
 		APIKey                  *string `json:"api_key"`
@@ -58,7 +52,8 @@ func (e *EmbeddingConfigController) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
 	}
-	result, err := e.service.Update(req.UserID, service.UpdateEmbeddingConfigInput{
+	userID := getUserIDFromHeader(c)
+	result, err := e.service.Update(userID, service.UpdateEmbeddingConfigInput{
 		EmbeddingType:           req.EmbeddingType,
 		APIURL:                  req.APIURL,
 		APIKey:                  req.APIKey,

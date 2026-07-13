@@ -4,15 +4,23 @@ const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST || "localhost";
 const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || "8080";
 const BACKEND_BASE = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
 
+function forwardAuthHeaders(request: NextRequest): HeadersInit {
+  const headers: Record<string, string> = {};
+  const auth = request.headers.get("Authorization");
+  if (auth) headers.Authorization = auth;
+  const agentToken = request.headers.get("X-Agent-Token");
+  if (agentToken) headers["X-Agent-Token"] = agentToken;
+  return headers;
+}
+
 /** 开发环境：将 /api/agent/prompts 代理到后端，避免 rewrites 在 Turbopack 下不稳定 */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const backendUrl = `${BACKEND_BASE}/agent/prompts?${searchParams.toString()}`;
-  const userID = request.headers.get("X-User-Id") || "";
   try {
     const res = await fetch(backendUrl, {
       cache: "no-store",
-      headers: userID ? { "X-User-Id": userID } : {},
+      headers: forwardAuthHeaders(request),
     });
     const body = await res.text();
     return new NextResponse(body, {
@@ -29,14 +37,13 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const backendUrl = `${BACKEND_BASE}/agent/prompts`;
-  const userID = request.headers.get("X-User-Id") || "";
   try {
     const body = await request.text();
     const res = await fetch(backendUrl, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        ...(userID ? { "X-User-Id": userID } : {}),
+        ...forwardAuthHeaders(request),
       },
       body,
     });
